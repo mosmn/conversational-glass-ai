@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
+import UserProfile from "@/components/auth/UserProfile";
 import {
   MessageSquare,
   Search,
@@ -171,6 +174,7 @@ const sampleConversations = [
 
 export default function ConversationalGlassAI() {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
   const [currentView, setCurrentView] = useState<"landing" | "chat">("landing");
 
   const [selectedModel, setSelectedModel] = useState(aiModels[0]);
@@ -464,40 +468,84 @@ export default function ConversationalGlassAI() {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2.5 }}
-          className="flex flex-col sm:flex-row gap-4"
-        >
-          <Button
-            onClick={() => setCurrentView("chat")}
-            size="lg"
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full group"
+        {/* Authentication Buttons */}
+        {!isLoaded ? (
+          <div className="flex justify-center">
+            <div className="w-8 h-8 bg-white/20 rounded-full animate-pulse" />
+          </div>
+        ) : !isSignedIn ? (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 2.5 }}
+            className="flex flex-col sm:flex-row gap-4"
           >
-            <MessageSquare className="mr-2 group-hover:rotate-12 transition-transform" />
-            New Chat
-          </Button>
-          <Button
-            onClick={() => router.push("/chat/1")}
-            size="lg"
-            className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 px-8 py-4 text-lg rounded-full shadow-md"
+            <Link href="/sign-up">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full group"
+              >
+                <MessageSquare className="mr-2 group-hover:rotate-12 transition-transform" />
+                Get Started
+              </Button>
+            </Link>
+            <Link href="/sign-in">
+              <Button
+                size="lg"
+                className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 px-8 py-4 text-lg rounded-full shadow-md"
+              >
+                <Eye className="mr-2" />
+                Sign In
+              </Button>
+            </Link>
+            <Button
+              onClick={() => router.push("/chat/1")}
+              size="lg"
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full"
+            >
+              <Split className="mr-2" />
+              Demo Chat
+            </Button>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 2.5 }}
+            className="flex flex-col sm:flex-row gap-4 items-center"
           >
-            <Eye className="mr-2" />
-            View Demo Chat
-          </Button>
-          <Button
-            onClick={() => {
-              setWorkspaceMode(true);
-              setCurrentView("chat");
-            }}
-            size="lg"
-            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full"
-          >
-            <Split className="mr-2" />
-            Workspace Mode
-          </Button>
-        </motion.div>
+            <Button
+              onClick={() => setCurrentView("chat")}
+              size="lg"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full group"
+            >
+              <MessageSquare className="mr-2 group-hover:rotate-12 transition-transform" />
+              New Chat
+            </Button>
+            <Button
+              onClick={() => router.push("/chat/1")}
+              size="lg"
+              className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 hover:border-white/30 transition-all duration-300 px-8 py-4 text-lg rounded-full shadow-md"
+            >
+              <Eye className="mr-2" />
+              View Demo Chat
+            </Button>
+            <Button
+              onClick={() => {
+                setWorkspaceMode(true);
+                setCurrentView("chat");
+              }}
+              size="lg"
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 border-0 text-white shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg rounded-full"
+            >
+              <Split className="mr-2" />
+              Workspace Mode
+            </Button>
+            <div className="ml-4">
+              <UserProfile />
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );

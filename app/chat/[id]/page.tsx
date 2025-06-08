@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
+import AuthGuard from "@/components/auth/AuthGuard";
+import UserProfile from "@/components/auth/UserProfile";
 import {
   MessageSquare,
   Search,
@@ -388,630 +390,638 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-screen flex bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      <FloatingParticles />
+    <AuthGuard>
+      <div className="h-screen flex bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+        <FloatingParticles />
 
-      {/* Sidebar */}
-      <AnimatePresence>
-        {(sidebarOpen ||
-          (typeof window !== "undefined" && window.innerWidth >= 768)) && (
-          <motion.div
-            initial={{ x: -300 }}
-            animate={{ x: 0 }}
-            exit={{ x: -300 }}
-            className="w-80 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col relative z-20"
-          >
-            <div className="p-6 border-b border-white/10">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <ConversationalGlassLogo
-                    size="sm"
-                    animated={false}
-                    showText={false}
-                  />
-                  <h2 className="text-white font-semibold text-lg">
-                    Chat #{chatId}
-                  </h2>
+        {/* Sidebar */}
+        <AnimatePresence>
+          {(sidebarOpen ||
+            (typeof window !== "undefined" && window.innerWidth >= 768)) && (
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              className="w-80 bg-black/20 backdrop-blur-xl border-r border-white/10 flex flex-col relative z-20"
+            >
+              <div className="p-6 border-b border-white/10">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <ConversationalGlassLogo
+                      size="sm"
+                      animated={false}
+                      showText={false}
+                    />
+                    <h2 className="text-white font-semibold text-lg">
+                      Chat #{chatId}
+                    </h2>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <UserProfile />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push("/")}
+                      className="text-white/60 hover:text-white"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSidebarOpen(false)}
+                      className="md:hidden text-white/60 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+
+                <div className="space-y-3">
+                  <label className="text-white/60 text-sm">Chat Details</label>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="text-white text-sm font-medium mb-1">
+                      {currentChat.title}
+                    </div>
+                    <div className="text-white/60 text-xs">
+                      {currentChat.timestamp}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-white/10 text-white/80 border-white/20"
+                      >
+                        {conversationSentiment}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-white/10">
+                <div className="space-y-3">
+                  {/* Power User Mode Toggles */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFocusMode(!focusMode)}
+                      className={`text-white/60 hover:text-white transition-all ${
+                        focusMode
+                          ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white"
+                          : ""
+                      }`}
+                    >
+                      <Focus className="w-4 h-4 mr-2" />
+                      Focus
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisualizationMode(!visualizationMode)}
+                      className={`text-white/60 hover:text-white transition-all ${
+                        visualizationMode
+                          ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-white"
+                          : ""
+                      }`}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Visualize
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setShowConversationThreads(!showConversationThreads)
+                      }
+                      className={`text-white/60 hover:text-white transition-all ${
+                        showConversationThreads
+                          ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-white"
+                          : ""
+                      }`}
+                    >
+                      <GitBranch className="w-4 h-4 mr-2" />
+                      Threads
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWorkspaceMode(!workspaceMode)}
+                      className={`text-white/60 hover:text-white transition-all ${
+                        workspaceMode
+                          ? "bg-gradient-to-r from-orange-500/20 to-red-500/20 text-white"
+                          : ""
+                      }`}
+                    >
+                      <Split className="w-4 h-4 mr-2" />
+                      Workspace
+                    </Button>
+                  </div>
+
+                  {/* Killer Features */}
+                  <div className="space-y-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setShowConversationArtifacts(!showConversationArtifacts)
+                      }
+                      className="w-full text-white/60 hover:text-white bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Artifact ✨
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const sentiments = [
+                          "technical",
+                          "creative",
+                          "problem-solving",
+                        ];
+                        const current = sentiments.indexOf(
+                          conversationSentiment
+                        );
+                        setConversationSentiment(
+                          sentiments[(current + 1) % sentiments.length]
+                        );
+                      }}
+                      className="w-full text-white/60 hover:text-white text-xs"
+                    >
+                      <Palette className="w-4 h-4 mr-2" />
+                      Mood: {conversationSentiment}
+                    </Button>
+                  </div>
+
+                  {/* Current AI Model Status */}
+                  <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-full bg-gradient-to-r ${selectedModel.color} flex items-center justify-center text-sm relative`}
+                      >
+                        {selectedModel.avatar}
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-white/20"
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 20,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-white text-sm font-medium">
+                          {selectedModel.name}
+                        </div>
+                        <div className="text-white/60 text-xs">
+                          {selectedModel.mood} mode
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {selectedModel.traits.map((trait, i) => (
+                        <Badge
+                          key={i}
+                          variant="secondary"
+                          className="text-xs bg-white/10 text-white/80 border-white/20"
+                        >
+                          {trait}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col relative">
+          {showConversationArtifacts ? (
+            <div className="flex-1 flex flex-col">
+              <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-xl">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-white font-semibold">
+                    Conversation Artifacts
+                  </h2>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => router.push("/")}
+                    onClick={() => setShowConversationArtifacts(false)}
                     className="text-white/60 hover:text-white"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarOpen(false)}
-                    className="md:hidden text-white/60 hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-
-              <div className="space-y-3">
-                <label className="text-white/60 text-sm">Chat Details</label>
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                  <div className="text-white text-sm font-medium mb-1">
-                    {currentChat.title}
-                  </div>
-                  <div className="text-white/60 text-xs">
-                    {currentChat.timestamp}
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-white/10 text-white/80 border-white/20"
-                    >
-                      {conversationSentiment}
-                    </Badge>
-                  </div>
-                </div>
+              <div className="flex-1 overflow-y-auto">
+                <ConversationArtifacts />
               </div>
             </div>
-
-            <div className="p-4 border-t border-white/10">
-              <div className="space-y-3">
-                {/* Power User Mode Toggles */}
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFocusMode(!focusMode)}
-                    className={`text-white/60 hover:text-white transition-all ${
-                      focusMode
-                        ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white"
-                        : ""
-                    }`}
-                  >
-                    <Focus className="w-4 h-4 mr-2" />
-                    Focus
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setVisualizationMode(!visualizationMode)}
-                    className={`text-white/60 hover:text-white transition-all ${
-                      visualizationMode
-                        ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-white"
-                        : ""
-                    }`}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Visualize
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setShowConversationThreads(!showConversationThreads)
-                    }
-                    className={`text-white/60 hover:text-white transition-all ${
-                      showConversationThreads
-                        ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-white"
-                        : ""
-                    }`}
-                  >
-                    <GitBranch className="w-4 h-4 mr-2" />
-                    Threads
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setWorkspaceMode(!workspaceMode)}
-                    className={`text-white/60 hover:text-white transition-all ${
-                      workspaceMode
-                        ? "bg-gradient-to-r from-orange-500/20 to-red-500/20 text-white"
-                        : ""
-                    }`}
-                  >
-                    <Split className="w-4 h-4 mr-2" />
-                    Workspace
-                  </Button>
-                </div>
-
-                {/* Killer Features */}
-                <div className="space-y-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setShowConversationArtifacts(!showConversationArtifacts)
-                    }
-                    className="w-full text-white/60 hover:text-white bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 transition-all"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Artifact ✨
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const sentiments = [
-                        "technical",
-                        "creative",
-                        "problem-solving",
-                      ];
-                      const current = sentiments.indexOf(conversationSentiment);
-                      setConversationSentiment(
-                        sentiments[(current + 1) % sentiments.length]
-                      );
-                    }}
-                    className="w-full text-white/60 hover:text-white text-xs"
-                  >
-                    <Palette className="w-4 h-4 mr-2" />
-                    Mood: {conversationSentiment}
-                  </Button>
-                </div>
-
-                {/* Current AI Model Status */}
-                <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
+          ) : (
+            <>
+              <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-xl">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-full bg-gradient-to-r ${selectedModel.color} flex items-center justify-center text-sm relative`}
-                    >
-                      {selectedModel.avatar}
-                      <motion.div
-                        className="absolute inset-0 rounded-full border-2 border-white/20"
-                        animate={{ rotate: 360 }}
-                        transition={{
-                          duration: 20,
-                          repeat: Infinity,
-                          ease: "linear",
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-white text-sm font-medium">
-                        {selectedModel.name}
-                      </div>
-                      <div className="text-white/60 text-xs">
-                        {selectedModel.mood} mode
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {selectedModel.traits.map((trait, i) => (
-                      <Badge
-                        key={i}
-                        variant="secondary"
-                        className="text-xs bg-white/10 text-white/80 border-white/20"
-                      >
-                        {trait}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col relative">
-        {showConversationArtifacts ? (
-          <div className="flex-1 flex flex-col">
-            <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-xl">
-              <div className="flex items-center justify-between">
-                <h2 className="text-white font-semibold">
-                  Conversation Artifacts
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowConversationArtifacts(false)}
-                  className="text-white/60 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <ConversationArtifacts />
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarOpen(true)}
-                    className="md:hidden text-white/60 hover:text-white"
-                  >
-                    <Menu className="w-4 h-4" />
-                  </Button>
-                  <ConversationalGlassLogo
-                    size="sm"
-                    animated={false}
-                    showText={false}
-                    className="md:hidden"
-                  />
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-full bg-gradient-to-r ${selectedModel.color} flex items-center justify-center text-white font-bold relative`}
-                    >
-                      {selectedModel.avatar}
-                      <div
-                        className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-gradient-to-r ${selectedModel.color} border-2 border-white/20`}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-medium">
-                        {selectedModel.name}
-                      </h3>
-                      <p className="text-white/60 text-sm">
-                        {selectedModel.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white/60 hover:text-white"
-                    onClick={() => setShowConversationArtifacts(true)}
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white/60 hover:text-white"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {visualizationMode ? (
-              <div className="flex-1 p-8 flex items-center justify-center">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center"
-                >
-                  <div className="w-64 h-64 mx-auto mb-6 relative">
-                    <svg viewBox="0 0 200 200" className="w-full h-full">
-                      <defs>
-                        <linearGradient
-                          id="convGradient"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
-                          <stop offset="0%" stopColor="#8b5cf6" />
-                          <stop offset="50%" stopColor="#06b6d4" />
-                          <stop offset="100%" stopColor="#10b981" />
-                        </linearGradient>
-                      </defs>
-                      <motion.path
-                        d="M20,100 Q60,50 100,100 T180,100"
-                        stroke="url(#convGradient)"
-                        strokeWidth="4"
-                        fill="none"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 2, ease: "easeInOut" }}
-                      />
-                      {[30, 70, 130, 170].map((x, i) => (
-                        <motion.circle
-                          key={i}
-                          cx={x}
-                          cy={100 + (i % 2 === 0 ? -20 : 20)}
-                          r="8"
-                          fill="white"
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ delay: i * 0.3 + 1 }}
-                        />
-                      ))}
-                    </svg>
-                  </div>
-                  <h3 className="text-white text-xl font-semibold mb-2">
-                    Conversation Flow
-                  </h3>
-                  <p className="text-white/60 mb-6">
-                    Your dialogue visualized as abstract art
-                  </p>
-                  <Button
-                    onClick={() => setVisualizationMode(false)}
-                    className="bg-white/20 backdrop-blur-md border-white/30 text-white hover:bg-white/30"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Return to Chat
-                  </Button>
-                </motion.div>
-              </div>
-            ) : (
-              <>
-                {/* Revolutionary "Conversation River" with depth and perspective */}
-                <div
-                  className={`flex-1 overflow-y-auto p-6 space-y-8 ${
-                    focusMode ? "bg-black/40" : ""
-                  } conversation-river`}
-                  style={{
-                    background: focusMode
-                      ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 20%, rgba(0,0,0,0.6) 80%, transparent 100%)"
-                      : `linear-gradient(to bottom, ${getSentimentGradient(
-                          conversationSentiment
-                        )}/10 0%, transparent 20%, transparent 80%, ${getSentimentGradient(
-                          conversationSentiment
-                        )}/10 100%)`,
-                  }}
-                >
-                  <AnimatePresence>
-                    {currentChat.messages.map((msg, index) => {
-                      const isLatest =
-                        index === currentChat.messages.length - 1;
-                      const distanceFromLatest =
-                        currentChat.messages.length - 1 - index;
-                      const perspective = Math.max(
-                        0.7,
-                        1 - distanceFromLatest * 0.1
-                      );
-
-                      return (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, y: 50, scale: 0.8, z: -100 }}
-                          animate={{
-                            opacity: focusMode && !isLatest ? 0.2 : perspective,
-                            y: 0,
-                            scale: focusMode && !isLatest ? 0.9 : perspective,
-                            z: -distanceFromLatest * 20,
-                            filter:
-                              focusMode && !isLatest
-                                ? "blur(3px)"
-                                : `blur(${
-                                    distanceFromLatest * 0.5
-                                  }px) brightness(${0.7 + perspective * 0.3})`,
-                            rotateX: distanceFromLatest * 2,
-                          }}
-                          transition={{
-                            duration: 0.8,
-                            type: "spring",
-                            stiffness: 100,
-                          }}
-                          className={`flex ${
-                            msg.role === "user"
-                              ? "justify-end"
-                              : "justify-start"
-                          } relative group`}
-                          whileHover={{
-                            scale: 1.02,
-                            y: -5,
-                            z: 10,
-                            transition: { duration: 0.2 },
-                          }}
-                          style={{
-                            transformStyle: "preserve-3d",
-                            transform: `perspective(1000px) translateZ(${
-                              -distanceFromLatest * 10
-                            }px)`,
-                          }}
-                        >
-                          {/* Conversation Thread Branches (hover to reveal) */}
-                          {showConversationThreads && (
-                            <motion.div
-                              initial={{
-                                opacity: 0,
-                                x: msg.role === "user" ? 20 : -20,
-                              }}
-                              animate={{ opacity: 0.6, x: 0 }}
-                              className={`absolute ${
-                                msg.role === "user"
-                                  ? "right-full mr-4"
-                                  : "left-full ml-4"
-                              } top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <GitBranch className="w-4 h-4 text-white/40" />
-                                <div className="text-xs text-white/40">
-                                  Explore alternate path
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-
-                          <div
-                            className={`max-w-2xl ${
-                              msg.role === "user" ? "order-2" : "order-1"
-                            }`}
-                          >
-                            <motion.div
-                              className={`p-6 rounded-3xl backdrop-blur-xl border relative overflow-hidden ${
-                                msg.role === "user"
-                                  ? `bg-gradient-to-br from-purple-500/90 to-pink-500/90 text-white border-purple-300/20 shadow-2xl shadow-purple-500/20 transform rotate-1 ${
-                                      selectedModel.style === "geometric"
-                                        ? "rounded-lg"
-                                        : selectedModel.style === "sharp"
-                                        ? "rounded-none"
-                                        : "rounded-3xl"
-                                    }`
-                                  : `bg-white/5 text-white border-white/10 shadow-2xl shadow-black/20 transform -rotate-0.5 ${
-                                      selectedModel.style === "geometric"
-                                        ? "rounded-lg border-2"
-                                        : selectedModel.style === "sharp"
-                                        ? "rounded-none border border-cyan-400/30"
-                                        : "rounded-3xl"
-                                    }`
-                              }`}
-                              whileHover={{
-                                scale: 1.03,
-                                y: -8,
-                                rotateY: msg.role === "user" ? -2 : 2,
-                                boxShadow:
-                                  msg.role === "user"
-                                    ? "0 25px 50px -12px rgba(168, 85, 247, 0.4)"
-                                    : "0 25px 50px -12px rgba(255, 255, 255, 0.1)",
-                              }}
-                              style={{
-                                boxShadow: `0 ${20 * perspective}px ${
-                                  40 * perspective
-                                }px -${12 * perspective}px ${
-                                  msg.role === "user"
-                                    ? "rgba(168, 85, 247, 0.3)"
-                                    : "rgba(0, 0, 0, 0.4)"
-                                }`,
-                              }}
-                            >
-                              {/* Message glow effect based on AI personality */}
-                              {msg.role === "assistant" && (
-                                <div
-                                  className={`absolute inset-0 bg-gradient-to-r ${selectedModel.color} opacity-5 rounded-3xl`}
-                                />
-                              )}
-
-                              {/* Message content with enhanced typography */}
-                              <div className="relative z-10">
-                                <motion.p
-                                  className={`leading-relaxed ${
-                                    msg.role === "user"
-                                      ? "text-base"
-                                      : "text-base"
-                                  }`}
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  transition={{ delay: 0.2 }}
-                                >
-                                  {msg.content}
-                                </motion.p>
-
-                                <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/10">
-                                  <motion.p
-                                    className="text-xs opacity-60"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 0.6 }}
-                                    transition={{ delay: 0.4 }}
-                                  >
-                                    {msg.timestamp}
-                                  </motion.p>
-
-                                  {msg.role === "assistant" && (
-                                    <div className="flex items-center gap-2">
-                                      <div
-                                        className={`text-xs px-2 py-1 rounded-full bg-gradient-to-r ${selectedModel.color} text-white/90`}
-                                      >
-                                        {selectedModel.personality}
-                                      </div>
-                                      <div className="text-lg">
-                                        {selectedModel.avatar}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Floating micro-interactions */}
-                              <motion.div
-                                className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100"
-                                initial={{ scale: 0 }}
-                                whileHover={{ scale: 1 }}
-                              >
-                                <div className="flex gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-6 h-6 p-0 bg-white/10 hover:bg-white/20 text-white/60"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-6 h-6 p-0 bg-white/10 hover:bg-white/20 text-white/60"
-                                  >
-                                    <Heart className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </motion.div>
-                            </motion.div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-
-                  {/* Conversation Flow Visualization */}
-                  <motion.div
-                    className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 hover:opacity-80 transition-opacity"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.3 }}
-                  >
-                    <svg width="20" height="200" className="text-white/20">
-                      <motion.path
-                        d="M10,0 Q10,50 10,100 Q10,150 10,200"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        fill="none"
-                        strokeDasharray="5,5"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 2, delay: 1 }}
-                      />
-                    </svg>
-                  </motion.div>
-                </div>
-
-                <div className="p-6 border-t border-white/10 bg-black/20 backdrop-blur-xl">
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 relative">
-                      <Textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Continue the conversation..."
-                        className="bg-white/10 border-white/20 text-white placeholder:text-white/40 resize-none backdrop-blur-md focus:bg-white/15 transition-all"
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            // Handle message sending here
-                          }
-                        }}
-                      />
-                      <div className="absolute right-3 bottom-3 flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-white/60 hover:text-white p-1"
-                        >
-                          <Paperclip className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-white/60 hover:text-white p-1"
-                        >
-                          <Mic className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
                     <Button
-                      size="lg"
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSidebarOpen(true)}
+                      className="md:hidden text-white/60 hover:text-white"
                     >
-                      <Send className="w-4 h-4" />
+                      <Menu className="w-4 h-4" />
+                    </Button>
+                    <ConversationalGlassLogo
+                      size="sm"
+                      animated={false}
+                      showText={false}
+                      className="md:hidden"
+                    />
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full bg-gradient-to-r ${selectedModel.color} flex items-center justify-center text-white font-bold relative`}
+                      >
+                        {selectedModel.avatar}
+                        <div
+                          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-gradient-to-r ${selectedModel.color} border-2 border-white/20`}
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-medium">
+                          {selectedModel.name}
+                        </h3>
+                        <p className="text-white/60 text-sm">
+                          {selectedModel.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white/60 hover:text-white"
+                      onClick={() => setShowConversationArtifacts(true)}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white/60 hover:text-white"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-              </>
-            )}
-          </>
-        )}
+              </div>
+
+              {visualizationMode ? (
+                <div className="flex-1 p-8 flex items-center justify-center">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center"
+                  >
+                    <div className="w-64 h-64 mx-auto mb-6 relative">
+                      <svg viewBox="0 0 200 200" className="w-full h-full">
+                        <defs>
+                          <linearGradient
+                            id="convGradient"
+                            x1="0%"
+                            y1="0%"
+                            x2="100%"
+                            y2="100%"
+                          >
+                            <stop offset="0%" stopColor="#8b5cf6" />
+                            <stop offset="50%" stopColor="#06b6d4" />
+                            <stop offset="100%" stopColor="#10b981" />
+                          </linearGradient>
+                        </defs>
+                        <motion.path
+                          d="M20,100 Q60,50 100,100 T180,100"
+                          stroke="url(#convGradient)"
+                          strokeWidth="4"
+                          fill="none"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 2, ease: "easeInOut" }}
+                        />
+                        {[30, 70, 130, 170].map((x, i) => (
+                          <motion.circle
+                            key={i}
+                            cx={x}
+                            cy={100 + (i % 2 === 0 ? -20 : 20)}
+                            r="8"
+                            fill="white"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: i * 0.3 + 1 }}
+                          />
+                        ))}
+                      </svg>
+                    </div>
+                    <h3 className="text-white text-xl font-semibold mb-2">
+                      Conversation Flow
+                    </h3>
+                    <p className="text-white/60 mb-6">
+                      Your dialogue visualized as abstract art
+                    </p>
+                    <Button
+                      onClick={() => setVisualizationMode(false)}
+                      className="bg-white/20 backdrop-blur-md border-white/30 text-white hover:bg-white/30"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Return to Chat
+                    </Button>
+                  </motion.div>
+                </div>
+              ) : (
+                <>
+                  {/* Revolutionary "Conversation River" with depth and perspective */}
+                  <div
+                    className={`flex-1 overflow-y-auto p-6 space-y-8 ${
+                      focusMode ? "bg-black/40" : ""
+                    } conversation-river`}
+                    style={{
+                      background: focusMode
+                        ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 20%, rgba(0,0,0,0.6) 80%, transparent 100%)"
+                        : `linear-gradient(to bottom, ${getSentimentGradient(
+                            conversationSentiment
+                          )}/10 0%, transparent 20%, transparent 80%, ${getSentimentGradient(
+                            conversationSentiment
+                          )}/10 100%)`,
+                    }}
+                  >
+                    <AnimatePresence>
+                      {currentChat.messages.map((msg, index) => {
+                        const isLatest =
+                          index === currentChat.messages.length - 1;
+                        const distanceFromLatest =
+                          currentChat.messages.length - 1 - index;
+                        const perspective = Math.max(
+                          0.7,
+                          1 - distanceFromLatest * 0.1
+                        );
+
+                        return (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, y: 50, scale: 0.8, z: -100 }}
+                            animate={{
+                              opacity:
+                                focusMode && !isLatest ? 0.2 : perspective,
+                              y: 0,
+                              scale: focusMode && !isLatest ? 0.9 : perspective,
+                              z: -distanceFromLatest * 20,
+                              filter:
+                                focusMode && !isLatest
+                                  ? "blur(3px)"
+                                  : `blur(${
+                                      distanceFromLatest * 0.5
+                                    }px) brightness(${
+                                      0.7 + perspective * 0.3
+                                    })`,
+                              rotateX: distanceFromLatest * 2,
+                            }}
+                            transition={{
+                              duration: 0.8,
+                              type: "spring",
+                              stiffness: 100,
+                            }}
+                            className={`flex ${
+                              msg.role === "user"
+                                ? "justify-end"
+                                : "justify-start"
+                            } relative group`}
+                            whileHover={{
+                              scale: 1.02,
+                              y: -5,
+                              z: 10,
+                              transition: { duration: 0.2 },
+                            }}
+                            style={{
+                              transformStyle: "preserve-3d",
+                              transform: `perspective(1000px) translateZ(${
+                                -distanceFromLatest * 10
+                              }px)`,
+                            }}
+                          >
+                            {/* Conversation Thread Branches (hover to reveal) */}
+                            {showConversationThreads && (
+                              <motion.div
+                                initial={{
+                                  opacity: 0,
+                                  x: msg.role === "user" ? 20 : -20,
+                                }}
+                                animate={{ opacity: 0.6, x: 0 }}
+                                className={`absolute ${
+                                  msg.role === "user"
+                                    ? "right-full mr-4"
+                                    : "left-full ml-4"
+                                } top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <GitBranch className="w-4 h-4 text-white/40" />
+                                  <div className="text-xs text-white/40">
+                                    Explore alternate path
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            <div
+                              className={`max-w-2xl ${
+                                msg.role === "user" ? "order-2" : "order-1"
+                              }`}
+                            >
+                              <motion.div
+                                className={`p-6 rounded-3xl backdrop-blur-xl border relative overflow-hidden ${
+                                  msg.role === "user"
+                                    ? `bg-gradient-to-br from-purple-500/90 to-pink-500/90 text-white border-purple-300/20 shadow-2xl shadow-purple-500/20 transform rotate-1 ${
+                                        selectedModel.style === "geometric"
+                                          ? "rounded-lg"
+                                          : selectedModel.style === "sharp"
+                                          ? "rounded-none"
+                                          : "rounded-3xl"
+                                      }`
+                                    : `bg-white/5 text-white border-white/10 shadow-2xl shadow-black/20 transform -rotate-0.5 ${
+                                        selectedModel.style === "geometric"
+                                          ? "rounded-lg border-2"
+                                          : selectedModel.style === "sharp"
+                                          ? "rounded-none border border-cyan-400/30"
+                                          : "rounded-3xl"
+                                      }`
+                                }`}
+                                whileHover={{
+                                  scale: 1.03,
+                                  y: -8,
+                                  rotateY: msg.role === "user" ? -2 : 2,
+                                  boxShadow:
+                                    msg.role === "user"
+                                      ? "0 25px 50px -12px rgba(168, 85, 247, 0.4)"
+                                      : "0 25px 50px -12px rgba(255, 255, 255, 0.1)",
+                                }}
+                                style={{
+                                  boxShadow: `0 ${20 * perspective}px ${
+                                    40 * perspective
+                                  }px -${12 * perspective}px ${
+                                    msg.role === "user"
+                                      ? "rgba(168, 85, 247, 0.3)"
+                                      : "rgba(0, 0, 0, 0.4)"
+                                  }`,
+                                }}
+                              >
+                                {/* Message glow effect based on AI personality */}
+                                {msg.role === "assistant" && (
+                                  <div
+                                    className={`absolute inset-0 bg-gradient-to-r ${selectedModel.color} opacity-5 rounded-3xl`}
+                                  />
+                                )}
+
+                                {/* Message content with enhanced typography */}
+                                <div className="relative z-10">
+                                  <motion.p
+                                    className={`leading-relaxed ${
+                                      msg.role === "user"
+                                        ? "text-base"
+                                        : "text-base"
+                                    }`}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                  >
+                                    {msg.content}
+                                  </motion.p>
+
+                                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/10">
+                                    <motion.p
+                                      className="text-xs opacity-60"
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 0.6 }}
+                                      transition={{ delay: 0.4 }}
+                                    >
+                                      {msg.timestamp}
+                                    </motion.p>
+
+                                    {msg.role === "assistant" && (
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className={`text-xs px-2 py-1 rounded-full bg-gradient-to-r ${selectedModel.color} text-white/90`}
+                                        >
+                                          {selectedModel.personality}
+                                        </div>
+                                        <div className="text-lg">
+                                          {selectedModel.avatar}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Floating micro-interactions */}
+                                <motion.div
+                                  className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100"
+                                  initial={{ scale: 0 }}
+                                  whileHover={{ scale: 1 }}
+                                >
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-6 h-6 p-0 bg-white/10 hover:bg-white/20 text-white/60"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-6 h-6 p-0 bg-white/10 hover:bg-white/20 text-white/60"
+                                    >
+                                      <Heart className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </motion.div>
+                              </motion.div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+
+                    {/* Conversation Flow Visualization */}
+                    <motion.div
+                      className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 hover:opacity-80 transition-opacity"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.3 }}
+                    >
+                      <svg width="20" height="200" className="text-white/20">
+                        <motion.path
+                          d="M10,0 Q10,50 10,100 Q10,150 10,200"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          fill="none"
+                          strokeDasharray="5,5"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 2, delay: 1 }}
+                        />
+                      </svg>
+                    </motion.div>
+                  </div>
+
+                  <div className="p-6 border-t border-white/10 bg-black/20 backdrop-blur-xl">
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          placeholder="Continue the conversation..."
+                          className="bg-white/10 border-white/20 text-white placeholder:text-white/40 resize-none backdrop-blur-md focus:bg-white/15 transition-all"
+                          rows={1}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              // Handle message sending here
+                            }
+                          }}
+                        />
+                        <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white/60 hover:text-white p-1"
+                          >
+                            <Paperclip className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white/60 hover:text-white p-1"
+                          >
+                            <Mic className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg"
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }

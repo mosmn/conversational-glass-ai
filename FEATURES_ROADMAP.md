@@ -1,7 +1,6 @@
 # 🚀 Conversational Glass AI - T3 ChatCloneathon Implementation Roadmap
 
-> **T3 ChatCloneathon Competition Entry**  
-> **Timeline**: June 10-17, 2025 | **Prize Pool**: $8,000 ($5K/$2K/$1K)  
+> **T3 ChatCloneathon Competition Entry** > **Timeline**: June 10-17, 2025 | **Prize Pool**: $8,000 ($5K/$2K/$1K)
 > **Goal**: Build the most impressive AI chat application that wins the competition
 
 ## 🎯 **ACTUAL HACKATHON REQUIREMENTS**
@@ -70,18 +69,19 @@
 
 #### **Priority 1: Authentication & Database**
 
-- [ ] **Clerk Setup**
+- [x] **Clerk Setup**
 
-  - [ ] Environment variables configuration
-  - [ ] Clerk middleware and providers
-  - [ ] Google/GitHub OAuth integration
-  - [ ] User profile management
+  - [x] Environment variables configuration
+  - [x] Clerk middleware and providers
+  - [x] Google/GitHub OAuth integration
+  - [x] User profile management
 
-- [ ] **Database Schema**
-  - [ ] User model with Clerk integration
-  - [ ] Conversation and Message models
-  - [ ] Database migrations setup
-  - [ ] Local PostgreSQL + Vercel Postgres
+- [x] **Database Schema**
+
+  - [x] User model with Clerk integration
+  - [x] Conversation and Message models
+  - [x] Database migrations setup
+  - [x] Local PostgreSQL + Vercel Postgres
 
 #### **Priority 2: First Working Chat**
 
@@ -93,6 +93,7 @@
   - [ ] Error handling and loading states
 
 - [ ] **Message Persistence**
+
   - [ ] Save/load conversations
   - [ ] Real-time message updates
   - [ ] Message history synchronization
@@ -116,6 +117,7 @@
   - [ ] Multi-modal capabilities prep
 
 - [ ] **Model Switching System**
+
   - [ ] Mid-conversation model switching
   - [ ] Context preservation across models
   - [ ] Model selection UI enhancements
@@ -141,6 +143,7 @@
   - [ ] Export conversation artifacts
 
 - [ ] **Attachment Support** (Competitive Advantage)
+
   - [ ] Image upload and display
   - [ ] PDF file upload and processing
   - [ ] File preview functionality
@@ -155,6 +158,7 @@
   - [ ] Conversation flow visualization
 
 - [ ] **AI Conversation Artifacts**
+
   - [ ] Dynamic summary generation
   - [ ] Key insight extraction
   - [ ] Exportable conversation cards
@@ -180,6 +184,7 @@
   - [ ] Domain configuration
 
 - [ ] **Documentation & Demo**
+
   - [ ] Comprehensive README with build instructions
   - [ ] Feature showcase documentation
   - [ ] Demo video preparation
