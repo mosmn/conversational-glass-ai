@@ -1,0 +1,289 @@
+# 🏆 T3 ChatCloneathon - Conversational Glass AI - Cursor Rules
+
+## 🎯 PROJECT CONTEXT & MISSION
+
+- **Project**: Conversational Glass AI - Revolutionary chat experience with glassmorphic design
+- **Competition**: T3 ChatCloneathon (June 10-17, 2025)
+- **Prize Pool**: $8,000 ($5K/$2K/$1K)
+- **Goal**: Build the most impressive AI chat app that wins the competition
+- **Unique Selling Point**: "Conversation River" interface with 3D glassmorphic design
+
+## 🏆 HACKATHON SUCCESS CRITERIA
+
+- **Core Requirements (MUST HAVE)**: Multi-LLM chat + Authentication + Sync
+- **Judging Criteria**: Technical execution, Originality, UX, Code quality
+- **Timeline**: 7-day implementation window
+- **Repository**: Must be public with MIT/Apache/BSD license
+- **Deployment**: Live demo required on submission
+
+## 🛠 TECHNICAL STACK & ARCHITECTURE
+
+### **Frontend Architecture**
+
+- **Framework**: Next.js 14 with App Router (already configured)
+- **Language**: TypeScript (strict mode, zero errors policy)
+- **Styling**: Tailwind CSS + Framer Motion animations
+- **Components**: Radix UI primitives (already installed)
+- **State Management**: React hooks + Context API (keep simple)
+
+### **Backend Architecture**
+
+- **Authentication**: Clerk (modern, production-ready)
+- **Database**: PostgreSQL + Drizzle ORM (type-safe)
+- **API Routes**: Next.js API routes (co-located with frontend)
+- **Validation**: Zod schemas (already installed)
+- **Deployment**: Vercel (seamless Next.js integration)
+
+### **AI Integration**
+
+- **OpenAI**: GPT-4 and GPT-3.5 Turbo (primary models)
+- **Anthropic**: Claude-3 Sonnet/Haiku (personality differentiation)
+- **Google**: Gemini Pro (multi-modal capabilities)
+- **Streaming**: Server-sent events for real-time responses
+
+## 📁 FILE STRUCTURE CONVENTIONS
+
+```
+app/
+  api/
+    auth/           # Clerk webhook handlers
+    chat/           # Chat API endpoints
+    models/         # LLM integration routes
+  chat/[id]/        # Dynamic chat pages (existing)
+  globals.css       # Global styles (existing)
+  layout.tsx        # Root layout (existing)
+  page.tsx          # Landing page (existing)
+
+components/
+  ui/               # Radix UI components (existing)
+  chat/             # Chat-specific components
+    ConversationRiver.tsx    # Main chat interface
+    MessageBubble.tsx        # Individual messages
+    ModelSelector.tsx        # AI model switching
+    AttachmentHandler.tsx    # File upload component
+  artifacts/        # Conversation artifacts components
+  auth/             # Authentication components
+
+lib/
+  db/               # Database schema and connections
+  ai/               # LLM integration utilities
+  auth.ts           # Clerk configuration
+  utils.ts          # Utility functions (existing)
+
+hooks/              # Custom React hooks
+public/             # Static assets (existing)
+```
+
+## 🎨 UI/UX DESIGN PRINCIPLES
+
+### **Glassmorphic "Conversation River" Interface**
+
+- **3D Depth**: Use CSS transforms and perspective for depth illusion
+- **Glass Effect**: backdrop-blur + semi-transparent backgrounds
+- **Smooth Animations**: Framer Motion for all transitions (60fps target)
+- **AI Personalities**: Visual differentiation for each model (colors, avatars)
+- **Responsive Design**: Mobile-first approach with touch interactions
+
+### **Component Design Standards**
+
+- **Consistency**: Use design tokens from tailwind.config.ts
+- **Accessibility**: ARIA labels, keyboard navigation, screen reader support
+- **Performance**: Memoize expensive components, lazy load images
+- **Error States**: Graceful degradation with user-friendly messages
+- **Loading States**: Skeleton screens and animated placeholders
+
+## 🔥 DEVELOPMENT PRIORITIES & GUIDELINES
+
+### **Phase 1: Core Foundation (Days 1-2)**
+
+1. **Environment Setup**: Create .env.local with all API keys
+2. **Clerk Integration**: Middleware, providers, authentication flows
+3. **Database Schema**: User, Conversation, Message models with relations
+4. **OpenAI Integration**: Streaming chat with error handling
+
+### **Phase 2: Multi-LLM Power (Days 3-4)**
+
+1. **Claude Integration**: Anthropic API with personality matching
+2. **Gemini Integration**: Google AI API with multi-modal prep
+3. **Model Switching**: Seamless context preservation between models
+4. **Message Persistence**: Real-time save/load with optimistic updates
+
+### **Phase 3: Competitive Edge (Days 5-6)**
+
+1. **Syntax Highlighting**: Prism.js integration for code blocks
+2. **Chat Sharing**: Public URLs with social media previews
+3. **File Attachments**: Image/PDF upload with AI integration
+4. **Conversation Artifacts**: AI-generated summaries and insights
+
+### **Phase 4: Polish & Deploy (Day 7)**
+
+1. **Performance Optimization**: Bundle analysis, image optimization
+2. **Error Boundaries**: Comprehensive error handling
+3. **Production Deployment**: Vercel with proper environment setup
+4. **Documentation**: README with setup instructions and feature showcase
+
+## 💻 CODE QUALITY STANDARDS
+
+### **TypeScript Guidelines**
+
+- **Strict Mode**: No `any` types, explicit return types for functions
+- **Interface Definitions**: Clear interfaces for all data structures
+- **Error Handling**: Proper try-catch blocks with typed errors
+- **Type Guards**: Use type predicates for runtime type checking
+
+### **React Best Practices**
+
+- **Functional Components**: Use hooks exclusively, no class components
+- **Custom Hooks**: Extract reusable logic into custom hooks
+- **Memoization**: Use React.memo, useMemo, useCallback strategically
+- **Props Validation**: TypeScript interfaces + runtime validation with Zod
+
+### **Performance Optimization**
+
+- **Bundle Size**: Keep under 200KB initial load
+- **Image Optimization**: Next.js Image component with proper sizing
+- **Code Splitting**: Dynamic imports for heavy components
+- **Caching**: Implement proper caching strategies for API calls
+
+## 🔐 SECURITY BEST PRACTICES
+
+### **API Security**
+
+- **Environment Variables**: Never commit API keys, use .env.local
+- **Rate Limiting**: Implement rate limiting for AI API calls
+- **Input Validation**: Sanitize all user inputs with Zod schemas
+- **Error Messages**: Don't expose sensitive information in errors
+
+### **Authentication & Authorization**
+
+- **Clerk Integration**: Use Clerk's built-in security features
+- **Protected Routes**: Secure all chat-related API endpoints
+- **User Data**: Only allow users to access their own conversations
+- **Session Management**: Let Clerk handle session security
+
+## 🤖 AI INTEGRATION GUIDELINES
+
+### **OpenAI Integration**
+
+- **Streaming**: Use streaming for real-time response display
+- **Error Handling**: Graceful fallbacks for API failures
+- **Token Management**: Monitor and limit token usage
+- **Model Selection**: Default to GPT-3.5 Turbo, upgrade to GPT-4 for complex tasks
+
+### **Multi-LLM Strategy**
+
+- **Context Preservation**: Maintain conversation context across model switches
+- **Model Personalities**: Visual and behavioral differentiation
+- **Performance**: Parallel API calls where appropriate
+- **Fallbacks**: If one model fails, gracefully switch to another
+
+## 🎯 HACKATHON-SPECIFIC OPTIMIZATIONS
+
+### **Competition Advantages**
+
+- **Unique UI**: Focus on the "Conversation River" as main differentiator
+- **Technical Excellence**: Zero TypeScript errors, clean architecture
+- **Feature Completeness**: All core requirements + 3-5 bonus features
+- **Documentation**: Clear README with setup instructions and feature highlights
+
+### **Time Management**
+
+- **MVP First**: Get core functionality working before adding polish
+- **Parallel Development**: Work on frontend and backend simultaneously
+- **Testing Strategy**: Manual testing during development, automated testing if time permits
+- **Demo Preparation**: Ensure smooth demo flow with sample conversations
+
+## 🚀 DEPLOYMENT & SUBMISSION
+
+### **Vercel Deployment**
+
+- **Environment Variables**: Set up all required env vars in Vercel dashboard
+- **Database**: Use Vercel Postgres for production database
+- **Domain**: Use provided Vercel domain or custom domain if available
+- **Preview Deployments**: Use for testing before main deployment
+
+### **Repository Standards**
+
+- **Clean History**: Meaningful commit messages, no sensitive data
+- **License**: MIT License (required for competition)
+- **README**: Comprehensive setup guide, feature showcase, demo link
+- **Code Organization**: Clean file structure, consistent naming
+
+## 🎨 BRAND & DESIGN CONSISTENCY
+
+### **Visual Identity**
+
+- **Colors**: Glassmorphic gradients with AI model personalities
+- **Typography**: Clean, modern fonts with good readability
+- **Iconography**: Lucide React icons (already installed)
+- **Animations**: Subtle, meaningful animations that enhance UX
+
+### **Conversation River Aesthetics**
+
+- **Depth Illusion**: CSS perspective and transforms for 3D effect
+- **Glass Morphism**: backdrop-blur, transparency, subtle borders
+- **Floating Elements**: Messages that appear to float in space
+- **Interactive Physics**: Smooth scroll-based animations
+
+## 🐛 DEBUGGING & TROUBLESHOOTING
+
+### **Development Tools**
+
+- **TypeScript**: Use `npm run build` to check for type errors
+- **Linting**: Follow existing ESLint configuration
+- **Console Logging**: Use structured logging for debugging
+- **Error Boundaries**: Implement to catch and display errors gracefully
+
+### **Common Issues**
+
+- **API Rate Limits**: Implement exponential backoff for API calls
+- **Hydration Errors**: Ensure server and client render consistency
+- **Authentication Issues**: Check Clerk configuration and middleware setup
+- **Database Connections**: Handle connection pooling and timeout errors
+
+## 📋 IMPLEMENTATION CHECKLIST
+
+### **Core Requirements**
+
+- [ ] Multi-LLM integration (OpenAI, Claude, Gemini)
+- [ ] User authentication with Clerk
+- [ ] Chat history synchronization
+- [ ] Real-time message streaming
+- [ ] Conversation persistence
+
+### **Bonus Features Priority**
+
+- [ ] Syntax highlighting for code blocks
+- [ ] Chat sharing with public URLs
+- [ ] File attachment support (images/PDFs)
+- [ ] Conversation artifacts generation
+- [ ] Enhanced conversation river interactions
+
+### **Technical Excellence**
+
+- [ ] Zero TypeScript errors
+- [ ] 90+ Lighthouse performance score
+- [ ] Mobile-responsive design
+- [ ] Proper error handling throughout
+- [ ] Clean, documented codebase
+
+## 🎯 SUCCESS METRICS
+
+### **Competition Scoring**
+
+- **Technical Execution**: Modern stack, clean code, performance
+- **Originality**: Unique "Conversation River" interface
+- **User Experience**: Intuitive, delightful interactions
+- **Code Quality**: TypeScript, documentation, architecture
+
+### **Functional Requirements**
+
+- **Multi-LLM Chat**: ✅ All three providers working
+- **Authentication**: ✅ Secure user management
+- **Sync**: ✅ Chat history across devices
+- **Bonus Features**: ✅ 3+ implemented features
+- **Deployment**: ✅ Live demo with proper documentation
+
+---
+
+**🏆 REMEMBER: The goal is to create something that makes judges say "WOW!" Focus on executing fewer features brilliantly rather than many features poorly. The "Conversation River" interface is your secret weapon - make it shine!**
