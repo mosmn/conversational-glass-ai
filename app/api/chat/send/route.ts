@@ -5,18 +5,30 @@ import { db } from "@/lib/db";
 import { conversations, messages, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import {
-  createStreamingChatCompletion,
-  handleOpenAIError,
-  OpenAIModelId,
-  ChatMessage,
-  estimateTokens,
-} from "@/lib/ai/openai";
+  createStreamingCompletion,
+  getModelById,
+  getProviderForModel,
+} from "@/lib/ai/providers";
+import {
+  ModelId,
+  ChatMessage as AIMessage,
+  AIProviderError,
+} from "@/lib/ai/types";
+import { estimateTokens } from "@/lib/ai/utils";
 
-// Request validation schema
+// Request validation schema - now supports all provider models
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid(),
   content: z.string().min(1).max(10000),
-  model: z.enum(["gpt-4", "gpt-3.5-turbo"]),
+  model: z.enum([
+    // OpenAI models
+    "gpt-4",
+    "gpt-3.5-turbo",
+    // Groq models
+    "llama-3.3-70b",
+    "llama-3.1-8b",
+    "gemma2-9b",
+  ]),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,6 +45,23 @@ export async function POST(request: NextRequest) {
     // Parse and validate request body
     const body = await request.json();
     const { conversationId, content, model } = sendMessageSchema.parse(body);
+
+    // Validate model availability
+    const aiModel = getModelById(model as ModelId);
+    if (!aiModel) {
+      return NextResponse.json(
+        { error: `Model '${model}' is not available or configured` },
+        { status: 400 }
+      );
+    }
+
+    const provider = getProviderForModel(model as ModelId);
+    if (!provider) {
+      return NextResponse.json(
+        { error: `Provider for model '${model}' is not configured` },
+        { status: 400 }
+      );
+    }
 
     // Find user in database
     const [user] = await db
@@ -88,8 +117,8 @@ export async function POST(request: NextRequest) {
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.createdAt);
 
-    // Prepare messages for OpenAI API
-    const chatMessages: ChatMessage[] = conversationMessages.map((msg) => ({
+    // Prepare messages for AI API
+    const chatMessages: AIMessage[] = conversationMessages.map((msg) => ({
       role: msg.role as "system" | "user" | "assistant",
       content: msg.content,
     }));
@@ -99,29 +128,47 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Create OpenAI streaming completion
-          const openaiStream = await createStreamingChatCompletion(
+          // Create multi-provider streaming completion
+          const aiStream = createStreamingCompletion(
             chatMessages,
-            model as OpenAIModelId,
-            { userId: clerkUserId }
+            model as ModelId,
+            {
+              userId: clerkUserId,
+              conversationId,
+            }
           );
 
           let assistantContent = "";
-          let tokenCount = 0;
+          let totalTokenCount = 0;
 
           // Process streaming chunks
-          for await (const chunk of openaiStream) {
-            const delta = chunk.choices[0]?.delta;
+          for await (const chunk of aiStream) {
+            if (chunk.error) {
+              // Handle streaming error
+              const errorChunk = {
+                type: "error",
+                error: chunk.error,
+                finished: true,
+              };
 
-            if (delta?.content) {
-              assistantContent += delta.content;
-              tokenCount += estimateTokens(delta.content);
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
+              );
+              controller.close();
+              return;
+            }
+
+            if (chunk.content) {
+              assistantContent += chunk.content;
+              totalTokenCount += chunk.tokenCount || 0;
 
               // Send chunk to client
               const responseChunk = {
                 type: "content",
-                content: delta.content,
+                content: chunk.content,
                 finished: false,
+                provider: provider.name,
+                model: aiModel.name,
               };
 
               controller.enqueue(
@@ -130,7 +177,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Check if stream is finished
-            if (chunk.choices[0]?.finish_reason) {
+            if (chunk.finished) {
               break;
             }
           }
@@ -144,11 +191,17 @@ export async function POST(request: NextRequest) {
               role: "assistant",
               content: assistantContent,
               model,
-              tokenCount,
+              tokenCount: totalTokenCount,
               metadata: {
                 streamingComplete: true,
                 regenerated: false,
-                processingTime: Date.now() / 1000, // Simple timestamp
+                processingTime: Date.now() / 1000,
+                provider: provider.name,
+                modelConfig: {
+                  name: aiModel.name,
+                  personality: aiModel.personality,
+                  contextWindow: aiModel.contextWindow,
+                },
               },
             })
             .returning();
@@ -156,7 +209,7 @@ export async function POST(request: NextRequest) {
           // Update conversation metadata safely
           const currentMetadata = conversation.metadata || {
             totalMessages: 0,
-            lastModel: "gpt-4",
+            lastModel: model,
             tags: [],
             sentiment: null,
             summary: null,
@@ -169,6 +222,7 @@ export async function POST(request: NextRequest) {
               metadata: {
                 totalMessages: currentMetadata.totalMessages + 2,
                 lastModel: model,
+                lastProvider: provider.name,
                 tags: currentMetadata.tags,
                 sentiment: currentMetadata.sentiment,
                 summary: currentMetadata.summary,
@@ -183,7 +237,9 @@ export async function POST(request: NextRequest) {
             content: assistantContent,
             finished: true,
             messageId: assistantMessage.id,
-            tokenCount,
+            tokenCount: totalTokenCount,
+            provider: provider.name,
+            model: aiModel.name,
           };
 
           controller.enqueue(
@@ -194,9 +250,17 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.error("Streaming error:", error);
 
+          let errorMessage = "An unexpected error occurred";
+
+          if (error instanceof AIProviderError) {
+            errorMessage = error.message;
+          } else if (error instanceof Error) {
+            errorMessage = error.message;
+          }
+
           const errorChunk = {
             type: "error",
-            error: handleOpenAIError(error),
+            error: errorMessage,
             finished: true,
           };
 

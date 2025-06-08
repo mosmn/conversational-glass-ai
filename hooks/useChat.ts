@@ -7,8 +7,14 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   model?: string;
+  provider?: string;
   isStreaming?: boolean;
   error?: string;
+  metadata?: {
+    tokenCount?: number;
+    modelName?: string;
+    personality?: string;
+  };
 }
 
 export interface ChatState {
@@ -18,9 +24,19 @@ export interface ChatState {
   isStreaming: boolean;
 }
 
+// Updated to support all providers
+export type SupportedModel =
+  // OpenAI models
+  | "gpt-4"
+  | "gpt-3.5-turbo"
+  // Groq models
+  | "llama-3.3-70b"
+  | "llama-3.1-8b"
+  | "gemma2-9b";
+
 export interface UseChatOptions {
   conversationId: string;
-  model: "gpt-4" | "gpt-3.5-turbo";
+  model: SupportedModel;
   onMessageReceived?: (message: ChatMessage) => void;
   onError?: (error: string) => void;
 }
@@ -169,11 +185,20 @@ export function useChat({
                   updateMessage(assistantMessageId, {
                     content: streamingMessageRef.current,
                     isStreaming: true,
+                    provider: data.provider,
+                    metadata: {
+                      modelName: data.model,
+                    },
                   });
                 } else if (data.type === "completion") {
                   updateMessage(assistantMessageId, {
                     content: data.content,
                     isStreaming: false,
+                    provider: data.provider,
+                    metadata: {
+                      tokenCount: data.tokenCount,
+                      modelName: data.model,
+                    },
                   });
 
                   setState((prev) => ({

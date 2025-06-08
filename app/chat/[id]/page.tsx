@@ -67,9 +67,11 @@ const getSentimentGradient = (sentiment: string) => {
 
 // Revolutionary AI Models with unique visual identities and personalities
 const aiModels = [
+  // OpenAI Models
   {
     id: "gpt-4",
-    name: "GPT-4",
+    name: "GPT-4 Turbo",
+    provider: "openai",
     personality: "Analytical Genius",
     description: "Logical, precise, methodical thinking",
     color: "from-blue-500 to-cyan-500",
@@ -80,39 +82,56 @@ const aiModels = [
     preferredSentiment: "technical",
   },
   {
-    id: "claude",
-    name: "Claude",
-    personality: "Creative Virtuoso",
-    description: "Sophisticated, thoughtful, nuanced",
-    color: "from-purple-500 to-pink-500",
-    avatar: "🎨",
-    traits: ["artistic", "empathetic", "nuanced"],
-    mood: "inspired",
+    id: "gpt-3.5-turbo",
+    name: "GPT-3.5 Turbo",
+    provider: "openai",
+    personality: "Balanced Assistant",
+    description: "Balanced, efficient, and versatile",
+    color: "from-emerald-500 to-teal-500",
+    avatar: "💚",
+    traits: ["versatile", "efficient", "reliable"],
+    mood: "balanced",
     style: "flowing",
     preferredSentiment: "creative",
   },
+  // Groq Models
   {
-    id: "gemini",
-    name: "Gemini",
-    personality: "Futuristic Innovator",
-    description: "Cutting-edge, adaptive, lightning-fast",
-    color: "from-green-500 to-emerald-500",
-    avatar: "⚡",
-    traits: ["adaptive", "fast", "innovative"],
-    mood: "electric",
-    style: "sharp",
+    id: "llama-3.3-70b",
+    name: "Llama 3.3 70B Versatile",
+    provider: "groq",
+    personality: "Versatile Powerhouse",
+    description: "🦙 Deep reasoning meets practical wisdom",
+    color: "from-orange-500 to-red-500",
+    avatar: "🦙",
+    traits: ["powerful", "versatile", "thorough"],
+    mood: "confident",
+    style: "organic",
     preferredSentiment: "problem-solving",
   },
   {
-    id: "llama",
-    name: "Llama",
-    personality: "Practical Sage",
-    description: "Down-to-earth, reliable, wise",
-    color: "from-orange-500 to-red-500",
-    avatar: "🦙",
-    traits: ["reliable", "grounded", "wise"],
-    mood: "steady",
-    style: "organic",
+    id: "llama-3.1-8b",
+    name: "Llama 3.1 8B Instant",
+    provider: "groq",
+    personality: "Lightning Fast",
+    description: "⚡ Optimized for speed and efficiency",
+    color: "from-yellow-400 to-orange-500",
+    avatar: "⚡",
+    traits: ["fast", "efficient", "responsive"],
+    mood: "energetic",
+    style: "sharp",
+    preferredSentiment: "technical",
+  },
+  {
+    id: "gemma2-9b",
+    name: "Gemma 2 9B IT",
+    provider: "groq",
+    personality: "Efficient Genius",
+    description: "💎 Smart, compact responses with maximum insight",
+    color: "from-emerald-400 to-teal-500",
+    avatar: "💎",
+    traits: ["efficient", "smart", "precise"],
+    mood: "focused",
+    style: "geometric",
     preferredSentiment: "creative",
   },
 ];
@@ -123,9 +142,9 @@ export default function ChatPage() {
   const chatId = params?.id as string;
 
   // State management
-  const [selectedModel, setSelectedModel] = useState<"gpt-4" | "gpt-3.5-turbo">(
-    "gpt-4"
-  );
+  const [selectedModel, setSelectedModel] = useState<
+    "gpt-4" | "gpt-3.5-turbo" | "llama-3.3-70b" | "llama-3.1-8b" | "gemma2-9b"
+  >("llama-3.1-8b"); // Default to fastest Groq model
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [visualizationMode, setVisualizationMode] = useState(false);
@@ -439,37 +458,65 @@ export default function ChatPage() {
                   {/* Model Selection */}
                   <div className="mb-6">
                     <h3 className="text-white text-sm font-medium mb-3">
-                      AI Model
+                      AI Models
                     </h3>
-                    <div className="space-y-2">
-                      {["gpt-4", "gpt-3.5-turbo"].map((modelId) => {
-                        const model = aiModels.find((m) => m.id === modelId);
-                        if (!model) return null;
 
-                        return (
-                          <Button
-                            key={modelId}
-                            variant={
-                              selectedModel === modelId ? "default" : "ghost"
-                            }
-                            className={`w-full justify-start ${
-                              selectedModel === modelId
-                                ? `bg-gradient-to-r ${model.color} text-white`
-                                : "text-white/60 hover:text-white hover:bg-white/10"
-                            }`}
-                            onClick={() => setSelectedModel(modelId as any)}
-                          >
-                            <span className="mr-3 text-lg">{model.avatar}</span>
-                            <div className="text-left">
-                              <div className="font-medium">{model.name}</div>
-                              <div className="text-xs opacity-60">
-                                {model.personality}
-                              </div>
-                            </div>
-                          </Button>
-                        );
-                      })}
-                    </div>
+                    {/* Group models by provider */}
+                    {["openai", "groq"].map((provider) => {
+                      const providerModels = aiModels.filter(
+                        (m) => m.provider === provider
+                      );
+                      if (providerModels.length === 0) return null;
+
+                      return (
+                        <div key={provider} className="mb-4">
+                          <div className="text-white/40 text-xs font-medium mb-2 uppercase tracking-wider">
+                            {provider === "openai" ? "OpenAI" : "Groq"}
+                          </div>
+                          <div className="space-y-2">
+                            {providerModels.map((model) => (
+                              <Button
+                                key={model.id}
+                                variant={
+                                  selectedModel === model.id
+                                    ? "default"
+                                    : "ghost"
+                                }
+                                className={`w-full justify-start ${
+                                  selectedModel === model.id
+                                    ? `bg-gradient-to-r ${model.color} text-white`
+                                    : "text-white/60 hover:text-white hover:bg-white/10"
+                                }`}
+                                onClick={() =>
+                                  setSelectedModel(model.id as any)
+                                }
+                              >
+                                <span className="mr-3 text-lg">
+                                  {model.avatar}
+                                </span>
+                                <div className="text-left flex-1">
+                                  <div className="font-medium text-sm">
+                                    {model.name}
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    {model.personality}
+                                  </div>
+                                </div>
+                                {/* Performance indicator */}
+                                {provider === "groq" && (
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                                    <span className="text-xs text-green-400">
+                                      Fast
+                                    </span>
+                                  </div>
+                                )}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Chat Controls */}
