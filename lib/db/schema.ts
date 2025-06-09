@@ -44,6 +44,32 @@ export const users = pgTable(
           streamingMode: boolean;
           autoSave: boolean;
         };
+        // New customization fields for Settings/Customize
+        personalization: {
+          displayName: string; // "What should Convo Glass call you?" (50 chars)
+          description: string; // "What do you do?" (100 chars)
+          traits: string[]; // "What traits should Convo Glass have?" (up to 50 traits, 100 chars each)
+          additionalInfo: string; // "Anything else Convo Glass should know?" (3000 chars)
+        };
+        visual: {
+          boringTheme: boolean; // Tones down glassmorphic effects
+          hidePersonalInfo: boolean; // Hide personal information
+          disableThematicBreaks: boolean; // Disable thematic breaks
+          statsForNerds: boolean; // Show detailed stats (tokens/sec, time to first token, etc.)
+        };
+        fonts: {
+          mainFont: string; // Main text font (Inter, Arial, etc.)
+          codeFont: string; // Code font (Fira Code, Monaco, etc.)
+        };
+        usage: {
+          messagesThisMonth: number; // Track message usage
+          resetDate: string; // When usage resets (ISO string)
+          plan: "free" | "pro"; // User's current plan
+        };
+        shortcuts: {
+          enabled: boolean; // Enable keyboard shortcuts
+          customMappings: Record<string, string>; // Custom shortcut mappings
+        };
       }>()
       .default({
         notifications: { email: true, push: true, marketing: false },
@@ -54,6 +80,31 @@ export const users = pgTable(
         },
         appearance: { theme: "dark", animations: true, compactMode: false },
         ai: { defaultModel: "gpt-4", streamingMode: true, autoSave: true },
+        personalization: {
+          displayName: "",
+          description: "",
+          traits: [],
+          additionalInfo: "",
+        },
+        visual: {
+          boringTheme: false,
+          hidePersonalInfo: false,
+          disableThematicBreaks: false,
+          statsForNerds: false,
+        },
+        fonts: {
+          mainFont: "Inter",
+          codeFont: "Fira Code",
+        },
+        usage: {
+          messagesThisMonth: 0,
+          resetDate: new Date().toISOString(),
+          plan: "free",
+        },
+        shortcuts: {
+          enabled: true,
+          customMappings: {},
+        },
       }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

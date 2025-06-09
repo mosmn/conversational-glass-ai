@@ -19,6 +19,7 @@
 - 🌳 **Chat Branching** - Create alternative conversation paths
 - 🔗 **Chat Sharing** - Share conversations with others
 - 🔍 **Web Search** - Integrate real-time web search
+- ⚙️ **Comprehensive Settings System** - Multi-page settings with personalization
 - ⭐ **Your Feature Ideas** - Creative features of your own
 
 ### **Judging Criteria**
@@ -149,7 +150,81 @@
   - [x] File preview functionality
   - [x] Multi-modal AI integration
 
-#### **Priority 5: Unique Differentiators**
+#### **Priority 5: Comprehensive Settings System**
+
+- [x] **Settings Architecture & Routing**
+
+  - [x] Settings layout with navigation sidebar
+  - [x] Multi-route settings system (/settings/\*)
+  - [x] Responsive settings UI with glassmorphic design
+  - [x] Settings state management and persistence
+
+- [ ] **Settings/Customize** (/settings/customize)
+
+  - [ ] User profile management (name, email, avatar)
+  - [ ] Copy User ID functionality
+  - [ ] Plan information display (Free/Pro plans)
+  - [ ] Message usage tracking with reset timers
+  - [ ] Keyboard shortcuts display and customization
+  - [ ] Personal customization fields:
+    - [ ] "What should Convo Glass call you?" (50 chars)
+    - [ ] "What do you do?" (100 chars)
+    - [ ] "What traits should Convo Glass have?" (up to 50 traits, 100 chars each)
+    - [ ] "Anything else Convo Glass should know?" (3000 chars)
+  - [ ] Visual customization options:
+    - [ ] Boring Theme toggle (tones down glassmorphic effects)
+    - [ ] Hide Personal Information toggle
+    - [ ] Disable Thematic Breaks toggle
+    - [ ] Stats for Nerds toggle (tokens/sec, time to first token, etc.)
+  - [ ] Font customization:
+    - [ ] Main text font selector
+    - [ ] Code font selector
+    - [ ] Live font preview with sample chat
+
+- [ ] **Settings/History** (/settings/history)
+
+  - [ ] Message history overview and management
+  - [ ] Export chat history as JSON
+  - [ ] Import chat history from JSON files
+  - [ ] Conversation search and filtering
+  - [ ] Sync status indicator
+  - [ ] Danger zone:
+    - [ ] Sync local storage to servers
+    - [ ] Recover missing conversations
+    - [ ] Permanently delete all history (with confirmation)
+
+- [ ] **Settings/Models** (/settings/models)
+
+  - [ ] Available models configuration
+  - [ ] Model selector customization
+  - [ ] Model capabilities display (Vision, PDFs, Search, etc.)
+  - [ ] Model-specific settings:
+    - [ ] Gemini 2.0 Flash configuration
+    - [ ] Gemini 2.0 Flash Lite settings
+    - [ ] Gemini 2.5 Flash options
+    - [ ] Gemini 2.5 Flash (Thinking) mode
+    - [ ] Effort Control settings
+    - [ ] Claude model preferences
+    - [ ] OpenAI model configurations
+
+- [ ] **Settings/API Keys** (/settings/api-keys)
+
+  - [ ] BYOK (Bring Your Own Keys) management
+  - [ ] API key input and validation
+  - [ ] Key status indicators (valid/invalid/quota)
+  - [ ] Per-model API key assignment
+  - [ ] Secure key storage and encryption
+  - [ ] Key usage analytics
+
+- [ ] **Settings/Attachments** (/settings/attachments)
+
+  - [ ] Attachment history and management
+  - [ ] File storage usage overview
+  - [ ] Attachment preferences (auto-upload, file types)
+  - [ ] Cleanup tools for old attachments
+  - [ ] File organization and search
+
+#### **Priority 6: Unique Differentiators**
 
 - [ ] **Enhanced Conversation River**
 
@@ -167,7 +242,7 @@
 
 **Goal**: Professional deployment ready for judging
 
-#### **Priority 6: Competition Polish**
+#### **Priority 7: Competition Polish**
 
 - [ ] **Performance Optimization**
 
@@ -240,8 +315,17 @@
 1. ✅ Syntax highlighting for code blocks
 2. ✅ Chat sharing functionality
 3. ✅ File attachment support (images/PDFs)
-4. ✅ Enhanced conversation artifacts
-5. ✅ Interactive conversation river features
+
+4. [ ] **Comprehensive Settings System**
+
+   - [ ] Settings/Customize page with personalization
+   - [ ] Settings/History with export/import
+   - [ ] Settings/Models with configuration
+   - [ ] Settings/API Keys for BYOK
+   - [ ] Settings/Attachments management
+
+5. ✅ Enhanced conversation artifacts
+6. ✅ Interactive conversation river features
 
 ### **Nice to Have (Day 7)**
 
@@ -265,8 +349,9 @@
 
 ### **Competitive Edge Checklist**
 
-- [ ] 3+ Bonus features implemented
+- [ ] 5+ Bonus features implemented
 - [ ] Unique "Conversation River" interface
+- [ ] Comprehensive settings system
 - [ ] AI conversation artifacts
 - [ ] Professional deployment
 - [ ] Comprehensive documentation
