@@ -1,108 +1,75 @@
 "use client";
 
 import React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { User, Palette, Type, Keyboard, BarChart3, Crown } from "lucide-react";
 import { UserProfileSection } from "@/components/settings/customize/UserProfileSection";
 import { PlanUsageSection } from "@/components/settings/customize/PlanUsageSection";
+import { AIPersonalizationSection } from "@/components/settings/customize/AIPersonalizationSection";
+import { VisualCustomizationSection } from "@/components/settings/customize/VisualCustomizationSection";
 
 export default function CustomizePage() {
   return (
-    <div className="space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8 p-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Customize</h1>
-        <p className="text-slate-400">
-          Personalize your Convo Glass AI experience with custom settings,
-          themes, and preferences.
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+            Customize Settings
+          </h1>
+        </div>
+        <p className="text-slate-400 text-lg leading-relaxed max-w-3xl">
+          Personalize your Conversational Glass AI experience with custom
+          preferences, AI behavior settings, and visual customization options.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* User Profile Section */}
+      {/* Profile & Usage Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
         <UserProfileSection />
-
-        {/* Plan & Usage Section */}
         <PlanUsageSection />
+      </div>
 
-        {/* AI Personalization Section */}
-        <Card className="bg-slate-800/30 backdrop-blur-sm border-slate-700/50 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <BarChart3 className="h-5 w-5 text-blue-400" />
-              AI Personalization
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Customize how Convo Glass AI interacts with you
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-slate-300">
-              AI personalization coming soon...
-            </div>
-          </CardContent>
-        </Card>
+      {/* AI Personalization Section */}
+      <div className="mb-8">
+        <AIPersonalizationSection />
+      </div>
 
-        {/* Visual Customization Section */}
-        <Card className="bg-slate-800/30 backdrop-blur-sm border-slate-700/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Palette className="h-5 w-5 text-purple-400" />
-              Visual Customization
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Customize the visual appearance and theme
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-slate-300">
-              Visual options coming soon...
-            </div>
-          </CardContent>
-        </Card>
+      {/* Visual Customization Section */}
+      <div className="mb-8">
+        <VisualCustomizationSection />
+      </div>
 
-        {/* Font Customization Section */}
-        <Card className="bg-slate-800/30 backdrop-blur-sm border-slate-700/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Type className="h-5 w-5 text-green-400" />
-              Font Customization
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Choose your preferred fonts for text and code
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-slate-300">
-              Font selection coming soon...
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Keyboard Shortcuts Section */}
-        <Card className="bg-slate-800/30 backdrop-blur-sm border-slate-700/50 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Keyboard className="h-5 w-5 text-cyan-400" />
-              Keyboard Shortcuts
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              Configure keyboard shortcuts and accessibility options
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-slate-300">
-              Keyboard shortcuts coming soon...
-            </div>
-          </CardContent>
-        </Card>
+      {/* Font Customization - Coming Soon */}
+      <div className="p-8 bg-gradient-to-r from-slate-900/40 to-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl">
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm font-medium mb-4">
+            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+            Coming Soon
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">
+            Font Customization & Keyboard Shortcuts
+          </h3>
+          <p className="text-slate-400 mb-4 max-w-2xl mx-auto">
+            We're working on font preferences with live preview, keyboard
+            shortcut configuration, and additional customization options.
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {[
+              "Font Selection",
+              "Live Font Preview",
+              "Keyboard Shortcuts",
+              "Code Font Options",
+              "Typography Settings",
+            ].map((feature) => (
+              <span
+                key={feature}
+                className="px-3 py-1 bg-slate-800/50 border border-slate-600/50 rounded-lg text-xs text-slate-400"
+              >
+                {feature}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

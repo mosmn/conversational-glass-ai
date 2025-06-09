@@ -159,3 +159,78 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Validate the request body
+    const validationResult = preferencesSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid preferences data",
+          details: validationResult.error.issues,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get current preferences
+    const user = await db
+      .select({
+        preferences: users.preferences,
+      })
+      .from(users)
+      .where(eq(users.clerkId, userId))
+      .limit(1);
+
+    const currentPreferences = user[0]?.preferences || {};
+
+    // Merge with new preferences (deep merge for nested objects)
+    const updatedPreferences = { ...currentPreferences };
+
+    Object.keys(body).forEach((key) => {
+      if (
+        typeof body[key] === "object" &&
+        body[key] !== null &&
+        !Array.isArray(body[key])
+      ) {
+        updatedPreferences[key] = { ...currentPreferences[key], ...body[key] };
+      } else {
+        updatedPreferences[key] = body[key];
+      }
+    });
+
+    // Update user preferences in database
+    await db
+      .update(users)
+      .set({
+        preferences: updatedPreferences,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.clerkId, userId));
+
+    return NextResponse.json({
+      success: true,
+      message: "Preferences updated successfully",
+      data: updatedPreferences,
+    });
+  } catch (error) {
+    console.error("Error updating user preferences:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
