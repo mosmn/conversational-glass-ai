@@ -1,4 +1,4 @@
-import { eq, desc, and, isNull, sql, count } from "drizzle-orm";
+import { eq, desc, and, isNull, sql, count, inArray } from "drizzle-orm";
 import { db } from "./connection";
 import {
   users,
@@ -14,6 +14,42 @@ import type {
   Message,
   NewMessage,
 } from "./schema";
+
+// Enhanced types for search and filtering
+export interface ConversationFilters {
+  searchQuery?: string;
+  dateRange?: { start: Date; end: Date };
+  models?: string[];
+  tags?: string[];
+  sortBy?: "date" | "title" | "messages" | "updated";
+  sortOrder?: "asc" | "desc";
+}
+
+export interface ConversationSearchResult {
+  conversations: Array<
+    Conversation & {
+      messageCount: number;
+      lastMessage?: {
+        content: string;
+        createdAt: Date;
+      };
+    }
+  >;
+  totalCount: number;
+  hasMore: boolean;
+}
+
+export interface UserHistoryStats {
+  totalConversations: number;
+  totalMessages: number;
+  totalTokens: number;
+  modelsUsed: string[];
+  averageMessagesPerConversation: number;
+  conversationsThisMonth: number;
+  messagesThisMonth: number;
+  oldestConversation?: Date;
+  newestConversation?: Date;
+}
 
 // User queries
 export class UserQueries {
@@ -316,6 +352,344 @@ export class ConversationQueries {
       )
       .limit(1);
     return conversation;
+  }
+
+  // Enhanced search and filter conversations for history page
+  static async searchUserConversations(
+    userId: string,
+    filters: ConversationFilters = {},
+    limit = 20,
+    offset = 0
+  ): Promise<ConversationSearchResult> {
+    const {
+      searchQuery,
+      dateRange,
+      models,
+      tags,
+      sortBy = "updated",
+      sortOrder = "desc",
+    } = filters;
+
+    // Build the base query
+    let query = db
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        description: conversations.description,
+        model: conversations.model,
+        isShared: conversations.isShared,
+        shareId: conversations.shareId,
+        metadata: conversations.metadata,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        messageCount: sql<number>`COUNT(${messages.id})`.as("messageCount"),
+        lastMessageContent: sql<string>`
+          (SELECT content FROM ${messages} 
+           WHERE ${messages.conversationId} = ${conversations.id} 
+           ORDER BY ${messages.createdAt} DESC 
+           LIMIT 1)
+        `.as("lastMessageContent"),
+        lastMessageCreatedAt: sql<Date>`
+          (SELECT created_at FROM ${messages} 
+           WHERE ${messages.conversationId} = ${conversations.id} 
+           ORDER BY ${messages.createdAt} DESC 
+           LIMIT 1)
+        `.as("lastMessageCreatedAt"),
+      })
+      .from(conversations)
+      .leftJoin(messages, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.userId, userId));
+
+    // Add search query filter
+    if (searchQuery && searchQuery.trim()) {
+      const searchTerm = `%${searchQuery.trim().toLowerCase()}%`;
+      query = query.where(
+        and(
+          eq(conversations.userId, userId),
+          sql`(
+            LOWER(${conversations.title}) LIKE ${searchTerm} OR 
+            LOWER(${conversations.description}) LIKE ${searchTerm} OR
+            EXISTS (
+              SELECT 1 FROM ${messages} 
+              WHERE ${messages.conversationId} = ${conversations.id} 
+              AND LOWER(${messages.content}) LIKE ${searchTerm}
+            )
+          )`
+        )
+      );
+    }
+
+    // Add date range filter
+    if (dateRange) {
+      query = query.where(
+        and(
+          eq(conversations.userId, userId),
+          sql`${conversations.createdAt} >= ${dateRange.start.toISOString()}`,
+          sql`${conversations.createdAt} <= ${dateRange.end.toISOString()}`
+        )
+      );
+    }
+
+    // Add model filter
+    if (models && models.length > 0) {
+      query = query.where(
+        and(
+          eq(conversations.userId, userId),
+          inArray(conversations.model, models)
+        )
+      );
+    }
+
+    // Add tag filter
+    if (tags && tags.length > 0) {
+      query = query.where(
+        and(
+          eq(conversations.userId, userId),
+          sql`${conversations.metadata}->>'tags' ?| ${tags}`
+        )
+      );
+    }
+
+    // Group by conversation fields
+    query = query.groupBy(
+      conversations.id,
+      conversations.title,
+      conversations.description,
+      conversations.model,
+      conversations.isShared,
+      conversations.shareId,
+      conversations.metadata,
+      conversations.createdAt,
+      conversations.updatedAt
+    );
+
+    // Add sorting
+    const sortColumn =
+      sortBy === "date"
+        ? conversations.createdAt
+        : sortBy === "title"
+        ? conversations.title
+        : sortBy === "messages"
+        ? sql`COUNT(${messages.id})`
+        : conversations.updatedAt;
+
+    query = query.orderBy(sortOrder === "asc" ? sortColumn : desc(sortColumn));
+
+    // Get total count for pagination
+    const countQuery = db
+      .select({ count: count() })
+      .from(conversations)
+      .where(eq(conversations.userId, userId));
+
+    // Apply same filters to count query
+    if (searchQuery && searchQuery.trim()) {
+      const searchTerm = `%${searchQuery.trim().toLowerCase()}%`;
+      countQuery.where(
+        sql`(
+          LOWER(${conversations.title}) LIKE ${searchTerm} OR 
+          LOWER(${conversations.description}) LIKE ${searchTerm} OR
+          EXISTS (
+            SELECT 1 FROM ${messages} 
+            WHERE ${messages.conversationId} = ${conversations.id} 
+            AND LOWER(${messages.content}) LIKE ${searchTerm}
+          )
+        )`
+      );
+    }
+
+    if (dateRange) {
+      countQuery.where(
+        and(
+          sql`${conversations.createdAt} >= ${dateRange.start.toISOString()}`,
+          sql`${conversations.createdAt} <= ${dateRange.end.toISOString()}`
+        )
+      );
+    }
+
+    if (models && models.length > 0) {
+      countQuery.where(inArray(conversations.model, models));
+    }
+
+    if (tags && tags.length > 0) {
+      countQuery.where(sql`${conversations.metadata}->>'tags' ?| ${tags}`);
+    }
+
+    // Execute queries
+    const [conversationsResult, totalCountResult] = await Promise.all([
+      query.limit(limit).offset(offset),
+      countQuery,
+    ]);
+
+    const [{ count: totalCount }] = totalCountResult;
+
+    return {
+      conversations: conversationsResult.map((conv) => ({
+        ...conv,
+        lastMessage: conv.lastMessageContent
+          ? {
+              content: conv.lastMessageContent,
+              createdAt: conv.lastMessageCreatedAt,
+            }
+          : undefined,
+      })),
+      totalCount,
+      hasMore: offset + limit < totalCount,
+    };
+  }
+
+  // Get comprehensive user history statistics
+  static async getUserHistoryStats(userId: string): Promise<UserHistoryStats> {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [stats] = await db
+      .select({
+        totalConversations: sql<number>`COUNT(DISTINCT ${conversations.id})`,
+        totalMessages: sql<number>`COUNT(${messages.id})`,
+        totalTokens: sql<number>`SUM(COALESCE(${messages.tokenCount}, 0))`,
+        modelsUsed: sql<string[]>`
+          array_agg(DISTINCT ${conversations.model}) 
+          FILTER (WHERE ${conversations.model} IS NOT NULL)
+        `,
+        conversationsThisMonth: sql<number>`
+          COUNT(DISTINCT CASE 
+            WHEN ${conversations.createdAt} >= ${firstOfMonth.toISOString()} 
+            THEN ${conversations.id} 
+          END)
+        `,
+        messagesThisMonth: sql<number>`
+          COUNT(CASE 
+            WHEN ${messages.createdAt} >= ${firstOfMonth.toISOString()} 
+            THEN ${messages.id} 
+          END)
+        `,
+        oldestConversation: sql<Date>`MIN(${conversations.createdAt})`,
+        newestConversation: sql<Date>`MAX(${conversations.createdAt})`,
+      })
+      .from(conversations)
+      .leftJoin(messages, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.userId, userId));
+
+    return {
+      ...stats,
+      averageMessagesPerConversation:
+        stats.totalConversations > 0
+          ? Math.round(stats.totalMessages / stats.totalConversations)
+          : 0,
+      modelsUsed: stats.modelsUsed || [],
+    };
+  }
+
+  // Bulk delete conversations
+  static async bulkDeleteConversations(
+    conversationIds: string[],
+    userId: string
+  ): Promise<{ deletedCount: number; errors: string[] }> {
+    const errors: string[] = [];
+    let deletedCount = 0;
+
+    if (conversationIds.length === 0) {
+      return { deletedCount: 0, errors: [] };
+    }
+
+    // Verify ownership of all conversations first
+    const ownedConversations = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          inArray(conversations.id, conversationIds),
+          eq(conversations.userId, userId)
+        )
+      );
+
+    const ownedIds = ownedConversations.map((c) => c.id);
+    const unauthorizedIds = conversationIds.filter(
+      (id) => !ownedIds.includes(id)
+    );
+
+    if (unauthorizedIds.length > 0) {
+      errors.push(
+        `Unauthorized access to conversations: ${unauthorizedIds.join(", ")}`
+      );
+    }
+
+    // Delete owned conversations
+    if (ownedIds.length > 0) {
+      try {
+        const deleted = await db
+          .delete(conversations)
+          .where(
+            and(
+              inArray(conversations.id, ownedIds),
+              eq(conversations.userId, userId)
+            )
+          )
+          .returning({ id: conversations.id });
+
+        deletedCount = deleted.length;
+      } catch (error) {
+        errors.push(
+          `Database error during deletion: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      }
+    }
+
+    return { deletedCount, errors };
+  }
+
+  // Get conversations by date range for recovery/sync
+  static async getConversationsByDateRange(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Conversation[]> {
+    return await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          sql`${conversations.createdAt} >= ${startDate.toISOString()}`,
+          sql`${conversations.createdAt} <= ${endDate.toISOString()}`
+        )
+      )
+      .orderBy(desc(conversations.createdAt));
+  }
+
+  // Get all models used by user for filter options
+  static async getUserModels(userId: string): Promise<string[]> {
+    const models = await db
+      .selectDistinct({ model: conversations.model })
+      .from(conversations)
+      .where(eq(conversations.userId, userId))
+      .orderBy(conversations.model);
+
+    return models.map((m) => m.model);
+  }
+
+  // Get all tags used by user for filter options
+  static async getUserTags(userId: string): Promise<string[]> {
+    const conversations_with_tags = await db
+      .select({ tags: sql<string[]>`${conversations.metadata}->>'tags'` })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          sql`${conversations.metadata}->>'tags' IS NOT NULL`
+        )
+      );
+
+    const allTags = new Set<string>();
+    conversations_with_tags.forEach((conv) => {
+      if (conv.tags && Array.isArray(conv.tags)) {
+        conv.tags.forEach((tag) => allTags.add(tag));
+      }
+    });
+
+    return Array.from(allTags).sort();
   }
 }
 
