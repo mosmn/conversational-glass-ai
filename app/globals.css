@@ -26,6 +26,33 @@ body {
   color: #ffffff !important;
 }
 
+/* Ensure button text is always visible */
+button[class*="outline"] {
+  color: #e2e8f0 !important;
+}
+
+button[class*="outline"]:hover {
+  color: #ffffff !important;
+}
+
+/* Fix any remaining button contrast issues */
+button {
+  color: inherit;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+/* Clerk button overrides for better visibility */
+.cl-formButtonPrimary {
+  color: #ffffff !important;
+}
+
+.cl-socialButtonsBlockButton {
+  color: #ffffff !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

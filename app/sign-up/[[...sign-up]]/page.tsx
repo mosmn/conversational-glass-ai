@@ -6,22 +6,52 @@ import ConversationalGlassLogo from "@/components/ConversationalGlassLogo";
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cyan-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-      {/* Floating particles background */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(25)].map((_, i) => (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated background with glassmorphic floating elements */}
+      <div className="absolute inset-0">
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 via-slate-900 to-teal-900/20" />
+
+        {/* Floating glassmorphic elements */}
+        {[...Array(18)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-1.5 h-1.5 bg-cyan-300/30 rounded-full"
+            className="absolute bg-emerald-400/10 backdrop-blur-sm rounded-full border border-emerald-400/20"
+            style={{
+              width: `${Math.random() * 120 + 60}px`,
+              height: `${Math.random() * 120 + 60}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
             animate={{
-              y: [-30, -120],
-              x: [0, Math.random() * 50 - 25],
+              y: [-25, -70],
+              x: [0, Math.random() * 40 - 20],
+              opacity: [0.1, 0.4, 0.1],
+              scale: [0.7, 1.3, 0.7],
+            }}
+            transition={{
+              duration: 10 + Math.random() * 5,
+              repeat: Infinity,
+              delay: Math.random() * 5,
+              ease: "easeInOut",
+            }}
+          />
+        ))}
+
+        {/* Smaller floating particles */}
+        {[...Array(35)].map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute w-1.5 h-1.5 bg-emerald-400/50 rounded-full"
+            animate={{
+              y: [-15, -90],
+              x: [0, Math.random() * 20 - 10],
               opacity: [0, 1, 0],
             }}
             transition={{
               duration: 4 + Math.random() * 3,
               repeat: Infinity,
-              delay: Math.random() * 3,
+              delay: Math.random() * 4,
             }}
             style={{
               left: `${Math.random() * 100}%`,
@@ -36,10 +66,10 @@ export default function SignUpPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="relative"
+        className="relative z-10"
       >
         {/* Glassmorphic container */}
-        <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-8 border border-white/20 shadow-2xl">
+        <div className="backdrop-blur-xl bg-slate-800/50 rounded-3xl p-8 border border-slate-700/50 shadow-2xl max-w-md w-full">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -54,11 +84,11 @@ export default function SignUpPage() {
                 className=""
               />
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent mb-2">
-              Join the Conversation
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
+              Join the Revolution
             </h1>
-            <p className="text-white/80 text-lg">
-              Create your account to start chatting with AI
+            <p className="text-slate-300 text-lg">
+              Create your account to start conversations with AI
             </p>
           </motion.div>
 
@@ -71,25 +101,48 @@ export default function SignUpPage() {
               appearance={{
                 elements: {
                   formButtonPrimary:
-                    "bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg",
+                    "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg border-0",
                   card: "bg-transparent shadow-none",
                   headerTitle: "text-white text-2xl font-bold",
-                  headerSubtitle: "text-white/80",
+                  headerSubtitle: "text-slate-300",
                   socialButtonsBlockButton:
-                    "bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all duration-300 rounded-xl",
+                    "bg-slate-700/50 border border-slate-600 text-white hover:bg-slate-600/50 hover:border-slate-500 transition-all duration-300 rounded-xl backdrop-blur-sm",
+                  socialButtonsBlockButtonText: "text-white font-medium",
                   formFieldInput:
-                    "bg-white/10 border border-white/20 text-white placeholder-white/60 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20",
-                  formFieldLabel: "text-white/90 font-medium",
-                  dividerLine: "bg-white/20",
-                  dividerText: "text-white/60",
-                  footerActionLink: "text-cyan-300 hover:text-cyan-200",
-                  identityPreviewText: "text-white/80",
+                    "bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20 backdrop-blur-sm",
+                  formFieldLabel: "text-slate-200 font-medium",
+                  dividerLine: "bg-slate-600",
+                  dividerText: "text-slate-400",
+                  footerActionLink:
+                    "text-emerald-400 hover:text-emerald-300 transition-colors",
+                  identityPreviewText: "text-slate-300",
                   identityPreviewEditButton:
-                    "text-cyan-300 hover:text-cyan-200",
+                    "text-emerald-400 hover:text-emerald-300",
+                  formFieldSuccessText: "text-emerald-400",
+                  formFieldErrorText: "text-red-400",
+                  formFieldWarningText: "text-amber-400",
+                  alertClerkError:
+                    "bg-red-600/20 border border-red-500/30 text-red-400 rounded-xl",
+                  formResendCodeLink: "text-emerald-400 hover:text-emerald-300",
+                  otpCodeFieldInput:
+                    "bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:border-emerald-500",
+                  membershipRole: "text-slate-300",
+                  formFieldAction: "text-emerald-400 hover:text-emerald-300",
+                  formFieldHintText: "text-slate-400",
+                  formFieldInputShowPasswordButton:
+                    "text-slate-400 hover:text-emerald-400",
+                },
+                layout: {
+                  socialButtonsPlacement: "top",
+                  socialButtonsVariant: "blockButton",
                 },
               }}
             />
           </motion.div>
+
+          {/* Additional glassmorphic decoration */}
+          <div className="absolute -top-px left-1/2 transform -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
+          <div className="absolute -bottom-px left-1/2 transform -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
         </div>
       </motion.div>
     </div>
