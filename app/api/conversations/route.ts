@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       .insert(conversations)
       .values({
         userId: user.id,
-        title: title || `New Chat with ${model.toUpperCase()}`,
+        title: title || "New Chat",
         model,
         metadata: {
           totalMessages: 0,

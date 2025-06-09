@@ -157,6 +157,7 @@ export interface StreamChunk {
   userMessageId?: string;
   totalTokens?: number;
   processingTime?: number;
+  titleGenerated?: boolean;
 }
 
 // Enhanced message sync interfaces

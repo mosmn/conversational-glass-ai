@@ -283,6 +283,25 @@ export function useChat(conversationId: string): UseChatReturn {
                 ];
               });
             }
+
+            // If a title was generated, refresh the conversation data
+            if (chunk.titleGenerated) {
+              // Refresh conversation data to get the new title
+              try {
+                const response = await apiClient.getConversationMessages(
+                  conversationId,
+                  { limit: 1, includeMetadata: false }
+                );
+                if (response.conversation) {
+                  setConversation(response.conversation);
+                }
+              } catch (error) {
+                console.error(
+                  "Failed to refresh conversation after title generation:",
+                  error
+                );
+              }
+            }
             break;
           }
         }

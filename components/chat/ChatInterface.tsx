@@ -132,6 +132,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     conversations,
     loading: conversationsLoading,
     createConversation,
+    refetchConversations,
   } = useConversations();
   const {
     messages,
@@ -146,6 +147,27 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     syncMessages,
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
+
+  // Track if we've already refreshed for this title change
+  const lastRefreshedTitleRef = useRef<string | null>(null);
+
+  // Refresh conversations when conversation title changes (with debouncing and deduplication)
+  useEffect(() => {
+    if (
+      conversation?.title &&
+      conversation.title !== "New Chat" &&
+      !conversation.title.startsWith("New Chat") &&
+      conversation.title !== lastRefreshedTitleRef.current // Only refresh if title actually changed
+    ) {
+      // Debounce the refresh to prevent excessive API calls
+      const timeoutId = setTimeout(() => {
+        refetchConversations();
+        lastRefreshedTitleRef.current = conversation.title;
+      }, 2000); // Wait 2 seconds before refreshing to batch multiple changes
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [conversation?.title]); // Remove refetchConversations from dependencies to prevent infinite loops
 
   // Convert API conversations to local format for UI compatibility
   const chats: Chat[] = conversations.map((conv) => ({

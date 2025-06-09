@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient, type Conversation, type APIError } from "@/lib/api/client";
 
 interface UseConversationsReturn {
@@ -26,15 +26,21 @@ export function useConversations(): UseConversationsReturn {
     total: 0,
   });
 
+  // Use ref to prevent stale closures
+  const paginationRef = useRef(pagination);
+  paginationRef.current = pagination;
+
   const fetchConversations = useCallback(
     async (reset = false) => {
       try {
         setLoading(true);
         setError(null);
 
-        const offset = reset ? 0 : pagination.offset;
+        const currentPagination = paginationRef.current;
+        const offset = reset ? 0 : currentPagination.offset;
+
         const response = await apiClient.getConversations({
-          limit: pagination.limit,
+          limit: currentPagination.limit,
           offset,
         });
 
@@ -57,7 +63,7 @@ export function useConversations(): UseConversationsReturn {
         setLoading(false);
       }
     },
-    [pagination.limit, pagination.offset]
+    [] // No dependencies to prevent recreating function
   );
 
   const createConversation = useCallback(
@@ -80,21 +86,23 @@ export function useConversations(): UseConversationsReturn {
     []
   );
 
+  // Stable refetch function that doesn't change
   const refetchConversations = useCallback(async () => {
     setPagination((prev) => ({ ...prev, offset: 0 }));
     await fetchConversations(true);
   }, [fetchConversations]);
 
   const loadMore = useCallback(async () => {
-    if (!loading && pagination.offset < pagination.total) {
+    const currentPagination = paginationRef.current;
+    if (!loading && currentPagination.offset < currentPagination.total) {
       await fetchConversations(false);
     }
-  }, [loading, pagination.offset, pagination.total, fetchConversations]);
+  }, [loading, fetchConversations]);
 
-  // Initial load
+  // Initial load - only run once
   useEffect(() => {
     fetchConversations(true);
-  }, []);
+  }, [fetchConversations]);
 
   const hasMore = pagination.offset < pagination.total && pagination.total > 0;
 

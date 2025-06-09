@@ -16,6 +16,10 @@ import {
   AIProviderError,
 } from "@/lib/ai/types";
 import { estimateTokens } from "@/lib/ai/utils";
+import {
+  generateConversationTitle,
+  needsTitle,
+} from "@/lib/ai/title-generator";
 
 // Request validation schema - now supports all provider models dynamically
 const sendMessageSchema = z.object({
@@ -322,6 +326,13 @@ export async function POST(request: NextRequest) {
             },
           });
 
+          // Generate title if this is the first meaningful exchange
+          const shouldGenerateTitle = await checkAndGenerateTitle(
+            conversation,
+            userMessage.content,
+            assistantContent
+          );
+
           // Send final completion chunk
           const completionChunk = {
             type: "completed",
@@ -330,6 +341,7 @@ export async function POST(request: NextRequest) {
             userMessageId: userMessage.id,
             totalTokens: totalTokenCount,
             processingTime: (Date.now() - startTime) / 1000,
+            titleGenerated: shouldGenerateTitle,
           };
 
           controller.enqueue(
@@ -396,6 +408,45 @@ export async function POST(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Checks if a conversation needs a title and generates one if needed
+ */
+async function checkAndGenerateTitle(
+  conversation: any,
+  userMessage: string,
+  assistantMessage: string
+): Promise<boolean> {
+  try {
+    // Check if conversation needs a title
+    if (!needsTitle(conversation.title)) {
+      return false;
+    }
+
+    // Generate new title
+    const newTitle = await generateConversationTitle(
+      userMessage,
+      assistantMessage
+    );
+
+    // Update conversation title in database
+    await db
+      .update(conversations)
+      .set({
+        title: newTitle,
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.id, conversation.id));
+
+    console.log(
+      `✨ Generated title for conversation ${conversation.id}: "${newTitle}"`
+    );
+    return true;
+  } catch (error) {
+    console.error("Title generation failed:", error);
+    return false;
   }
 }
 
