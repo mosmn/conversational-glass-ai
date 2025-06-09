@@ -15,12 +15,14 @@ import {
   Check,
   AlertCircle,
   Download,
+  Eye,
 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { FilePreview } from "./FilePreview";
 
 interface AttachedFile {
   id: string;
@@ -31,11 +33,22 @@ interface AttachedFile {
   uploadProgress?: number;
   status: "uploading" | "uploaded" | "error";
   preview?: string;
+  extractedText?: string;
+  thumbnailUrl?: string;
+  category?: string;
+  metadata?: {
+    width?: number;
+    height?: number;
+    pages?: number;
+    wordCount?: number;
+    hasImages?: boolean;
+  };
 }
 
 interface FileAttachmentProps {
   attachments: AttachedFile[];
   onAttachmentsChange: (attachments: AttachedFile[]) => void;
+  conversationId: string;
   maxFiles?: number;
   maxSizePerFile?: number; // in MB
   acceptedTypes?: string[];
@@ -44,6 +57,7 @@ interface FileAttachmentProps {
 export function FileAttachment({
   attachments,
   onAttachmentsChange,
+  conversationId,
   maxFiles = 5,
   maxSizePerFile = 10,
   acceptedTypes = ["image/*", "application/pdf", ".txt", ".md"],
@@ -140,28 +154,60 @@ export function FileAttachment({
 
       newAttachments.push(attachment);
 
-      // Simulate upload progress
-      simulateUpload(attachment);
+      // Start real file upload
+      uploadFile(attachment, file);
     }
 
     onAttachmentsChange([...attachments, ...newAttachments]);
   };
 
-  const simulateUpload = (attachment: AttachedFile) => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 30;
-      if (progress >= 100) {
-        progress = 100;
+  const uploadFile = async (attachment: AttachedFile, file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append(`file-${attachment.id}`, file);
+      formData.append("conversationId", conversationId);
+      formData.append("maxFiles", maxFiles.toString());
+      formData.append("maxSizePerFile", maxSizePerFile.toString());
+
+      const response = await fetch("/api/files/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0]);
+      }
+
+      const uploadedFile = result.files[0];
+      if (uploadedFile) {
+        // Update attachment with upload results
         attachment.status = "uploaded";
         attachment.uploadProgress = 100;
-        attachment.url = `https://example.com/files/${attachment.id}`;
-        clearInterval(interval);
-      } else {
-        attachment.uploadProgress = progress;
+        attachment.url = uploadedFile.url;
+        attachment.extractedText = uploadedFile.extractedText;
+        attachment.thumbnailUrl = uploadedFile.thumbnailUrl;
+        attachment.category = uploadedFile.category;
+        attachment.metadata = uploadedFile.metadata;
+
+        // Use thumbnail URL as preview if available
+        if (uploadedFile.thumbnailUrl && !attachment.preview) {
+          attachment.preview = uploadedFile.thumbnailUrl;
+        }
+
+        onAttachmentsChange([...attachments]);
       }
+    } catch (error) {
+      console.error("Upload error:", error);
+      attachment.status = "error";
+      attachment.uploadProgress = 0;
       onAttachmentsChange([...attachments]);
-    }, 200);
+    }
   };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
