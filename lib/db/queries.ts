@@ -239,6 +239,84 @@ export class ConversationQueries {
     });
     return conversation;
   }
+
+  // Enable sharing for a conversation
+  static async enableSharing(
+    conversationId: string,
+    userId: string,
+    shareId: string
+  ) {
+    const [conversation] = await db
+      .update(conversations)
+      .set({
+        isShared: true,
+        shareId: shareId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId)
+        )
+      )
+      .returning();
+    return conversation;
+  }
+
+  // Disable sharing for a conversation
+  static async disableSharing(conversationId: string, userId: string) {
+    const [conversation] = await db
+      .update(conversations)
+      .set({
+        isShared: false,
+        shareId: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId)
+        )
+      )
+      .returning();
+    return conversation;
+  }
+
+  // Check if a conversation is owned by user (for sharing operations)
+  static async isConversationOwner(
+    conversationId: string,
+    userId: string
+  ): Promise<boolean> {
+    const [conversation] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId)
+        )
+      )
+      .limit(1);
+    return !!conversation;
+  }
+
+  // Get conversation sharing status
+  static async getSharingStatus(conversationId: string, userId: string) {
+    const [conversation] = await db
+      .select({
+        isShared: conversations.isShared,
+        shareId: conversations.shareId,
+      })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId)
+        )
+      )
+      .limit(1);
+    return conversation;
+  }
 }
 
 // Message queries

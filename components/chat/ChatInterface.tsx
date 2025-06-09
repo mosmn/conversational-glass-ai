@@ -52,6 +52,7 @@ import {
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
 import { MessageContent } from "./MessageContent";
+import { ShareModal } from "./ShareModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -109,6 +110,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [usage, setUsage] = useState(65); // Usage percentage
   const [attachments, setAttachments] = useState<any[]>([]);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Debug logging (reduced noise)
@@ -456,7 +458,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 </Tooltip>
               )}
 
-              <Button variant="ghost" size="sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowShareModal(true)}
+                disabled={!conversation && messages.length === 0}
+              >
                 <Share className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="sm">
@@ -616,6 +623,16 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      {conversation && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          conversationId={conversation.id}
+          conversationTitle={conversation.title}
+        />
+      )}
     </TooltipProvider>
   );
 }
