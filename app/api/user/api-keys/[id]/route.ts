@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/connection";
-import { userApiKeys } from "@/lib/db/schema";
+import { userApiKeys, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+
+// Helper function to get user's internal UUID from Clerk ID
+async function getUserInternalId(clerkUserId: string): Promise<string | null> {
+  const user = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clerkId, clerkUserId))
+    .limit(1);
+
+  return user.length > 0 ? user[0].id : null;
+}
 
 // Validation schema for updates
 const updateApiKeySchema = z.object({
@@ -31,6 +42,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's internal UUID from Clerk ID
+    const internalUserId = await getUserInternalId(userId);
+    if (!internalUserId) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     const key = await db
       .select({
         id: userApiKeys.id,
@@ -45,7 +62,12 @@ export async function GET(
         updatedAt: userApiKeys.updatedAt,
       })
       .from(userApiKeys)
-      .where(and(eq(userApiKeys.id, params.id), eq(userApiKeys.userId, userId)))
+      .where(
+        and(
+          eq(userApiKeys.id, params.id),
+          eq(userApiKeys.userId, internalUserId)
+        )
+      )
       .limit(1);
 
     if (key.length === 0) {

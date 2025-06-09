@@ -32,6 +32,7 @@ import {
   Brain,
   Globe,
   Cpu,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddApiKeyModal } from "@/components/settings/AddApiKeyModal";
@@ -68,7 +69,8 @@ const PROVIDERS = {
     name: "OpenAI",
     description: "GPT-4, GPT-3.5 Turbo, and other cutting-edge models",
     icon: Brain,
-    color: "from-blue-500 to-cyan-500",
+    gradient: "from-blue-500/20 to-cyan-500/20",
+    iconColor: "text-blue-400",
     website: "https://platform.openai.com/api-keys",
     models: ["GPT-4 Turbo", "GPT-3.5 Turbo", "GPT-4 Vision"],
   },
@@ -76,7 +78,8 @@ const PROVIDERS = {
     name: "Anthropic Claude",
     description: "Claude 3.5 Sonnet, Haiku, and other reasoning models",
     icon: Sparkles,
-    color: "from-orange-400 to-red-500",
+    gradient: "from-orange-500/20 to-red-500/20",
+    iconColor: "text-orange-400",
     website: "https://console.anthropic.com/",
     models: ["Claude 3.5 Sonnet", "Claude 3 Haiku", "Claude 3 Opus"],
   },
@@ -84,7 +87,8 @@ const PROVIDERS = {
     name: "Google Gemini",
     description: "Gemini Pro, Flash, and multimodal AI capabilities",
     icon: Crown,
-    color: "from-purple-400 to-pink-500",
+    gradient: "from-purple-500/20 to-pink-500/20",
+    iconColor: "text-purple-400",
     website: "https://makersuite.google.com/app/apikey",
     models: ["Gemini Pro 1.5", "Gemini Flash 1.5", "Gemini Vision"],
   },
@@ -92,7 +96,8 @@ const PROVIDERS = {
     name: "OpenRouter",
     description: "Access 100+ models through a single API endpoint",
     icon: Globe,
-    color: "from-green-400 to-emerald-500",
+    gradient: "from-emerald-500/20 to-teal-500/20",
+    iconColor: "text-emerald-400",
     website: "https://openrouter.ai/keys",
     models: ["GPT-4", "Claude", "Llama", "Mistral", "Many more..."],
   },
@@ -100,7 +105,8 @@ const PROVIDERS = {
     name: "Groq",
     description: "Ultra-fast inference with Llama and Mixtral models",
     icon: Zap,
-    color: "from-yellow-400 to-orange-500",
+    gradient: "from-yellow-500/20 to-orange-500/20",
+    iconColor: "text-yellow-400",
     website: "https://console.groq.com/keys",
     models: ["Llama 3.1", "Mixtral 8x7B", "Gemma 2"],
   },
@@ -110,27 +116,27 @@ const PROVIDERS = {
 const STATUS_CONFIG = {
   pending: {
     label: "Validating",
-    color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     icon: Clock,
   },
   valid: {
     label: "Active",
-    color: "bg-green-500/20 text-green-400 border-green-500/30",
+    className: "bg-green-500/20 text-green-400 border-green-500/30",
     icon: CheckCircle,
   },
   invalid: {
     label: "Invalid",
-    color: "bg-red-500/20 text-red-400 border-red-500/30",
+    className: "bg-red-500/20 text-red-400 border-red-500/30",
     icon: XCircle,
   },
   quota_exceeded: {
     label: "Quota Exceeded",
-    color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    className: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     icon: AlertTriangle,
   },
   rate_limited: {
     label: "Rate Limited",
-    color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    className: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     icon: AlertTriangle,
   },
 };
@@ -203,7 +209,7 @@ export default function ApiKeysPage() {
       }
     } catch (error) {
       toast({
-        title: "Test Failed",
+        title: "Error",
         description: "Failed to test API key",
         variant: "destructive",
       });
@@ -230,10 +236,9 @@ export default function ApiKeysPage() {
         });
         await fetchApiKeys();
       } else {
-        const data = await response.json();
         toast({
           title: "Error",
-          description: data.error || "Failed to delete API key",
+          description: "Failed to delete API key",
           variant: "destructive",
         });
       }
@@ -248,23 +253,50 @@ export default function ApiKeysPage() {
 
   // Group keys by provider
   const keysByProvider = apiKeys.reduce((acc, key) => {
-    if (!acc[key.provider]) {
-      acc[key.provider] = [];
-    }
+    if (!acc[key.provider]) acc[key.provider] = [];
     acc[key.provider].push(key);
     return acc;
   }, {} as Record<string, ApiKey[]>);
 
+  const handleAddKey = (provider: string) => {
+    setSelectedProvider(provider);
+    setShowAddModal(true);
+  };
+
+  const handleModalClose = () => {
+    setShowAddModal(false);
+    setSelectedProvider("");
+    fetchApiKeys(); // Refresh the list
+  };
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-96" />
+      <div className="max-w-6xl mx-auto space-y-8 p-6">
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              API Keys
+            </h1>
+          </div>
+          <p className="text-slate-400 text-lg leading-relaxed max-w-3xl">
+            Loading your API keys...
+          </p>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 rounded-2xl blur-xl opacity-70" />
+              <Card className="relative bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl">
+                <CardHeader>
+                  <Skeleton className="h-6 w-32 bg-slate-700" />
+                  <Skeleton className="h-4 w-48 bg-slate-700" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-20 w-full bg-slate-700" />
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
       </div>
@@ -272,83 +304,57 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="max-w-6xl mx-auto space-y-8 p-6">
+      {/* Page Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="space-y-4"
+        className="mb-8"
       >
-        <div className="flex items-center gap-4">
-          <motion.div
-            className="p-3 bg-amber-500/20 rounded-xl"
-            whileHover={{ scale: 1.1, rotate: 5 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          >
-            <Key className="h-6 w-6 text-amber-400" />
-          </motion.div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-              API Keys
-            </h1>
-            <p className="text-slate-400 text-lg">
-              Bring your own keys for maximum control and cost efficiency
-            </p>
-          </div>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+            API Keys
+          </h1>
         </div>
-
-        {/* Info Alert */}
-        <Alert className="border-amber-500/30 bg-amber-500/10">
-          <Key className="h-4 w-4 text-amber-400" />
-          <AlertDescription className="text-amber-100">
-            <strong>BYOK (Bring Your Own Keys):</strong> Use your own API keys
-            for direct access to AI providers. Your keys are encrypted and
-            stored securely.{" "}
-            <a
-              href="#"
-              className="text-amber-400 hover:text-amber-300 underline"
-            >
-              Learn more about security
-            </a>
-          </AlertDescription>
-        </Alert>
+        <p className="text-slate-400 text-lg leading-relaxed max-w-3xl">
+          Bring your own API keys (BYOK) to reduce costs and maintain control
+          over your AI model usage. Add keys from multiple providers to unlock
+          advanced features and personalized experiences.
+        </p>
       </motion.div>
 
-      {/* Provider Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {Object.entries(PROVIDERS).map(([providerId, provider], index) => {
-          const Icon = provider.icon;
-          const providerKeys = keysByProvider[providerId] || [];
+      {/* Provider Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {Object.entries(PROVIDERS).map(([providerKey, provider], index) => {
+          const providerKeys = keysByProvider[providerKey] || [];
           const hasKeys = providerKeys.length > 0;
-          const validKeys = providerKeys.filter(
-            (key) => key.status === "valid"
-          ).length;
 
           return (
             <motion.div
-              key={providerId}
+              key={providerKey}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="relative group"
             >
-              <Card className="relative group h-full bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 hover:border-slate-600/50 transition-all duration-300">
-                {/* Glow effect */}
-                <div
-                  className={cn(
-                    "absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-20 rounded-xl blur-xl transition-opacity duration-300",
-                    provider.color
-                  )}
-                />
+              {/* Glow effect */}
+              <div
+                className={cn(
+                  "absolute inset-0 rounded-2xl blur-xl opacity-70 group-hover:opacity-100 transition-opacity duration-500",
+                  `bg-gradient-to-r ${provider.gradient}`
+                )}
+              />
 
-                <CardHeader className="relative">
-                  <div className="flex items-center justify-between">
+              <Card className="relative bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 hover:border-emerald-500/30 h-full">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <motion.div
                         className={cn(
-                          "p-2 rounded-lg bg-gradient-to-br",
-                          provider.color,
-                          "bg-opacity-20"
+                          "p-2 rounded-xl bg-gradient-to-r",
+                          provider.gradient
                         )}
                         whileHover={{ scale: 1.1, rotate: 5 }}
                         transition={{
@@ -357,49 +363,61 @@ export default function ApiKeysPage() {
                           damping: 10,
                         }}
                       >
-                        <Icon className="h-5 w-5 text-white" />
+                        <provider.icon
+                          className={cn("h-5 w-5", provider.iconColor)}
+                        />
                       </motion.div>
                       <div>
-                        <CardTitle className="text-white">
+                        <h3 className="text-white font-semibold">
                           {provider.name}
-                        </CardTitle>
-                        <CardDescription className="text-slate-400 text-sm">
-                          {provider.description}
-                        </CardDescription>
+                        </h3>
+                        {hasKeys && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          >
+                            {providerKeys.length} key
+                            {providerKeys.length !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
                       </div>
                     </div>
-
-                    {hasKeys && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-slate-700/50 text-slate-300"
-                      >
-                        {validKeys}/{providerKeys.length}
-                      </Badge>
-                    )}
-                  </div>
+                    <motion.a
+                      href={provider.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="text-slate-400 hover:text-emerald-400 transition-colors"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </motion.a>
+                  </CardTitle>
+                  <CardDescription className="text-slate-400 leading-relaxed">
+                    {provider.description}
+                  </CardDescription>
                 </CardHeader>
 
-                <CardContent className="relative space-y-4">
+                <CardContent className="space-y-4">
                   {/* Models */}
                   <div>
-                    <h4 className="text-sm font-medium text-slate-300 mb-2">
-                      Popular Models
-                    </h4>
+                    <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wider">
+                      Available Models
+                    </p>
                     <div className="flex flex-wrap gap-1">
-                      {provider.models.slice(0, 3).map((model, idx) => (
+                      {provider.models.slice(0, 3).map((model) => (
                         <Badge
-                          key={idx}
-                          variant="outline"
-                          className="text-xs border-slate-600 text-slate-400"
+                          key={model}
+                          variant="secondary"
+                          className="text-xs bg-slate-800/60 text-slate-300 border-slate-600/50"
                         >
                           {model}
                         </Badge>
                       ))}
                       {provider.models.length > 3 && (
                         <Badge
-                          variant="outline"
-                          className="text-xs border-slate-600 text-slate-400"
+                          variant="secondary"
+                          className="text-xs bg-slate-800/60 text-slate-300 border-slate-600/50"
                         >
                           +{provider.models.length - 3} more
                         </Badge>
@@ -407,117 +425,121 @@ export default function ApiKeysPage() {
                     </div>
                   </div>
 
-                  {/* Keys */}
+                  {/* API Keys */}
                   {hasKeys ? (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-slate-300">
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Your Keys
-                      </h4>
+                      </p>
                       {providerKeys.map((key) => {
-                        const StatusIcon = STATUS_CONFIG[key.status].icon;
-                        const isTesting = testingKeys.has(key.id);
+                        const statusConfig = STATUS_CONFIG[key.status];
+                        const StatusIcon = statusConfig.icon;
+                        const isBeingTested = testingKeys.has(key.id);
 
                         return (
                           <motion.div
                             key={key.id}
-                            layout
-                            className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg border border-slate-600/30"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="p-3 bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-xl space-y-2"
                           >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <StatusIcon className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-white truncate">
-                                    {key.keyName}
-                                  </span>
-                                  {key.metadata.isDefault && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      Default
-                                    </Badge>
-                                  )}
-                                </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
                                 <Badge
                                   className={cn(
-                                    "text-xs mt-1",
-                                    STATUS_CONFIG[key.status].color
+                                    "text-xs",
+                                    statusConfig.className
                                   )}
                                 >
-                                  {STATUS_CONFIG[key.status].label}
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {statusConfig.label}
                                 </Badge>
+                                <span className="text-sm font-medium text-slate-300">
+                                  {key.keyName}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <motion.div
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => testApiKey(key.id)}
+                                    disabled={isBeingTested}
+                                    className="text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 h-7 w-7 p-0"
+                                  >
+                                    {isBeingTested ? (
+                                      <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{
+                                          duration: 1,
+                                          repeat: Infinity,
+                                          ease: "linear",
+                                        }}
+                                      >
+                                        <TestTube className="h-3 w-3" />
+                                      </motion.div>
+                                    ) : (
+                                      <TestTube className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </motion.div>
+                                <motion.div
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => deleteApiKey(key.id)}
+                                    className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 h-7 w-7 p-0"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </motion.div>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => testApiKey(key.id)}
-                                disabled={isTesting}
-                                className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                              >
-                                {isTesting ? (
-                                  <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{
-                                      duration: 1,
-                                      repeat: Infinity,
-                                      ease: "linear",
-                                    }}
-                                  >
-                                    <TestTube className="h-4 w-4" />
-                                  </motion.div>
-                                ) : (
-                                  <TestTube className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => deleteApiKey(key.id)}
-                                className="h-8 w-8 p-0 text-slate-400 hover:text-red-400"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <div className="text-xs text-slate-500 font-mono">
+                              {key.keyPreview}
                             </div>
+                            {key.lastError && (
+                              <div className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">
+                                {key.lastError}
+                              </div>
+                            )}
                           </motion.div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="text-center py-4">
-                      <p className="text-slate-400 text-sm mb-3">
-                        No API keys configured
+                    <div className="text-center py-6">
+                      <motion.div
+                        className="p-3 bg-slate-800/30 rounded-xl mb-3 mx-auto w-fit"
+                        whileHover={{ scale: 1.05 }}
+                      >
+                        <Key className="h-6 w-6 text-slate-500" />
+                      </motion.div>
+                      <p className="text-sm text-slate-500 mb-4">
+                        No API keys configured yet
                       </p>
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex gap-2">
+                  {/* Add Key Button */}
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
                     <Button
-                      className={cn(
-                        "flex-1 bg-gradient-to-r text-white border-0",
-                        provider.color
-                      )}
-                      onClick={() => {
-                        setSelectedProvider(providerId);
-                        setShowAddModal(true);
-                      }}
+                      onClick={() => handleAddKey(providerKey)}
+                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-0 rounded-xl h-10"
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Key
+                      Add {provider.name} Key
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-slate-600 text-slate-400 hover:text-white"
-                      onClick={() => window.open(provider.website, "_blank")}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  </motion.div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -528,46 +550,65 @@ export default function ApiKeysPage() {
       {/* Empty State */}
       {apiKeys.length === 0 && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="text-center py-12"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="relative group"
         >
-          <motion.div
-            className="inline-flex p-4 bg-slate-800/40 rounded-full mb-4"
-            whileHover={{ scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          >
-            <Key className="h-8 w-8 text-slate-400" />
-          </motion.div>
-          <h3 className="text-xl font-semibold text-white mb-2">
-            No API Keys Yet
-          </h3>
-          <p className="text-slate-400 mb-6 max-w-md mx-auto">
-            Add your first API key to start using your own provider accounts for
-            better control and pricing.
-          </p>
-          <Button
-            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-            onClick={() => {
-              setSelectedProvider("");
-              setShowAddModal(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Your First Key
-          </Button>
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 rounded-2xl blur-xl opacity-70" />
+          <Card className="relative bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl text-center p-12">
+            <motion.div
+              className="p-4 bg-emerald-500/20 rounded-2xl mx-auto w-fit mb-6"
+              animate={{
+                scale: [1, 1.05, 1],
+                rotate: [0, 5, -5, 0],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <Key className="h-12 w-12 text-emerald-400" />
+            </motion.div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              Welcome to BYOK
+            </h3>
+            <p className="text-slate-400 mb-6 max-w-md mx-auto">
+              Get started by adding your first API key. Choose from OpenAI,
+              Claude, Gemini, OpenRouter, or Groq to unlock powerful AI
+              capabilities.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {Object.entries(PROVIDERS).map(([providerKey, provider]) => (
+                <motion.div
+                  key={providerKey}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddKey(providerKey)}
+                    className="border-slate-600 hover:border-emerald-500 hover:bg-emerald-500/10"
+                  >
+                    <provider.icon
+                      className={cn("h-4 w-4 mr-2", provider.iconColor)}
+                    />
+                    {provider.name}
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          </Card>
         </motion.div>
       )}
 
       {/* Add API Key Modal */}
       <AddApiKeyModal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSuccess={() => {
-          fetchApiKeys();
-          setShowAddModal(false);
-        }}
+        onClose={handleModalClose}
+        onSuccess={handleModalClose}
         initialProvider={selectedProvider}
       />
     </div>

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/connection";
 import { userApiKeys } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -10,6 +9,7 @@ import {
   validateApiKeyFormat,
   maskApiKey,
 } from "@/lib/utils/encryption";
+import { getAuthenticatedUserId } from "@/lib/utils/auth";
 
 // Validation schemas
 const createApiKeySchema = z.object({
@@ -30,11 +30,14 @@ const createApiKeySchema = z.object({
 // GET /api/user/api-keys - List user's API keys
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const authResult = await getAuthenticatedUserId();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authResult.success) {
+      const status = authResult.error === "Unauthorized" ? 401 : 404;
+      return NextResponse.json({ error: authResult.error }, { status });
     }
+
+    const internalUserId = authResult.userId!;
 
     // Get user's API keys (without decrypting them)
     const keys = await db
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
         updatedAt: userApiKeys.updatedAt,
       })
       .from(userApiKeys)
-      .where(eq(userApiKeys.userId, userId))
+      .where(eq(userApiKeys.userId, internalUserId))
       .orderBy(userApiKeys.createdAt);
 
     // Add masked key preview for display
@@ -76,11 +79,14 @@ export async function GET(request: NextRequest) {
 // POST /api/user/api-keys - Create new API key
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const authResult = await getAuthenticatedUserId();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authResult.success) {
+      const status = authResult.error === "Unauthorized" ? 401 : 404;
+      return NextResponse.json({ error: authResult.error }, { status });
     }
+
+    const internalUserId = authResult.userId!;
 
     const body = await request.json();
     const validatedData = createApiKeySchema.parse(body);
@@ -103,7 +109,7 @@ export async function POST(request: NextRequest) {
       .from(userApiKeys)
       .where(
         and(
-          eq(userApiKeys.userId, userId),
+          eq(userApiKeys.userId, internalUserId),
           eq(userApiKeys.provider, validatedData.provider),
           eq(userApiKeys.keyName, validatedData.keyName)
         )
@@ -123,7 +129,10 @@ export async function POST(request: NextRequest) {
       .select()
       .from(userApiKeys)
       .where(
-        and(eq(userApiKeys.userId, userId), eq(userApiKeys.keyHash, keyHash))
+        and(
+          eq(userApiKeys.userId, internalUserId),
+          eq(userApiKeys.keyHash, keyHash)
+        )
       )
       .limit(1);
 
@@ -135,13 +144,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Encrypt the API key
-    const encryptedKey = encryptApiKey(validatedData.apiKey, userId);
+    const encryptedKey = encryptApiKey(validatedData.apiKey, internalUserId);
 
     // Create the API key record
     const [newKey] = await db
       .insert(userApiKeys)
       .values({
-        userId,
+        userId: internalUserId,
         provider: validatedData.provider,
         keyName: validatedData.keyName,
         encryptedKey,
