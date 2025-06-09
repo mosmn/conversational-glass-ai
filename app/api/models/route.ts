@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   getAllModels,
   getModelsByProvider,
@@ -7,86 +7,30 @@ import {
   getDefaultModel,
 } from "@/lib/ai/providers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const allModels = getAllModels();
-    const modelsByProvider = getModelsByProvider();
-    const providerStatus = getProviderStatus();
-    const recommendedModels = getRecommendedModels();
-    const defaultModel = getDefaultModel();
+    // Get all models from all providers (async for dynamic loading)
+    const allModels = await getAllModels();
 
-    // Format models with additional UI metadata
-    const formattedModels = allModels.map((model) => ({
-      id: model.id,
-      name: model.name,
-      provider: model.provider,
-      description: model.description,
-      personality: model.personality,
-      contextWindow: model.contextWindow,
-      maxResponseTokens: model.maxResponseTokens,
-      visualConfig: model.visualConfig,
-      capabilities: model.capabilities,
-      pricing: model.pricing,
-      // Add performance indicators
-      performance: {
-        speed: getSpeedRating(model),
-        capacity: getCapacityRating(model),
-        efficiency: getEfficiencyRating(model),
-      },
-      // Add UI hints
-      uiHints: {
-        bestFor: getBestUseCase(model),
-        tags: getModelTags(model),
-        tier: getModelTier(model),
-      },
-    }));
+    // Get provider status
+    const providerStatus = getProviderStatus();
 
     return NextResponse.json({
       success: true,
       data: {
-        models: formattedModels,
-        modelsByProvider,
+        models: allModels,
         providerStatus,
-        recommendations: {
-          default: defaultModel,
-          fastest: recommendedModels.fastest,
-          smartest: recommendedModels.smartest,
-          cheapest: recommendedModels.cheapest,
-          balanced: recommendedModels.balanced,
-        },
-        statistics: {
-          totalModels: allModels.length,
-          totalProviders: providerStatus.total,
-          configuredProviders: providerStatus.configured,
-          availableModels: allModels.length,
-        },
+        totalModels: allModels.length,
       },
     });
   } catch (error) {
-    console.error("Models API error:", error);
+    console.error("Failed to fetch models:", error);
 
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch models",
-        data: {
-          models: [],
-          modelsByProvider: {},
-          providerStatus: {
-            total: 0,
-            configured: 0,
-            available: 0,
-            models: 0,
-            providers: {},
-          },
-          recommendations: {},
-          statistics: {
-            totalModels: 0,
-            totalProviders: 0,
-            configuredProviders: 0,
-            availableModels: 0,
-          },
-        },
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );

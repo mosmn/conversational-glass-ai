@@ -17,21 +17,13 @@ import {
 } from "@/lib/ai/types";
 import { estimateTokens } from "@/lib/ai/utils";
 
-// Request validation schema - now supports all provider models
+// Request validation schema - now supports all provider models dynamically
 const sendMessageSchema = z.object({
   conversationId: z
     .string()
     .uuid("Invalid conversation ID format. Please use a valid UUID."),
   content: z.string().max(10000),
-  model: z.enum([
-    // OpenAI models
-    "gpt-4",
-    "gpt-3.5-turbo",
-    // Groq models (using actual model IDs)
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "gemma2-9b-it",
-  ]),
+  model: z.string().min(1, "Model ID is required"),
   attachments: z
     .array(
       z.object({
@@ -82,8 +74,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate model availability
-    const aiModel = getModelById(model as ModelId);
+    console.log(`🔍 Validating model: ${model}`);
+    const aiModel = await getModelById(model as ModelId);
+    console.log(
+      `🔍 getModelById result:`,
+      aiModel ? `Found: ${aiModel.name}` : "Not found"
+    );
+
     if (!aiModel) {
+      console.error(`❌ Model '${model}' not found in available models`);
       return NextResponse.json(
         { error: `Model '${model}' is not available or configured` },
         { status: 400 }
@@ -91,7 +90,13 @@ export async function POST(request: NextRequest) {
     }
 
     const provider = getProviderForModel(model as ModelId);
+    console.log(
+      `🔍 getProviderForModel result:`,
+      provider ? `Found: ${provider.name}` : "Not found"
+    );
+
     if (!provider) {
+      console.error(`❌ Provider for model '${model}' not found`);
       return NextResponse.json(
         { error: `Provider for model '${model}' is not configured` },
         { status: 400 }
@@ -375,11 +380,17 @@ export async function POST(request: NextRequest) {
     console.error("Chat API error:", error);
 
     if (error instanceof z.ZodError) {
+      console.error("Zod validation error details:", error.errors);
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
         { status: 400 }
       );
     }
+
+    console.error("Unexpected error in chat API:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     return NextResponse.json(
       { error: "Internal server error" },

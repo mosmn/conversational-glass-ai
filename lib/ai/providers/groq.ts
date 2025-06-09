@@ -6,7 +6,6 @@ import {
   ChatMessage,
   StreamingChunk,
   StreamingOptions,
-  GroqModelId,
   AIProviderError,
   TokenLimitExceededError,
 } from "../types";
@@ -25,8 +24,25 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().min(1, "Groq API key is required"),
 });
 
+// Groq API model response interface
+interface GroqModelResponse {
+  object: "list";
+  data: Array<{
+    id: string;
+    object: "model";
+    created: number;
+    owned_by: string;
+    active: boolean;
+    context_window: number;
+    public_apps: null;
+  }>;
+}
+
 // Groq client initialization
 let groqClient: Groq | null = null;
+let cachedModels: Record<string, AIModel> = {};
+let modelsLastFetched: number = 0;
+const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function getGroqClient(): Groq {
   if (!groqClient) {
@@ -50,95 +66,263 @@ function getGroqClient(): Groq {
   return groqClient;
 }
 
-// Groq models configuration with unique personalities and visual identities
-export const GROQ_MODELS: Record<GroqModelId, AIModel> = {
-  "llama-3.3-70b-versatile": {
-    id: "llama-3.3-70b-versatile",
-    name: "Llama 3.3 70B Versatile",
-    provider: "groq",
-    maxTokens: 131072, // 128K context
-    maxResponseTokens: 8192,
-    contextWindow: 131072,
-    personality: "versatile-powerhouse",
-    description:
-      "🦙 Versatile Powerhouse - Deep reasoning meets practical wisdom",
-    visualConfig: {
-      color: "from-orange-500 to-red-500",
-      avatar: "🦙",
-      style: "organic",
-    },
-    capabilities: {
-      streaming: true,
-      functionCalling: false,
-      multiModal: false,
-    },
-    pricing: {
-      inputCostPer1kTokens: 0.00059,
-      outputCostPer1kTokens: 0.00079,
-    },
-  },
-  "llama-3.1-8b-instant": {
-    id: "llama-3.1-8b-instant",
-    name: "Llama 3.1 8B Instant",
-    provider: "groq",
-    maxTokens: 131072, // 128K context
-    maxResponseTokens: 8192,
-    contextWindow: 131072,
-    personality: "lightning-fast",
-    description: "⚡ Lightning Fast - Optimized for speed and efficiency",
-    visualConfig: {
-      color: "from-yellow-400 to-orange-500",
-      avatar: "⚡",
-      style: "sharp",
-    },
-    capabilities: {
-      streaming: true,
-      functionCalling: false,
-      multiModal: false,
-    },
-    pricing: {
-      inputCostPer1kTokens: 0.00005,
-      outputCostPer1kTokens: 0.00008,
-    },
-  },
-  "gemma2-9b-it": {
-    id: "gemma2-9b-it",
-    name: "Gemma 2 9B IT",
-    provider: "groq",
-    maxTokens: 8192,
-    maxResponseTokens: 8192,
-    contextWindow: 8192,
-    personality: "efficient-genius",
-    description:
-      "💎 Efficient Genius - Smart, compact responses with maximum insight",
-    visualConfig: {
-      color: "from-emerald-400 to-teal-500",
-      avatar: "💎",
-      style: "geometric",
-    },
-    capabilities: {
-      streaming: true,
-      functionCalling: false,
-      multiModal: false,
-    },
-    pricing: {
-      inputCostPer1kTokens: 0.00002,
-      outputCostPer1kTokens: 0.00002,
-    },
-  },
-};
+// Generate personality and visual config based on model characteristics
+function generateModelConfig(
+  modelId: string,
+  ownedBy: string,
+  contextWindow: number
+) {
+  // Determine model type and characteristics
+  const isWhisper = modelId.includes("whisper");
+  const isGuard = modelId.includes("guard");
+  const isLlama = modelId.includes("llama");
+  const isGemma = modelId.includes("gemma");
+  const isDistil = modelId.includes("distil");
+
+  const size = modelId.match(/(\d+)b/i)?.[1];
+  const isLarge = size && parseInt(size) >= 70;
+  const isSmall = size && parseInt(size) <= 8;
+
+  // Skip audio models for chat
+  if (isWhisper) {
+    return null; // Don't include audio models in chat interface
+  }
+
+  let personality: string;
+  let description: string;
+  let avatar: string;
+  let color: string;
+  let style: "geometric" | "flowing" | "sharp" | "organic";
+  let specialties: string[];
+
+  if (isGuard) {
+    personality = "safety-guardian";
+    description = "🛡️ Safety Guardian - Content moderation and risk assessment";
+    avatar = "🛡️";
+    color = "from-red-400 to-orange-500";
+    style = "sharp";
+    specialties = ["Content moderation", "Safety analysis", "Risk assessment"];
+  } else if (isLlama && isLarge) {
+    personality = "wise-powerhouse";
+    description =
+      "🦕 Wise Powerhouse - Deep reasoning and complex problem solving";
+    avatar = "🦕";
+    color = "from-purple-500 to-blue-600";
+    style = "organic";
+    specialties = [
+      "Complex reasoning",
+      "Long-form content",
+      "Code generation",
+      "Creative writing",
+    ];
+  } else if (isLlama && isSmall) {
+    personality = "swift-companion";
+    description =
+      "🦎 Swift Companion - Fast responses with reliable intelligence";
+    avatar = "🦎";
+    color = "from-green-400 to-blue-500";
+    style = "organic";
+    specialties = ["Quick responses", "Code snippets", "Summaries", "Q&A"];
+  } else if (isLlama) {
+    personality = "versatile-llama";
+    description = "🦙 Versatile Llama - Balanced performance for diverse tasks";
+    avatar = "🦙";
+    color = "from-orange-500 to-red-500";
+    style = "organic";
+    specialties = [
+      "Versatile responses",
+      "Multi-step problems",
+      "Technical analysis",
+    ];
+  } else if (isGemma) {
+    personality = "efficient-genius";
+    description =
+      "💎 Efficient Genius - Compact intelligence with maximum insight";
+    avatar = "💎";
+    color = "from-emerald-400 to-teal-500";
+    style = "geometric";
+    specialties = [
+      "Efficient responses",
+      "Technical explanations",
+      "Educational content",
+    ];
+  } else if (isDistil) {
+    personality = "focused-specialist";
+    description = "🎯 Focused Specialist - Optimized for specific tasks";
+    avatar = "🎯";
+    color = "from-blue-400 to-indigo-500";
+    style = "sharp";
+    specialties = [
+      "Specialized tasks",
+      "Optimized performance",
+      "Focused responses",
+    ];
+  } else {
+    // Generic model
+    personality = "adaptable-assistant";
+    description = `🤖 ${ownedBy} Model - Advanced AI assistance`;
+    avatar = "🤖";
+    color = "from-gray-400 to-slate-500";
+    style = "geometric";
+    specialties = ["General assistance", "Adaptive responses"];
+  }
+
+  return {
+    personality,
+    description,
+    visualConfig: { color, avatar, style },
+    specialties,
+  };
+}
+
+// Fetch models from Groq API
+async function fetchGroqModels(): Promise<Record<string, AIModel>> {
+  const now = Date.now();
+
+  // Return cached models if they're still fresh
+  if (
+    cachedModels &&
+    Object.keys(cachedModels).length > 0 &&
+    now - modelsLastFetched < MODELS_CACHE_DURATION
+  ) {
+    return cachedModels;
+  }
+
+  try {
+    const client = getGroqClient();
+
+    // Fetch models from Groq API
+    const response = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch models: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data: GroqModelResponse = await response.json();
+    const models: Record<string, AIModel> = {};
+
+    for (const modelData of data.data) {
+      // Only include active chat models (skip audio/TTS models)
+      if (
+        !modelData.active ||
+        modelData.id.includes("whisper") ||
+        modelData.id.includes("distil-whisper") ||
+        modelData.id.includes("tts") ||
+        modelData.id.includes("playai-tts") ||
+        modelData.context_window < 1000 // Skip very small context models (likely not for chat)
+      ) {
+        continue;
+      }
+
+      const config = generateModelConfig(
+        modelData.id,
+        modelData.owned_by,
+        modelData.context_window
+      );
+      if (!config) continue; // Skip unsupported models
+
+      // Estimate pricing based on model size and type
+      let inputCost = 0.0001; // Default cost
+      let outputCost = 0.0001;
+
+      const size = modelData.id.match(/(\d+)b/i)?.[1];
+      if (size) {
+        const sizeNum = parseInt(size);
+        if (sizeNum >= 70) {
+          inputCost = 0.00059;
+          outputCost = 0.00079;
+        } else if (sizeNum >= 30) {
+          inputCost = 0.0003;
+          outputCost = 0.0004;
+        } else if (sizeNum <= 8) {
+          inputCost = 0.00005;
+          outputCost = 0.00008;
+        }
+      }
+
+      models[modelData.id] = {
+        id: modelData.id,
+        name: modelData.id
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        provider: "groq",
+        maxTokens: modelData.context_window,
+        maxResponseTokens: Math.min(
+          8192,
+          Math.floor(modelData.context_window * 0.5)
+        ), // Conservative estimate
+        contextWindow: modelData.context_window,
+        personality: config.personality,
+        description: config.description,
+        visualConfig: config.visualConfig,
+        capabilities: {
+          streaming: true,
+          functionCalling: false,
+          multiModal: false,
+        },
+        pricing: {
+          inputCostPer1kTokens: inputCost,
+          outputCostPer1kTokens: outputCost,
+        },
+      };
+    }
+
+    // Cache the results
+    cachedModels = models;
+    modelsLastFetched = now;
+
+    console.log(
+      `🚀 Groq: Fetched ${Object.keys(models).length} models dynamically`
+    );
+    return models;
+  } catch (error) {
+    console.error("Failed to fetch Groq models:", error);
+
+    // Fall back to cached models if available
+    if (Object.keys(cachedModels).length > 0) {
+      console.log("🔄 Groq: Using cached models due to fetch error");
+      return cachedModels;
+    }
+
+    // Return empty object if no cache and fetch failed
+    return {};
+  }
+}
+
+// Dynamic model loading - no more hard-coded models!
 
 // Groq Provider Implementation
 export class GroqProvider implements AIProvider {
   name = "groq";
   displayName = "Groq";
-  models = GROQ_MODELS;
+  private _models: Record<string, AIModel> = {};
+  private _modelsLoaded = false;
+
+  get models(): Record<string, AIModel> {
+    return this._models;
+  }
 
   get isConfigured(): boolean {
     try {
       return !!process.env.GROQ_API_KEY;
     } catch {
       return false;
+    }
+  }
+
+  // Load models dynamically
+  async ensureModelsLoaded(): Promise<void> {
+    if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
+      this._models = await fetchGroqModels();
+      this._modelsLoaded = true;
     }
   }
 
@@ -150,7 +334,10 @@ export class GroqProvider implements AIProvider {
     modelId: string,
     options: StreamingOptions = {}
   ): AsyncIterable<StreamingChunk> {
-    const model = this.models[modelId as GroqModelId];
+    // Ensure models are loaded
+    await this.ensureModelsLoaded();
+
+    const model = this.models[modelId];
     if (!model) {
       throw new AIProviderError(`Model '${modelId}' not found`, this.name);
     }
@@ -252,12 +439,14 @@ export class GroqProvider implements AIProvider {
   }
 
   // Helper method to get model by ID
-  getModel(modelId: string): AIModel | undefined {
-    return this.models[modelId as GroqModelId];
+  async getModel(modelId: string): Promise<AIModel | undefined> {
+    await this.ensureModelsLoaded();
+    return this.models[modelId];
   }
 
   // Helper method to list available models
-  listModels(): AIModel[] {
+  async listModels(): Promise<AIModel[]> {
+    await this.ensureModelsLoaded();
     return Object.values(this.models);
   }
 
@@ -265,9 +454,17 @@ export class GroqProvider implements AIProvider {
   async testConnection(): Promise<boolean> {
     try {
       const client = getGroqClient();
-      // Groq doesn't have a direct models endpoint, so we'll test with a simple completion
+      await this.ensureModelsLoaded();
+
+      // Get the first available model for testing
+      const availableModels = Object.keys(this.models);
+      if (availableModels.length === 0) {
+        return false;
+      }
+
+      // Test with the first available model
       await client.chat.completions.create({
-        model: "llama-3.1-8b-instant",
+        model: availableModels[0],
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 1,
         stream: false,
@@ -279,57 +476,43 @@ export class GroqProvider implements AIProvider {
   }
 
   // Get performance characteristics for UI display
-  getModelPerformance(modelId: string) {
-    const model = this.getModel(modelId);
+  async getModelPerformance(modelId: string) {
+    const model = await this.getModel(modelId);
     if (!model) return null;
 
     // Groq is known for extremely fast inference
     const baseSpeedMultiplier = {
       "llama-3.1-8b": 10, // Extremely fast
+      "llama3-8b": 10, // Extremely fast
       "gemma2-9b": 8, // Very fast
       "llama-3.3-70b": 5, // Fast for its size
+      "llama3-70b": 6, // Fast for its size
+      "llama-guard": 9, // Very fast for safety checks
     };
 
     const speedKey = modelId
       .replace("-instant", "")
-      .replace("-versatile", "") as keyof typeof baseSpeedMultiplier;
+      .replace("-versatile", "")
+      .replace("-8192", "")
+      .replace("-it", "") as keyof typeof baseSpeedMultiplier;
     const speedMultiplier = baseSpeedMultiplier[speedKey] || 5;
 
     return {
       inferenceSpeed: "ultra-fast",
       tokensPerSecond: speedMultiplier * 100, // Estimated tokens per second
       costEfficiency: "excellent",
-      specialties: this.getModelSpecialties(modelId),
+      specialties: await this.getModelSpecialties(modelId),
     };
   }
 
-  // Get model specialties for UI hints
-  private getModelSpecialties(modelId: string): string[] {
-    const specialties: Record<string, string[]> = {
-      "llama-3.3-70b": [
-        "Complex reasoning",
-        "Long-form content",
-        "Multi-step problems",
-        "Creative writing",
-        "Code generation",
-      ],
-      "llama-3.1-8b": [
-        "Quick responses",
-        "Simple queries",
-        "Code snippets",
-        "Summaries",
-        "Q&A",
-      ],
-      "gemma2-9b": [
-        "Efficient responses",
-        "Technical explanations",
-        "Balanced reasoning",
-        "Concise answers",
-        "Educational content",
-      ],
-    };
+  // Get model specialties from the dynamic model config
+  private async getModelSpecialties(modelId: string): Promise<string[]> {
+    const model = await this.getModel(modelId);
+    if (!model) return ["General assistance"];
 
-    return specialties[modelId] || ["General assistance"];
+    // Extract specialties from the model's description or use the config generated during fetch
+    const config = generateModelConfig(modelId, "Meta", model.contextWindow); // Fallback owner
+    return config?.specialties || ["General assistance"];
   }
 }
 

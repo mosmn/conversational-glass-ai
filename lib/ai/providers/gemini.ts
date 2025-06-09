@@ -208,15 +208,35 @@ async function* createGeminiStreamingCompletion(
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (line.trim() === "") continue;
+        // Try to extract complete JSON objects from the buffer
+        let startIndex = 0;
+        while (startIndex < buffer.length) {
+          // Find the start of a JSON object
+          const jsonStart = buffer.indexOf("{", startIndex);
+          if (jsonStart === -1) break;
 
-          // Gemini sends JSON objects separated by newlines
+          // Find the matching closing brace
+          let braceCount = 0;
+          let jsonEnd = -1;
+          for (let i = jsonStart; i < buffer.length; i++) {
+            if (buffer[i] === "{") braceCount++;
+            else if (buffer[i] === "}") {
+              braceCount--;
+              if (braceCount === 0) {
+                jsonEnd = i;
+                break;
+              }
+            }
+          }
+
+          // If we haven't found a complete JSON object, wait for more data
+          if (jsonEnd === -1) break;
+
+          const jsonStr = buffer.slice(jsonStart, jsonEnd + 1);
+
           try {
-            const parsed = JSON.parse(line);
+            const parsed = JSON.parse(jsonStr);
 
             if (parsed.candidates && parsed.candidates.length > 0) {
               const candidate = parsed.candidates[0];
@@ -226,7 +246,7 @@ async function* createGeminiStreamingCompletion(
                   if (part.text) {
                     yield {
                       content: part.text,
-                      tokenCount: part.text.length / 4, // Rough estimate
+                      tokenCount: estimateTokens(part.text),
                       finished: false,
                     };
                   }
@@ -267,8 +287,17 @@ async function* createGeminiStreamingCompletion(
             if (parseError instanceof AIProviderError) {
               throw parseError;
             }
-            console.warn("Failed to parse Gemini streaming chunk:", line);
+            // Skip this chunk and continue - don't log every parse failure
+            console.warn("Failed to parse Gemini streaming chunk, skipping...");
           }
+
+          // Move to the next potential JSON object
+          startIndex = jsonEnd + 1;
+        }
+
+        // Keep the remaining incomplete data in buffer
+        if (startIndex > 0) {
+          buffer = buffer.slice(startIndex);
         }
       }
     } finally {

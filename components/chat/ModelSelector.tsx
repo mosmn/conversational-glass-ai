@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 
 import type { Model as APIModel } from "@/lib/api/client";
 
-interface Model {
+interface ProcessedModel {
   id: string;
   name: string;
   description: string;
@@ -43,6 +43,7 @@ interface Model {
   contextWindow: string;
   recommended?: boolean;
   new?: boolean;
+  originalModel: APIModel;
 }
 
 interface ModelSelectorProps {
@@ -62,149 +63,148 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [selectedTab, setSelectedTab] = useState("all");
 
-  // Enhanced model configurations with Groq models
-  const enhancedModels: Model[] = [
-    // Groq Models (Ultra Fast & Affordable)
-    {
-      id: "llama-3.3-70b-versatile",
-      name: "Llama 3.3 70B Versatile",
-      description: "🦙 Most capable and versatile model with deep reasoning",
-      speed: "Ultra Fast",
-      cost: "Lower",
-      icon: Flame,
-      color: "orange",
-      provider: "Groq",
-      capabilities: [
-        "Deep reasoning",
-        "Complex analysis",
-        "Code generation",
-        "Creative writing",
-      ],
-      specialties: [
-        "Versatile problem solving",
-        "Detailed explanations",
-        "Multi-domain expertise",
-      ],
-      contextWindow: "128K",
-      recommended: true,
-      new: true,
-    },
-    {
-      id: "llama-3.1-8b-instant",
-      name: "Llama 3.1 8B Instant",
-      description: "⚡ Lightning-fast responses with excellent efficiency",
-      speed: "Ultra Fast",
-      cost: "Free",
-      icon: Zap,
-      color: "yellow",
-      provider: "Groq",
-      capabilities: ["Quick responses", "General chat", "Simple coding", "Q&A"],
-      specialties: [
-        "Speed optimization",
-        "Efficient processing",
-        "Real-time responses",
-      ],
-      contextWindow: "128K",
-    },
-    {
-      id: "gemma2-9b-it",
-      name: "Gemma 2 9B IT",
-      description: "💎 Compact genius for smart, efficient responses",
-      speed: "Ultra Fast",
-      cost: "Free",
-      icon: Diamond,
-      color: "emerald",
-      provider: "Groq",
-      capabilities: ["Smart responses", "Code assistance", "Technical writing"],
-      specialties: [
-        "Compact efficiency",
-        "Technical accuracy",
-        "Resource optimization",
-      ],
-      contextWindow: "8K",
-    },
+  // Process dynamic models from API
+  const processApiModel = (model: APIModel): ProcessedModel => {
+    // Determine speed based on provider and model characteristics
+    let speed: "Ultra Fast" | "Fast" | "Medium" | "Slower" = "Medium";
+    if (model.provider === "groq") {
+      speed = "Ultra Fast";
+    } else if (model.name.includes("Flash") || model.name.includes("Haiku")) {
+      speed = "Fast";
+    } else if (model.name.includes("GPT-4")) {
+      speed = "Slower";
+    } else {
+      speed = "Fast";
+    }
 
-    // OpenAI Models
-    {
-      id: "gpt-4",
-      name: "GPT-4",
-      description: "🧠 Most capable model for complex reasoning and analysis",
-      speed: "Slower",
-      cost: "Higher",
-      icon: Brain,
-      color: "emerald",
-      provider: "OpenAI",
-      capabilities: [
-        "Complex reasoning",
-        "Advanced coding",
-        "Research",
-        "Analysis",
-      ],
-      specialties: ["Problem solving", "Academic writing", "Code review"],
-      contextWindow: "8K",
-    },
-    {
-      id: "gpt-3.5-turbo",
-      name: "GPT-3.5 Turbo",
-      description: "🚀 Fast and efficient for most everyday tasks",
-      speed: "Fast",
-      cost: "Lower",
-      icon: Rocket,
-      color: "blue",
-      provider: "OpenAI",
-      capabilities: ["Quick responses", "General chat", "Simple coding", "Q&A"],
-      specialties: ["General purpose", "Quick tasks", "Conversation"],
-      contextWindow: "16K",
-    },
+    // Determine cost based on pricing
+    let cost: "Free" | "Lower" | "Medium" | "Higher" = "Medium";
+    if (model.pricing) {
+      const totalCost =
+        model.pricing.inputCostPer1kTokens +
+        model.pricing.outputCostPer1kTokens;
+      if (totalCost < 0.0005) cost = "Free";
+      else if (totalCost < 0.005) cost = "Lower";
+      else if (totalCost < 0.02) cost = "Medium";
+      else cost = "Higher";
+    }
 
-    // Anthropic Models
-    {
-      id: "claude-3-sonnet",
-      name: "Claude-3 Sonnet",
-      description: "✨ Thoughtful, nuanced responses with ethical focus",
-      speed: "Medium",
-      cost: "Medium",
-      icon: Sparkles,
-      color: "purple",
-      provider: "Anthropic",
-      capabilities: [
-        "Thoughtful analysis",
-        "Creative writing",
-        "Reasoning",
-        "Safety",
-      ],
-      specialties: ["Ethical reasoning", "Nuanced responses", "Creative tasks"],
-      contextWindow: "200K",
-    },
+    // Determine icon based on provider and characteristics
+    let icon = Brain;
+    let color = "blue";
+    if (model.provider === "groq") {
+      if (model.name.includes("70b") || model.name.includes("70B")) {
+        icon = Flame;
+        color = "orange";
+      } else if (model.name.includes("guard") || model.name.includes("Guard")) {
+        icon = Diamond;
+        color = "red";
+      } else {
+        icon = Zap;
+        color = "yellow";
+      }
+    } else if (model.provider === "openai") {
+      icon = model.name.includes("4") ? Brain : Rocket;
+      color = model.name.includes("4") ? "emerald" : "blue";
+    } else if (model.provider === "claude" || model.provider === "anthropic") {
+      icon = Sparkles;
+      color = "purple";
+    } else if (model.provider === "gemini" || model.provider === "google") {
+      icon = Cpu;
+      color = "amber";
+    }
 
-    // Google Models
-    {
-      id: "gemini-pro",
-      name: "Gemini Pro",
-      description: "🤖 Multi-modal AI with vision and code capabilities",
-      speed: "Fast",
-      cost: "Medium",
-      icon: Cpu,
-      color: "amber",
-      provider: "Google",
-      capabilities: [
-        "Multi-modal",
-        "Image analysis",
-        "Code generation",
-        "Fast responses",
-      ],
-      specialties: ["Vision tasks", "Multi-modal analysis", "Technical tasks"],
-      contextWindow: "32K",
-    },
-  ];
+    // Extract capabilities and specialties from description
+    const capabilities = [];
+    const specialties = [];
+
+    if (
+      model.description.includes("reasoning") ||
+      model.description.includes("complex")
+    ) {
+      capabilities.push("Complex reasoning");
+      specialties.push("Deep analysis");
+    }
+    if (
+      model.description.includes("fast") ||
+      model.description.includes("quick")
+    ) {
+      capabilities.push("Quick responses");
+      specialties.push("Speed optimization");
+    }
+    if (
+      model.description.includes("code") ||
+      model.description.includes("programming")
+    ) {
+      capabilities.push("Code generation");
+      specialties.push("Programming assistance");
+    }
+    if (
+      model.description.includes("creative") ||
+      model.description.includes("writing")
+    ) {
+      capabilities.push("Creative writing");
+      specialties.push("Content creation");
+    }
+    if (
+      model.description.includes("safety") ||
+      model.description.includes("moderation")
+    ) {
+      capabilities.push("Content moderation");
+      specialties.push("Safety analysis");
+    }
+
+    // Default capabilities if none detected
+    if (capabilities.length === 0) {
+      capabilities.push("General assistance", "Text processing");
+    }
+    if (specialties.length === 0) {
+      specialties.push("Versatile responses", "General tasks");
+    }
+
+    return {
+      id: model.id,
+      name: model.name,
+      description: model.description,
+      speed,
+      cost,
+      icon,
+      color,
+      provider:
+        model.provider.charAt(0).toUpperCase() + model.provider.slice(1),
+      capabilities,
+      specialties,
+      contextWindow: formatContextWindow(model.contextWindow),
+      recommended: model.provider === "groq" && model.name.includes("70B"),
+      new: model.provider === "groq",
+      originalModel: model,
+    };
+  };
+
+  const formatContextWindow = (contextWindow: number): string => {
+    if (contextWindow >= 1000000) {
+      return `${Math.round(contextWindow / 1000000)}M`;
+    } else if (contextWindow >= 1000) {
+      return `${Math.round(contextWindow / 1000)}K`;
+    }
+    return `${contextWindow}`;
+  };
+
+  // Process all API models
+  const enhancedModels: ProcessedModel[] = apiModels.map(processApiModel);
+
+  // Use API models if available, otherwise empty (loading state)
+  const finalModels = enhancedModels.length > 0 ? enhancedModels : [];
 
   // Filter models by provider for tabs
-  const groqModels = enhancedModels.filter((m) => m.provider === "Groq");
-  const openaiModels = enhancedModels.filter((m) => m.provider === "OpenAI");
-  const anthropicModels = enhancedModels.filter(
-    (m) => m.provider === "Anthropic"
+  const groqModels = finalModels.filter((m) => m.provider === "Groq");
+  const openaiModels = finalModels.filter((m) => m.provider === "Openai");
+  const anthropicModels = finalModels.filter(
+    (m) => m.provider === "Claude" || m.provider === "Anthropic"
   );
-  const googleModels = enhancedModels.filter((m) => m.provider === "Google");
+  const googleModels = finalModels.filter(
+    (m) => m.provider === "Gemini" || m.provider === "Google"
+  );
 
   const getModelsByTab = (tab: string) => {
     switch (tab) {
@@ -217,14 +217,41 @@ export function ModelSelector({
       case "google":
         return googleModels;
       case "recommended":
-        return enhancedModels.filter((m) => m.recommended);
+        return finalModels.filter((m) => m.recommended);
       default:
-        return enhancedModels;
+        return finalModels;
     }
   };
 
   const currentModel =
-    enhancedModels.find((m) => m.id === selectedModel) || enhancedModels[0];
+    finalModels.find((m) => m.id === selectedModel) ||
+    (finalModels.length > 0 ? finalModels[0] : null);
+
+  // Show loading state if no models are available
+  if (!currentModel) {
+    return (
+      <Button
+        variant="outline"
+        className={cn(
+          "border-slate-600 min-w-[220px] justify-between",
+          "text-white bg-slate-800/50",
+          "backdrop-blur-sm",
+          className
+        )}
+        disabled
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs bg-slate-600/20">
+            <Brain className="h-3 w-3 animate-pulse" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-sm font-medium">Loading models...</span>
+            <span className="text-xs text-slate-400">Please wait</span>
+          </div>
+        </div>
+      </Button>
+    );
+  }
 
   const getSpeedColor = (speed: string) => {
     switch (speed) {
@@ -471,15 +498,17 @@ export function ModelSelector({
                         Core Capabilities
                       </h5>
                       <div className="flex flex-wrap gap-1">
-                        {model.capabilities.map((capability, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="secondary"
-                            className="text-xs bg-slate-700/50 text-slate-300 border-slate-600"
-                          >
-                            {capability}
-                          </Badge>
-                        ))}
+                        {model.capabilities.map(
+                          (capability: string, idx: number) => (
+                            <Badge
+                              key={idx}
+                              variant="secondary"
+                              className="text-xs bg-slate-700/50 text-slate-300 border-slate-600"
+                            >
+                              {capability}
+                            </Badge>
+                          )
+                        )}
                       </div>
                     </div>
 
@@ -489,18 +518,20 @@ export function ModelSelector({
                         Best For
                       </h5>
                       <div className="flex flex-wrap gap-1">
-                        {model.specialties.map((specialty, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="outline"
-                            className={cn(
-                              "text-xs border-slate-600 text-slate-400",
-                              `hover:border-${model.color}-500 hover:text-${model.color}-400`
-                            )}
-                          >
-                            {specialty}
-                          </Badge>
-                        ))}
+                        {model.specialties.map(
+                          (specialty: string, idx: number) => (
+                            <Badge
+                              key={idx}
+                              variant="outline"
+                              className={cn(
+                                "text-xs border-slate-600 text-slate-400",
+                                `hover:border-${model.color}-500 hover:text-${model.color}-400`
+                              )}
+                            >
+                              {specialty}
+                            </Badge>
+                          )
+                        )}
                       </div>
                     </div>
                   </CardContent>

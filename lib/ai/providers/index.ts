@@ -27,8 +27,24 @@ export function getConfiguredProviders(): AIProvider[] {
   return Object.values(providers).filter((provider) => provider.isConfigured);
 }
 
-// Get all available models from all configured providers
-export function getAllModels(): AIModel[] {
+// Get all available models from all configured providers (async for dynamic loading)
+export async function getAllModels(): Promise<AIModel[]> {
+  const allModels: AIModel[] = [];
+
+  for (const provider of getConfiguredProviders()) {
+    // Ensure dynamic models are loaded (for Groq)
+    if (provider.name === "groq" && "ensureModelsLoaded" in provider) {
+      await (provider as any).ensureModelsLoaded();
+    }
+
+    allModels.push(...Object.values(provider.models));
+  }
+
+  return allModels;
+}
+
+// Synchronous version for compatibility (may not include all Groq models)
+export function getAllModelsSync(): AIModel[] {
   const allModels: AIModel[] = [];
 
   for (const provider of getConfiguredProviders()) {
@@ -49,8 +65,25 @@ export function getModelsByProvider(): Record<string, AIModel[]> {
   return modelsByProvider;
 }
 
-// Get a specific model by ID
-export function getModelById(modelId: ModelId): AIModel | null {
+// Get a specific model by ID (async version for dynamic loading)
+export async function getModelById(modelId: ModelId): Promise<AIModel | null> {
+  const providerName = getProviderFromModelId(modelId);
+  const provider = providers[providerName];
+
+  if (!provider || !provider.isConfigured) {
+    return null;
+  }
+
+  // Ensure dynamic models are loaded (for Groq)
+  if (provider.name === "groq" && "ensureModelsLoaded" in provider) {
+    await (provider as any).ensureModelsLoaded();
+  }
+
+  return provider.models[modelId] || null;
+}
+
+// Synchronous version for backwards compatibility (may not include all dynamic models)
+export function getModelByIdSync(modelId: ModelId): AIModel | null {
   const providerName = getProviderFromModelId(modelId);
   const provider = providers[providerName];
 
@@ -89,7 +122,7 @@ export async function* createStreamingCompletion(
     );
   }
 
-  const model = getModelById(modelId);
+  const model = await getModelById(modelId);
   if (!model) {
     throw new ModelNotFoundError(modelId, provider.name);
   }
@@ -155,7 +188,7 @@ export function getProviderStatus() {
 }
 
 // Default model recommendations
-export function getDefaultModel(): ModelId | null {
+export async function getDefaultModel(): Promise<ModelId | null> {
   // Prefer faster, cheaper models for default experience
   const preferences: ModelId[] = [
     "llama-3.1-8b-instant", // Fastest and cheapest
@@ -170,20 +203,20 @@ export function getDefaultModel(): ModelId | null {
   ];
 
   for (const modelId of preferences) {
-    const model = getModelById(modelId);
+    const model = await getModelById(modelId);
     if (model) {
       return modelId;
     }
   }
 
   // Fallback to first available model
-  const allModels = getAllModels();
+  const allModels = await getAllModels();
   return allModels.length > 0 ? (allModels[0].id as ModelId) : null;
 }
 
 // Get recommended models for different use cases
-export function getRecommendedModels() {
-  const allModels = getAllModels();
+export async function getRecommendedModels() {
+  const allModels = await getAllModels();
 
   return {
     fastest:
@@ -223,7 +256,7 @@ export function getRecommendedModels() {
           return aCost - bCost;
         })[0]?.id as ModelId) || null,
 
-    balanced: getDefaultModel(),
+    balanced: await getDefaultModel(),
   };
 }
 

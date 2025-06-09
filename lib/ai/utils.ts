@@ -44,21 +44,46 @@ export function generateSystemPrompt(model: AIModel): SystemPromptTemplate {
   };
 }
 
-// Detect provider from model ID
+// Detect provider from model ID (now dynamic!)
 export function getProviderFromModelId(modelId: ModelId): string {
-  const providerMap: Record<string, string> = {
-    "gpt-4": "openai",
-    "gpt-3.5-turbo": "openai",
-    "llama-3.3-70b-versatile": "groq",
-    "llama-3.1-8b-instant": "groq",
-    "gemma2-9b-it": "groq",
-    "claude-3-5-sonnet-20241022": "claude",
-    "claude-3-haiku-20240307": "claude",
-    "gemini-1.5-pro": "gemini",
-    "gemini-1.5-flash": "gemini",
-  };
+  // OpenAI models
+  if (
+    modelId.startsWith("gpt-") ||
+    modelId === "o1-preview" ||
+    modelId === "o1-mini"
+  ) {
+    return "openai";
+  }
 
-  return providerMap[modelId] || "unknown";
+  // Claude models
+  if (modelId.startsWith("claude-")) {
+    return "claude";
+  }
+
+  // Gemini models
+  if (modelId.startsWith("gemini-")) {
+    return "gemini";
+  }
+
+  // Groq models - fallback for anything not matching above patterns
+  // Most Groq models include these patterns
+  if (
+    modelId.includes("llama") ||
+    modelId.includes("gemma") ||
+    modelId.includes("mistral") ||
+    modelId.includes("deepseek") ||
+    modelId.includes("qwen") ||
+    modelId.includes("allam") ||
+    modelId.includes("compound") ||
+    modelId.includes("guard") ||
+    modelId.includes("whisper") // audio models
+  ) {
+    return "groq";
+  }
+
+  // Default fallback - could be unknown or we might add more logic
+  console.warn(`⚠️ Unknown provider for model: ${modelId}`);
+  return "unknown";
 }
 
 // Validate model compatibility with provider
