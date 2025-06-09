@@ -96,6 +96,12 @@ export interface Model {
     icon: string;
     gradient: string;
   };
+  // Enhanced properties added by the API
+  isRecommended: boolean;
+  isNew: boolean;
+  tags: string[];
+  tier: "premium" | "standard" | "economy";
+  bestUseCase: string;
 }
 
 export interface ModelsResponse {
@@ -317,13 +323,7 @@ class APIClient {
 
   // Models API
   async getModels(): Promise<ModelsResponse> {
-    const response = await this.fetchWithAuth<APIResponse<ModelsResponse>>(
-      "/models"
-    );
-    if (!response.success || !response.data) {
-      throw new Error(response.error || "Failed to fetch models");
-    }
-    return response.data;
+    return this.fetchWithAuth<ModelsResponse>("/models");
   }
 
   // Chat API - Streaming

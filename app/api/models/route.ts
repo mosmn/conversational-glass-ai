@@ -12,40 +12,103 @@ export async function GET(request: NextRequest) {
     // Get all models from all providers (async for dynamic loading)
     const allModels = await getAllModels();
 
-    // Enhance models with additional metadata
-    const enhancedModels = allModels.map((model) => ({
-      ...model,
-      performance: {
-        speed: getSpeedRating(model),
-        capacity: getCapacityRating(model),
-        efficiency: getEfficiencyRating(model),
-      },
-      isRecommended: isRecommendedModel(model),
-      isNew: isNewModel(model),
-      tags: getModelTags(model),
-      tier: getModelTier(model),
-      bestUseCase: getBestUseCase(model),
-    }));
+    // Transform AI models to frontend Model interface
+    const enhancedModels = allModels.map((aiModel) => {
+      const performance = {
+        speed: getSpeedRating(aiModel),
+        capacity: getCapacityRating(aiModel),
+        efficiency: getEfficiencyRating(aiModel),
+      };
+
+      const uiHints = {
+        bestFor: getBestUseCase(aiModel),
+        tags: getModelTags(aiModel),
+        tier: getModelTier(aiModel),
+      };
+
+      return {
+        id: aiModel.id,
+        name: aiModel.name,
+        provider: aiModel.provider,
+        description: aiModel.description,
+        personality: aiModel.personality,
+        contextWindow: aiModel.contextWindow,
+        maxResponseTokens: aiModel.maxResponseTokens || 4096,
+        capabilities: {
+          functionCalling: aiModel.capabilities.functionCalling || false,
+          multiModal: aiModel.capabilities.multiModal || false,
+          codeGeneration: aiModel.capabilities.functionCalling || false, // Use function calling as proxy for code generation
+        },
+        pricing: aiModel.pricing || {
+          inputCostPer1kTokens: 0,
+          outputCostPer1kTokens: 0,
+        },
+        performance,
+        uiHints,
+        visualConfig: aiModel.visualConfig || {
+          color: "from-gray-500 to-gray-600",
+          icon: "🤖",
+          gradient: "linear-gradient(135deg, #6b7280, #4b5563)",
+        },
+        // Enhanced properties added by the API
+        isRecommended: isRecommendedModel(aiModel),
+        isNew: isNewModel(aiModel),
+        tags: getModelTags(aiModel),
+        tier: getModelTier(aiModel),
+        bestUseCase: getBestUseCase(aiModel),
+      };
+    });
+
+    // Group models by provider
+    const modelsByProvider = enhancedModels.reduce((acc, model) => {
+      if (!acc[model.provider]) {
+        acc[model.provider] = [];
+      }
+      acc[model.provider].push(model);
+      return acc;
+    }, {} as Record<string, typeof enhancedModels>);
 
     // Get provider status (async for dynamic loading)
     const providerStatus = await getProviderStatus();
 
+    // Get recommended models
+    const recommendedModels = await getRecommendedModels();
+
+    // Create recommendations structure
+    const recommendations = {
+      default: enhancedModels.find((m) => m.isRecommended) || enhancedModels[0],
+      fastest:
+        enhancedModels.find((m) => m.performance.speed === "fast") ||
+        enhancedModels[0],
+      smartest:
+        enhancedModels.find((m) => m.tier === "premium") || enhancedModels[0],
+      cheapest:
+        enhancedModels.find((m) => m.performance.efficiency === "high") ||
+        enhancedModels[0],
+      balanced:
+        enhancedModels.find((m) => m.tier === "standard") || enhancedModels[0],
+    };
+
+    // Create statistics
+    const statistics = {
+      totalModels: enhancedModels.length,
+      totalProviders: Object.keys(modelsByProvider).length,
+      configuredProviders: providerStatus.configured,
+      availableModels: enhancedModels.length,
+    };
+
     return NextResponse.json({
-      success: true,
-      data: {
-        models: enhancedModels,
-        providerStatus,
-        totalModels: enhancedModels.length,
-        recommendations: enhancedModels.filter((m) => m.isRecommended),
-        newModels: enhancedModels.filter((m) => m.isNew),
-      },
+      models: enhancedModels,
+      modelsByProvider,
+      providerStatus,
+      recommendations,
+      statistics,
     });
   } catch (error) {
     console.error("Failed to fetch models:", error);
 
     return NextResponse.json(
       {
-        success: false,
         error: "Failed to fetch models",
         details: error instanceof Error ? error.message : "Unknown error",
       },
@@ -66,6 +129,11 @@ function getSpeedRating(model: any): "fast" | "medium" | "slow" {
 
   if (model.provider === "gemini") {
     if (model.name.includes("flash")) return "fast";
+    return "medium";
+  }
+
+  if (model.provider === "claude") {
+    if (model.name.includes("haiku")) return "fast";
     return "medium";
   }
 
