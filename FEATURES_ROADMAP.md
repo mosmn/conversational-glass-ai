@@ -135,12 +135,12 @@
   - [x] Multiple language support
   - [x] Copy code functionality
 
-- [ ] **Chat Sharing** (Leverage Existing UI)
+- [x] **Chat Sharing** (Leverage Existing UI)
 
-  - [ ] Generate shareable URLs
-  - [ ] Public conversation viewing
-  - [ ] Social media previews
-  - [ ] Export conversation artifacts
+  - [x] Generate shareable URLs
+  - [x] Public conversation viewing
+  - [x] Social media previews
+  - [x] Export conversation artifacts (MD/JSON/PDF)
 
 - [ ] **Attachment Support** (Competitive Advantage)
 

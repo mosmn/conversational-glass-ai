@@ -178,6 +178,63 @@ export function ShareModal({
     }
   };
 
+  const exportConversation = async (format: "markdown" | "json" | "pdf") => {
+    try {
+      const endpoint =
+        sharingStatus.enabled && sharingStatus.shareId
+          ? `/api/shared/${sharingStatus.shareId}/export`
+          : `/api/conversations/${conversationId}/export`;
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          format,
+          includeMetadata: true,
+          includeTimestamps: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Export failed: ${response.statusText}`);
+      }
+
+      // Get filename from content-disposition header
+      const contentDisposition = response.headers.get("content-disposition");
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] || `conversation.${format}`;
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export successful",
+        description: `Conversation exported as ${format.toUpperCase()}`,
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Export failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to export conversation",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <TooltipProvider>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -299,29 +356,56 @@ export function ShareModal({
                 Export Options
               </Label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={true} // TODO: Implement export functionality
-                >
-                  <Download className="h-3 w-3 mr-2" />
-                  PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={true} // TODO: Implement export functionality
-                >
-                  <Download className="h-3 w-3 mr-2" />
-                  Markdown
-                </Button>
+              <div className="grid grid-cols-3 gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => exportConversation("markdown")}
+                    >
+                      <Download className="h-3 w-3 mr-2" />
+                      MD
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Export as Markdown</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => exportConversation("json")}
+                    >
+                      <Download className="h-3 w-3 mr-2" />
+                      JSON
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Export as JSON</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => exportConversation("pdf")}
+                      disabled={true} // PDF coming in Phase 3
+                    >
+                      <Download className="h-3 w-3 mr-2" />
+                      PDF
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>PDF export coming soon</TooltipContent>
+                </Tooltip>
               </div>
 
               <p className="text-xs text-slate-500">
-                Export functionality coming soon
+                Download conversation in your preferred format
               </p>
             </div>
 

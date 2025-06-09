@@ -13,6 +13,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Copy,
   Check,
   ExternalLink,
@@ -26,6 +32,8 @@ import {
   Calendar,
   Clock,
   Share,
+  Download,
+  MoreVertical,
 } from "lucide-react";
 import { MessageContent } from "./MessageContent";
 import Link from "next/link";
@@ -98,6 +106,46 @@ export function PublicConversationView({
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Copy error:", error);
+    }
+  };
+
+  const exportConversation = async (format: "markdown" | "json" | "pdf") => {
+    try {
+      const response = await fetch(`/api/shared/${shareId}/export`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          format,
+          includeMetadata: true,
+          includeTimestamps: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Export failed: ${response.statusText}`);
+      }
+
+      // Get filename from content-disposition header
+      const contentDisposition = response.headers.get("content-disposition");
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] || `conversation.${format}`;
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export error:", error);
+      // You could show a toast notification here if available
     }
   };
 
@@ -180,6 +228,45 @@ export function PublicConversationView({
                     {copied ? "Copied!" : "Copy link"}
                   </TooltipContent>
                 </Tooltip>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-slate-300 hover:text-white"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-48 glass-dark border-slate-700/50"
+                  >
+                    <DropdownMenuItem
+                      onClick={() => exportConversation("markdown")}
+                      className="cursor-pointer hover:bg-slate-700/50"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export as Markdown
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportConversation("json")}
+                      className="cursor-pointer hover:bg-slate-700/50"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export as JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled
+                      className="cursor-not-allowed opacity-50"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export as PDF (Soon)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
