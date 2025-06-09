@@ -34,61 +34,237 @@ const GEMINI_CONFIG = {
   defaultTopK: 64,
 };
 
-// Gemini model definitions with personality and visual styling
-const geminiModels: Record<string, AIModel> = {
-  "gemini-1.5-pro": {
-    id: "gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
-    provider: "gemini",
-    maxTokens: 2097152, // 2M context window
-    maxResponseTokens: 8192,
-    contextWindow: 2097152,
-    personality:
-      "Intelligent and versatile, excellent at reasoning, coding, and multimodal tasks",
-    description:
-      "Most capable Gemini model with massive context window and multimodal capabilities",
-    visualConfig: {
+// Gemini API response types
+interface GeminiModelResponse {
+  models: Array<{
+    name: string;
+    baseModelId: string;
+    version: string;
+    displayName: string;
+    description: string;
+    inputTokenLimit: number;
+    outputTokenLimit: number;
+    supportedGenerationMethods: string[];
+    temperature?: number;
+    maxTemperature?: number;
+    topP?: number;
+    topK?: number;
+  }>;
+  nextPageToken?: string;
+}
+
+// Cache for dynamic models
+let cachedModels: Record<string, AIModel> = {};
+let modelsLastFetched = 0;
+const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Generate model configuration based on model characteristics
+function generateGeminiModelConfig(
+  baseModelId: string,
+  displayName: string,
+  description: string,
+  inputTokenLimit: number
+) {
+  // Determine personality and visual config based on model characteristics
+  let personality = "balanced";
+  let visualConfig = {
+    color: "from-blue-400 to-purple-500",
+    avatar: "🔮",
+    style: "geometric" as const,
+  };
+
+  // Categorize based on model name patterns
+  if (baseModelId.includes("flash")) {
+    personality = "lightning-fast";
+    visualConfig = {
+      color: "from-yellow-400 to-orange-500",
+      avatar: "⚡",
+      style: "geometric" as const,
+    };
+  } else if (baseModelId.includes("pro")) {
+    personality = "versatile-powerhouse";
+    visualConfig = {
       color: "from-blue-400 to-purple-500",
       avatar: "🔮",
       style: "geometric" as const,
-    },
-    capabilities: {
-      streaming: true,
-      functionCalling: true,
-      multiModal: true,
-    },
-    pricing: {
-      inputCostPer1kTokens: 0.00125,
-      outputCostPer1kTokens: 0.005,
-    },
-  },
-  "gemini-1.5-flash": {
-    id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash",
-    provider: "gemini",
-    maxTokens: 1048576, // 1M context window
-    maxResponseTokens: 8192,
-    contextWindow: 1048576,
-    personality:
-      "Fast and efficient, optimized for speed while maintaining quality",
-    description:
-      "Faster Gemini model with large context window, optimized for high-frequency use cases",
-    visualConfig: {
-      color: "from-yellow-400 to-orange-500",
-      avatar: "⚡",
-      style: "sharp" as const,
-    },
-    capabilities: {
-      streaming: true,
-      functionCalling: true,
-      multiModal: true,
-    },
-    pricing: {
-      inputCostPer1kTokens: 0.000075,
-      outputCostPer1kTokens: 0.0003,
-    },
-  },
-};
+    };
+  } else if (baseModelId.includes("8b")) {
+    personality = "efficient-genius";
+    visualConfig = {
+      color: "from-green-400 to-blue-500",
+      avatar: "🧠",
+      style: "geometric" as const,
+    };
+  } else if (baseModelId.includes("2.0") || baseModelId.includes("exp")) {
+    personality = "futuristic-innovator";
+    visualConfig = {
+      color: "from-purple-400 to-pink-500",
+      avatar: "🚀",
+      style: "geometric" as const,
+    };
+  }
+
+  // Generate description based on characteristics
+  let generatedDescription = description;
+  if (!generatedDescription) {
+    if (baseModelId.includes("flash")) {
+      generatedDescription =
+        "Fast and efficient model optimized for speed while maintaining quality";
+    } else if (baseModelId.includes("pro")) {
+      generatedDescription =
+        "Most capable model with advanced reasoning and multimodal capabilities";
+    } else if (baseModelId.includes("8b")) {
+      generatedDescription = "Compact and efficient model for rapid responses";
+    } else {
+      generatedDescription = "Advanced AI model with versatile capabilities";
+    }
+  }
+
+  return {
+    personality,
+    description: generatedDescription,
+    visualConfig,
+  };
+}
+
+// Fetch available models from Gemini API
+async function fetchGeminiModels(): Promise<Record<string, AIModel>> {
+  const now = Date.now();
+
+  // Return cached models if still fresh
+  if (
+    now - modelsLastFetched < MODELS_CACHE_DURATION &&
+    Object.keys(cachedModels).length > 0
+  ) {
+    return cachedModels;
+  }
+
+  if (!env?.GOOGLE_AI_API_KEY) {
+    console.warn("🔴 Gemini: No API key configured");
+    return {};
+  }
+
+  try {
+    const url = `${GEMINI_CONFIG.baseUrl}/models?key=${env.GOOGLE_AI_API_KEY}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch models: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data: GeminiModelResponse = await response.json();
+    const models: Record<string, AIModel> = {};
+
+    for (const modelData of data.models) {
+      // Only include models that support generateContent
+      if (
+        modelData.supportedGenerationMethods &&
+        Array.isArray(modelData.supportedGenerationMethods) &&
+        !modelData.supportedGenerationMethods.includes("generateContent")
+      ) {
+        continue;
+      }
+
+      // Skip models without supportedGenerationMethods entirely
+      if (
+        !modelData.supportedGenerationMethods ||
+        !Array.isArray(modelData.supportedGenerationMethods)
+      ) {
+        continue;
+      }
+
+      // Use name field as the model ID (e.g., "models/gemini-1.5-pro")
+      const modelId = modelData.name;
+      const modelName = modelId.replace("models/", ""); // Remove "models/" prefix
+
+      // Skip embedding-only models and other non-chat models
+      if (
+        modelName.includes("embedding") ||
+        modelName.includes("aqa") ||
+        modelName.includes("text-embedding") ||
+        modelName.includes("embedding-preview")
+      ) {
+        continue;
+      }
+
+      const config = generateGeminiModelConfig(
+        modelName,
+        modelData.displayName,
+        modelData.description,
+        modelData.inputTokenLimit
+      );
+
+      // Estimate pricing based on model capabilities
+      let inputCost = 0.00125; // Default Pro pricing
+      let outputCost = 0.005;
+
+      if (modelName.includes("flash")) {
+        inputCost = 0.000075;
+        outputCost = 0.0003;
+      } else if (modelName.includes("8b")) {
+        inputCost = 0.0000375;
+        outputCost = 0.00015;
+      }
+
+      models[modelName] = {
+        id: modelName,
+        name:
+          modelData.displayName ||
+          modelName
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" "),
+        provider: "gemini",
+        maxTokens: modelData.inputTokenLimit || 30720, // Default if not provided
+        maxResponseTokens: Math.min(
+          modelData.outputTokenLimit || 8192,
+          8192 // Cap at 8K for response
+        ),
+        contextWindow: modelData.inputTokenLimit || 30720, // Default if not provided
+        personality: config.personality,
+        description: config.description,
+        visualConfig: config.visualConfig,
+        capabilities: {
+          streaming: true,
+          functionCalling: true,
+          multiModal: true,
+        },
+        pricing: {
+          inputCostPer1kTokens: inputCost,
+          outputCostPer1kTokens: outputCost,
+        },
+      };
+    }
+
+    // Cache the results
+    cachedModels = models;
+    modelsLastFetched = now;
+
+    console.log(
+      `🚀 Gemini: Fetched ${Object.keys(models).length} models dynamically`
+    );
+    return models;
+  } catch (error) {
+    console.error("Failed to fetch Gemini models:", error);
+
+    // Fall back to cached models if available
+    if (Object.keys(cachedModels).length > 0) {
+      console.log("🔄 Gemini: Using cached models due to fetch error");
+      return cachedModels;
+    }
+
+    // Return empty object if no cache and fetch failed
+    return {};
+  }
+}
 
 // Convert messages to Gemini format
 function formatMessagesForGemini(messages: ChatMessage[]): {
@@ -130,13 +306,8 @@ async function* createGeminiStreamingCompletion(
     );
   }
 
-  const model = geminiModels[modelId];
-  if (!model) {
-    throw new AIProviderError(
-      `Model ${modelId} not found in Gemini provider`,
-      "gemini"
-    );
-  }
+  // Note: Model validation is now handled by the provider class
+  // This function is called by the provider after ensuring models are loaded
 
   const { contents, systemInstruction } = formatMessagesForGemini(messages);
 
@@ -146,7 +317,7 @@ async function* createGeminiStreamingCompletion(
     generationConfig: {
       maxOutputTokens: Math.min(
         options.maxTokens || GEMINI_CONFIG.defaultMaxTokens,
-        model.maxResponseTokens || 8192
+        8192 // Use default since model object is not available here
       ),
       temperature: options.temperature || GEMINI_CONFIG.defaultTemperature,
       topP: GEMINI_CONFIG.defaultTopP,
@@ -389,17 +560,54 @@ async function testGeminiConnection(): Promise<boolean> {
   }
 }
 
-// Gemini provider implementation
-export const geminiProvider: AIProvider = {
-  name: "gemini",
-  displayName: "Google Gemini",
-  models: geminiModels,
-  isConfigured: !!env,
-  createStreamingCompletion: createGeminiStreamingCompletion,
-  handleError: handleGeminiError,
-  estimateTokens,
-  calculateConversationTokens,
-  testConnection: testGeminiConnection,
-};
+// Gemini Provider Implementation (Dynamic)
+export class GeminiProvider implements AIProvider {
+  name = "gemini";
+  displayName = "Google Gemini";
+  private _models: Record<string, AIModel> = {};
+  private _modelsLoaded = false;
+
+  get models(): Record<string, AIModel> {
+    return this._models;
+  }
+
+  get isConfigured(): boolean {
+    return !!env;
+  }
+
+  // Load models dynamically
+  async ensureModelsLoaded(): Promise<void> {
+    if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
+      this._models = await fetchGeminiModels();
+      this._modelsLoaded = true;
+    }
+  }
+
+  estimateTokens = estimateTokens;
+  calculateConversationTokens = calculateConversationTokens;
+
+  async *createStreamingCompletion(
+    messages: ChatMessage[],
+    modelId: string,
+    options: StreamingOptions = {}
+  ): AsyncIterable<StreamingChunk> {
+    // Ensure models are loaded
+    await this.ensureModelsLoaded();
+
+    const model = this.models[modelId];
+    if (!model) {
+      throw new AIProviderError(`Model '${modelId}' not found`, this.name);
+    }
+
+    // Use the existing streaming function with dynamic model lookup
+    yield* createGeminiStreamingCompletion(messages, modelId, options);
+  }
+
+  handleError = handleGeminiError;
+  testConnection = testGeminiConnection;
+}
+
+// Export instance
+export const geminiProvider = new GeminiProvider();
 
 export default geminiProvider;

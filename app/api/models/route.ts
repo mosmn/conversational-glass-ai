@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
     // Get all models from all providers (async for dynamic loading)
     const allModels = await getAllModels();
 
-    // Get provider status
-    const providerStatus = getProviderStatus();
+    // Get provider status (async for dynamic loading)
+    const providerStatus = await getProviderStatus();
 
     return NextResponse.json({
       success: true,

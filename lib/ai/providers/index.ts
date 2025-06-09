@@ -32,8 +32,11 @@ export async function getAllModels(): Promise<AIModel[]> {
   const allModels: AIModel[] = [];
 
   for (const provider of getConfiguredProviders()) {
-    // Ensure dynamic models are loaded (for Groq)
-    if (provider.name === "groq" && "ensureModelsLoaded" in provider) {
+    // Ensure dynamic models are loaded (for Groq and Gemini)
+    if (
+      (provider.name === "groq" || provider.name === "gemini") &&
+      "ensureModelsLoaded" in provider
+    ) {
       await (provider as any).ensureModelsLoaded();
     }
 
@@ -74,8 +77,11 @@ export async function getModelById(modelId: ModelId): Promise<AIModel | null> {
     return null;
   }
 
-  // Ensure dynamic models are loaded (for Groq)
-  if (provider.name === "groq" && "ensureModelsLoaded" in provider) {
+  // Ensure dynamic models are loaded (for Groq and Gemini)
+  if (
+    (provider.name === "groq" || provider.name === "gemini") &&
+    "ensureModelsLoaded" in provider
+  ) {
     await (provider as any).ensureModelsLoaded();
   }
 
@@ -150,8 +156,59 @@ export async function testAllProviders(): Promise<Record<string, boolean>> {
   return results;
 }
 
-// Get provider status summary
-export function getProviderStatus() {
+// Get provider status summary (async version for dynamic loading)
+export async function getProviderStatus() {
+  const status = {
+    total: Object.keys(providers).length,
+    configured: 0,
+    available: 0,
+    models: 0,
+    providers: {} as Record<
+      string,
+      {
+        configured: boolean;
+        modelCount: number;
+        models: string[];
+      }
+    >,
+  };
+
+  for (const [name, provider] of Object.entries(providers)) {
+    const isConfigured = provider.isConfigured;
+
+    // Ensure dynamic models are loaded for Groq and Gemini
+    if (
+      isConfigured &&
+      (provider.name === "groq" || provider.name === "gemini") &&
+      "ensureModelsLoaded" in provider
+    ) {
+      try {
+        await (provider as any).ensureModelsLoaded();
+      } catch (error) {
+        console.warn(`Failed to load ${provider.name} models:`, error);
+      }
+    }
+
+    const modelList = Object.keys(provider.models);
+
+    status.providers[name] = {
+      configured: isConfigured,
+      modelCount: modelList.length,
+      models: modelList,
+    };
+
+    if (isConfigured) {
+      status.configured++;
+      status.available++;
+      status.models += modelList.length;
+    }
+  }
+
+  return status;
+}
+
+// Synchronous provider status (may not include dynamic models)
+export function getProviderStatusSync() {
   const status = {
     total: Object.keys(providers).length,
     configured: 0,
