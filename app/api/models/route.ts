@@ -12,15 +12,32 @@ export async function GET(request: NextRequest) {
     // Get all models from all providers (async for dynamic loading)
     const allModels = await getAllModels();
 
+    // Enhance models with additional metadata
+    const enhancedModels = allModels.map((model) => ({
+      ...model,
+      performance: {
+        speed: getSpeedRating(model),
+        capacity: getCapacityRating(model),
+        efficiency: getEfficiencyRating(model),
+      },
+      isRecommended: isRecommendedModel(model),
+      isNew: isNewModel(model),
+      tags: getModelTags(model),
+      tier: getModelTier(model),
+      bestUseCase: getBestUseCase(model),
+    }));
+
     // Get provider status (async for dynamic loading)
     const providerStatus = await getProviderStatus();
 
     return NextResponse.json({
       success: true,
       data: {
-        models: allModels,
+        models: enhancedModels,
         providerStatus,
-        totalModels: allModels.length,
+        totalModels: enhancedModels.length,
+        recommendations: enhancedModels.filter((m) => m.isRecommended),
+        newModels: enhancedModels.filter((m) => m.isNew),
       },
     });
   } catch (error) {
@@ -47,6 +64,11 @@ function getSpeedRating(model: any): "fast" | "medium" | "slow" {
     return model.name.includes("3.5") ? "fast" : "medium";
   }
 
+  if (model.provider === "gemini") {
+    if (model.name.includes("flash")) return "fast";
+    return "medium";
+  }
+
   return "medium";
 }
 
@@ -67,6 +89,45 @@ function getEfficiencyRating(model: any): "high" | "medium" | "low" {
   return "low";
 }
 
+function isRecommendedModel(model: any): boolean {
+  // Define recommended models based on provider and capabilities
+  const recommendedModelIds = [
+    "gpt-4",
+    "claude-3-5-sonnet-20241022",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp",
+    "llama-3.1-70b-versatile",
+  ];
+
+  return (
+    recommendedModelIds.includes(model.id) ||
+    model.name.toLowerCase().includes("recommended") ||
+    (model.provider === "gemini" && model.name.includes("2.0")) ||
+    (model.provider === "groq" && model.name.includes("70b"))
+  );
+}
+
+function isNewModel(model: any): boolean {
+  // Define new models (released in last 6 months)
+  const newModelPatterns = [
+    "2.0",
+    "2.5",
+    "exp",
+    "preview",
+    "beta",
+    "thinking",
+    "flash-exp",
+    "2024",
+    "new",
+  ];
+
+  return newModelPatterns.some(
+    (pattern) =>
+      model.name.toLowerCase().includes(pattern) ||
+      model.id.toLowerCase().includes(pattern)
+  );
+}
+
 function getBestUseCase(model: any): string {
   switch (model.personality) {
     case "lightning-fast":
@@ -79,6 +140,8 @@ function getBestUseCase(model: any): string {
       return "Technical discussions, problem-solving";
     case "balanced":
       return "General purpose, versatile tasks";
+    case "futuristic-innovator":
+      return "Cutting-edge AI, experimental features";
     default:
       return "General assistance";
   }
@@ -90,6 +153,8 @@ function getModelTags(model: any): string[] {
   // Provider tags
   if (model.provider === "groq") tags.push("Ultra-fast");
   if (model.provider === "openai") tags.push("Reliable");
+  if (model.provider === "gemini") tags.push("Multimodal");
+  if (model.provider === "claude") tags.push("Safe");
 
   // Size tags
   if (model.name.includes("70b")) tags.push("Large");
@@ -99,9 +164,17 @@ function getModelTags(model: any): string[] {
   // Capability tags
   if (model.capabilities.functionCalling) tags.push("Function Calling");
   if (model.capabilities.multiModal) tags.push("Multi-modal");
+  if (model.capabilities.vision) tags.push("Vision");
+  if (model.capabilities.search) tags.push("Search");
 
   // Context tags
   if (model.contextWindow >= 100000) tags.push("Long Context");
+
+  // Special features
+  if (model.name.includes("thinking")) tags.push("Chain of Thought");
+  if (model.name.includes("flash")) tags.push("Fast");
+  if (model.name.includes("2.0") || model.name.includes("2.5"))
+    tags.push("Next-Gen");
 
   // Cost tags
   if (model.pricing) {
@@ -114,11 +187,21 @@ function getModelTags(model: any): string[] {
 }
 
 function getModelTier(model: any): "premium" | "standard" | "economy" {
-  if (model.name.includes("70b") || model.name.includes("gpt-4")) {
+  if (
+    model.name.includes("70b") ||
+    model.name.includes("gpt-4") ||
+    model.name.includes("claude-3-5") ||
+    model.name.includes("2.5")
+  ) {
     return "premium";
   }
 
-  if (model.name.includes("8b") || model.name.includes("9b")) {
+  if (
+    model.name.includes("8b") ||
+    model.name.includes("9b") ||
+    model.name.includes("flash") ||
+    model.name.includes("3.5")
+  ) {
     return "economy";
   }
 
