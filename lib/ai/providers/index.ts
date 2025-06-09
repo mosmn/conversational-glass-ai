@@ -13,6 +13,7 @@ import { openaiProvider } from "./openai";
 import { groqProvider } from "./groq";
 import { claudeProvider } from "./claude";
 import { geminiProvider } from "./gemini";
+import { openrouterProvider } from "./openrouter";
 
 // Provider registry
 export const providers: Record<string, AIProvider> = {
@@ -20,6 +21,7 @@ export const providers: Record<string, AIProvider> = {
   groq: groqProvider,
   claude: claudeProvider,
   gemini: geminiProvider,
+  openrouter: openrouterProvider,
 };
 
 // Get all configured providers

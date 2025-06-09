@@ -235,10 +235,66 @@ export const conversationArtifacts = pgTable(
   })
 );
 
+// User API Keys table - BYOK (Bring Your Own Keys) management
+export const userApiKeys = pgTable(
+  "user_api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: varchar("provider", { length: 50 }).notNull(), // 'openai', 'claude', 'gemini', 'openrouter', 'groq'
+    keyName: varchar("key_name", { length: 100 }).notNull(), // User-friendly name
+    encryptedKey: text("encrypted_key").notNull(), // AES-256 encrypted API key
+    keyHash: varchar("key_hash", { length: 64 }).notNull(), // SHA-256 hash for validation
+    status: varchar("status", { length: 20 }).default("pending").notNull(), // 'pending', 'valid', 'invalid', 'quota_exceeded', 'rate_limited'
+    quotaInfo: jsonb("quota_info")
+      .$type<{
+        totalLimit?: number;
+        used?: number;
+        remaining?: number;
+        resetDate?: string;
+        dailyLimit?: number;
+        dailyUsed?: number;
+        estimatedCost?: number;
+        currency?: string;
+      }>()
+      .default({}),
+    lastValidated: timestamp("last_validated"),
+    lastError: text("last_error"),
+    metadata: jsonb("metadata")
+      .$type<{
+        organizationId?: string; // For OpenAI organization
+        projectId?: string; // For OpenAI projects
+        models?: string[]; // Specific models this key can access
+        rateLimit?: {
+          requestsPerMinute: number;
+          tokensPerMinute: number;
+        };
+        customEndpoint?: string; // For custom OpenAI-compatible endpoints
+        priority?: number; // For key selection priority (1-10)
+        isDefault?: boolean; // Default key for this provider
+      }>()
+      .default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("user_api_keys_user_id_idx").on(table.userId),
+    providerIdx: index("user_api_keys_provider_idx").on(table.provider),
+    statusIdx: index("user_api_keys_status_idx").on(table.status),
+    keyHashIdx: index("user_api_keys_key_hash_idx").on(table.keyHash),
+    userProviderKeyNameUnique: index(
+      "user_api_keys_user_provider_key_unique"
+    ).on(table.userId, table.provider, table.keyName),
+  })
+);
+
 // Define relationships for type safety and joins
 export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
   messages: many(messages),
+  apiKeys: many(userApiKeys),
 }));
 
 export const conversationsRelations = relations(
@@ -269,6 +325,13 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   children: many(messages),
 }));
 
+export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [userApiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
 export const conversationArtifactsRelations = relations(
   conversationArtifacts,
   ({ one }) => ({
@@ -288,3 +351,5 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type ConversationArtifact = typeof conversationArtifacts.$inferSelect;
 export type NewConversationArtifact = typeof conversationArtifacts.$inferInsert;
+export type UserApiKey = typeof userApiKeys.$inferSelect;
+export type NewUserApiKey = typeof userApiKeys.$inferInsert;

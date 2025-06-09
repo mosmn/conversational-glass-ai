@@ -6,10 +6,13 @@ export interface ChatMessage {
 }
 
 export interface StreamingChunk {
+  type?: "content" | "done" | "error";
   content?: string;
   finished?: boolean;
   error?: string;
   tokenCount?: number;
+  model?: string;
+  provider?: string;
 }
 
 export interface StreamingOptions {

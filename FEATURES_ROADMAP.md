@@ -159,62 +159,62 @@
   - [x] Responsive settings UI with glassmorphic design
   - [x] Settings state management and persistence
 
-- [ ] **Settings/Customize** (/settings/customize)
+- [x] **Settings/Customize** (/settings/customize)
 
-  - [ ] User profile management (name, email, avatar)
-  - [ ] Copy User ID functionality
-  - [ ] Plan information display (Free/Pro plans)
-  - [ ] Message usage tracking with reset timers
-  - [ ] Keyboard shortcuts display and customization
-  - [ ] Personal customization fields:
-    - [ ] "What should Convo Glass call you?" (50 chars)
-    - [ ] "What do you do?" (100 chars)
-    - [ ] "What traits should Convo Glass have?" (up to 50 traits, 100 chars each)
-    - [ ] "Anything else Convo Glass should know?" (3000 chars)
-  - [ ] Visual customization options:
-    - [ ] Boring Theme toggle (tones down glassmorphic effects)
-    - [ ] Hide Personal Information toggle
-    - [ ] Disable Thematic Breaks toggle
-    - [ ] Stats for Nerds toggle (tokens/sec, time to first token, etc.)
-  - [ ] Font customization:
-    - [ ] Main text font selector
-    - [ ] Code font selector
-    - [ ] Live font preview with sample chat
+  - [x] User profile management (name, email, avatar)
+  - [x] Copy User ID functionality
+  - [x] Plan information display (Free/Pro plans)
+  - [x] Message usage tracking with reset timers
+  - [x] Keyboard shortcuts display and customization
+  - [x] Personal customization fields:
+    - [x] "What should Convo Glass call you?" (50 chars)
+    - [x] "What do you do?" (100 chars)
+    - [x] "What traits should Convo Glass have?" (up to 50 traits, 100 chars each)
+    - [x] "Anything else Convo Glass should know?" (3000 chars)
+  - [x] Visual customization options:
+    - [x] Boring Theme toggle (tones down glassmorphic effects)
+    - [x] Hide Personal Information toggle
+    - [x] Disable Thematic Breaks toggle
+    - [x] Stats for Nerds toggle (tokens/sec, time to first token, etc.)
+  - [x] Font customization:
+    - [x] Main text font selector
+    - [x] Code font selector
+    - [x] Live font preview with sample chat
 
-- [ ] **Settings/History** (/settings/history)
+- [x] **Settings/History** (/settings/history)
 
-  - [ ] Message history overview and management
-  - [ ] Export chat history as JSON
-  - [ ] Import chat history from JSON files
-  - [ ] Conversation search and filtering
-  - [ ] Sync status indicator
-  - [ ] Danger zone:
-    - [ ] Sync local storage to servers
-    - [ ] Recover missing conversations
-    - [ ] Permanently delete all history (with confirmation)
+  - [x] Message history overview and management
+  - [x] Export chat history as JSON
+  - [x] Import chat history from JSON files
+  - [x] Conversation search and filtering
+  - [x] Sync status indicator
+  - [x] Danger zone:
+    - [x] Sync local storage to servers
+    - [x] Recover missing conversations
+    - [x] Permanently delete all history (with confirmation)
 
-- [ ] **Settings/Models** (/settings/models)
+- [x] **Settings/Models** (/settings/models)
 
-  - [ ] Available models configuration
-  - [ ] Model selector customization
-  - [ ] Model capabilities display (Vision, PDFs, Search, etc.)
-  - [ ] Model-specific settings:
-    - [ ] Gemini 2.0 Flash configuration
-    - [ ] Gemini 2.0 Flash Lite settings
-    - [ ] Gemini 2.5 Flash options
-    - [ ] Gemini 2.5 Flash (Thinking) mode
-    - [ ] Effort Control settings
-    - [ ] Claude model preferences
-    - [ ] OpenAI model configurations
+  - [x] Available models configuration
+  - [x] Model selector customization
+  - [x] Model capabilities display (Vision, PDFs, Search, etc.)
+  - [x] Model-specific settings:
+    - [x] Gemini 2.0 Flash configuration
+    - [x] Gemini 2.0 Flash Lite settings
+    - [x] Gemini 2.5 Flash options
+    - [x] Gemini 2.5 Flash (Thinking) mode
+    - [x] Effort Control settings
+    - [x] Claude model preferences
+    - [x] OpenAI model configurations
 
-- [ ] **Settings/API Keys** (/settings/api-keys)
+- [x] **Settings/API Keys** (/settings/api-keys)
 
-  - [ ] BYOK (Bring Your Own Keys) management
-  - [ ] API key input and validation
-  - [ ] Key status indicators (valid/invalid/quota)
-  - [ ] Per-model API key assignment
-  - [ ] Secure key storage and encryption
-  - [ ] Key usage analytics
+  - [x] BYOK (Bring Your Own Keys) management
+  - [x] API key input and validation
+  - [x] Key status indicators (valid/invalid/quota)
+  - [x] Per-model API key assignment
+  - [x] Secure key storage and encryption
+  - [x] Key usage analytics
 
 - [ ] **Settings/Attachments** (/settings/attachments)
 
@@ -225,6 +225,14 @@
   - [ ] File organization and search
 
 #### **Priority 6: Unique Differentiators**
+
+- [ ] **Image Generation Support** (High Priority Missing Feature)
+
+  - [ ] OpenAI DALL-E 3 integration
+  - [ ] Gemini image generation support
+  - [ ] Image generation UI and controls
+  - [ ] Generated image history and management
+  - [ ] Integration with chat conversation flow
 
 - [ ] **Enhanced Conversation River**
 
@@ -316,7 +324,13 @@
 2. ✅ Chat sharing functionality
 3. ✅ File attachment support (images/PDFs)
 
-4. [ ] **Comprehensive Settings System**
+4. [ ] **Image Generation Support** (Missing from official bonus features)
+
+   - [ ] DALL-E 3 integration with OpenAI
+   - [ ] Image generation controls and UI
+   - [ ] Generated image history
+
+5. [ ] **Comprehensive Settings System**
 
    - [ ] Settings/Customize page with personalization
    - [ ] Settings/History with export/import
@@ -324,16 +338,17 @@
    - [ ] Settings/API Keys for BYOK
    - [ ] Settings/Attachments management
 
-5. ✅ Enhanced conversation artifacts
-6. ✅ Interactive conversation river features
+6. ✅ Enhanced conversation artifacts
+7. ✅ Interactive conversation river features
 
 ### **Nice to Have (Day 7)**
 
-1. ✅ Web search integration
-2. ✅ Resumable streams
-3. ✅ Chat branching
-4. ✅ Advanced analytics
-5. ✅ PWA features
+1. [ ] **Web Search** - Real-time web search integration (verify implementation status)
+2. [ ] **Resumable Streams** - Continue generation after page refresh (verify implementation status)
+3. [ ] **Chat Branching** - Create alternative conversation paths (verify implementation status)
+4. [ ] Advanced analytics and usage insights
+5. [ ] PWA features (offline support, installable)
+6. [ ] **Bring Your Own Key (BYOK)** - Already planned in Settings/API Keys
 
 ---
 
