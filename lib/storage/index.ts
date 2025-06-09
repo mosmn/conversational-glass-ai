@@ -10,6 +10,8 @@ const ibmCosEnvSchema = z.object({
   IBM_COS_API_KEY_ID: z.string().optional(),
   IBM_COS_INSTANCE_CRN: z.string().optional(),
   IBM_COS_BUCKET_NAME: z.string().optional(),
+  COS_HMAC_ACCESS_KEY_ID: z.string().optional(),
+  COS_HMAC_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 type IBMCosEnv = z.infer<typeof ibmCosEnvSchema>;
@@ -17,6 +19,7 @@ type IBMCosEnv = z.infer<typeof ibmCosEnvSchema>;
 // Validate IBM COS environment
 let ibmCosEnv: IBMCosEnv | null = null;
 let isIBMCosConfigured = false;
+let useHMACAuth = false;
 
 try {
   ibmCosEnv = ibmCosEnvSchema.parse({
@@ -24,27 +27,87 @@ try {
     IBM_COS_API_KEY_ID: process.env.IBM_COS_API_KEY_ID,
     IBM_COS_INSTANCE_CRN: process.env.IBM_COS_INSTANCE_CRN,
     IBM_COS_BUCKET_NAME: process.env.IBM_COS_BUCKET_NAME,
+    COS_HMAC_ACCESS_KEY_ID: process.env.COS_HMAC_ACCESS_KEY_ID,
+    COS_HMAC_SECRET_ACCESS_KEY: process.env.COS_HMAC_SECRET_ACCESS_KEY,
   });
 
-  isIBMCosConfigured = !!(
+  // Check for HMAC credentials first (often more reliable)
+  useHMACAuth = !!(
     ibmCosEnv.IBM_COS_ENDPOINT &&
-    ibmCosEnv.IBM_COS_API_KEY_ID &&
-    ibmCosEnv.IBM_COS_INSTANCE_CRN &&
-    ibmCosEnv.IBM_COS_BUCKET_NAME
+    ibmCosEnv.IBM_COS_BUCKET_NAME &&
+    ibmCosEnv.COS_HMAC_ACCESS_KEY_ID &&
+    ibmCosEnv.COS_HMAC_SECRET_ACCESS_KEY
   );
+
+  // Fallback to API Key auth if HMAC not available
+  const useAPIKeyAuth =
+    !useHMACAuth &&
+    !!(
+      ibmCosEnv.IBM_COS_ENDPOINT &&
+      ibmCosEnv.IBM_COS_API_KEY_ID &&
+      ibmCosEnv.IBM_COS_INSTANCE_CRN &&
+      ibmCosEnv.IBM_COS_BUCKET_NAME
+    );
+
+  isIBMCosConfigured = useHMACAuth || useAPIKeyAuth;
+
+  if (isIBMCosConfigured) {
+    console.log(
+      `IBM COS configuration detected (using ${
+        useHMACAuth ? "HMAC" : "API Key"
+      } auth) - will attempt cloud storage with local fallback`
+    );
+  } else {
+    console.log("IBM COS configuration incomplete - using local storage only");
+  }
 } catch (error) {
-  console.warn("IBM COS not configured, using local storage fallback");
+  console.warn(
+    "IBM COS configuration error, using local storage fallback:",
+    error
+  );
 }
 
 // Initialize IBM COS client
 let cosClient: S3 | null = null;
 if (isIBMCosConfigured && ibmCosEnv) {
-  cosClient = new S3({
-    endpoint: ibmCosEnv.IBM_COS_ENDPOINT,
-    apiKeyId: ibmCosEnv.IBM_COS_API_KEY_ID,
-    ibmAuthEndpoint: "https://iam.cloud.ibm.com/identity/token",
-    serviceInstanceId: ibmCosEnv.IBM_COS_INSTANCE_CRN,
-  });
+  try {
+    if (useHMACAuth) {
+      // Use HMAC credentials (S3-compatible authentication)
+      cosClient = new S3({
+        endpoint: ibmCosEnv.IBM_COS_ENDPOINT,
+        accessKeyId: ibmCosEnv.COS_HMAC_ACCESS_KEY_ID!,
+        secretAccessKey: ibmCosEnv.COS_HMAC_SECRET_ACCESS_KEY!,
+        signatureVersion: "v4",
+        s3ForcePathStyle: true,
+        maxRetries: 1,
+        retryDelayOptions: {
+          base: 300,
+        },
+      });
+      console.log(
+        "IBM COS client initialized successfully with HMAC authentication"
+      );
+    } else {
+      // Use API Key authentication
+      cosClient = new S3({
+        endpoint: ibmCosEnv.IBM_COS_ENDPOINT,
+        apiKeyId: ibmCosEnv.IBM_COS_API_KEY_ID,
+        ibmAuthEndpoint: "https://iam.cloud.ibm.com/identity/token",
+        serviceInstanceId: ibmCosEnv.IBM_COS_INSTANCE_CRN,
+        maxRetries: 1,
+        retryDelayOptions: {
+          base: 300,
+        },
+      });
+      console.log(
+        "IBM COS client initialized successfully with API Key authentication"
+      );
+    }
+  } catch (error) {
+    console.error("Failed to initialize IBM COS client:", error);
+    cosClient = null;
+    isIBMCosConfigured = false;
+  }
 }
 
 export interface UploadedFile {
@@ -93,7 +156,7 @@ async function uploadToIBMCos(
     Key: filePath,
     Body: buffer,
     ContentType: mimeType,
-    ACL: "private", // Files are private by default
+    // Note: ACL parameter removed for better HMAC compatibility
   };
 
   try {
@@ -117,9 +180,25 @@ async function uploadToIBMCos(
       result.Location ||
       `${ibmCosEnv.IBM_COS_ENDPOINT}/${ibmCosEnv.IBM_COS_BUCKET_NAME}/${filePath}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("IBM COS upload error:", error);
-    throw new Error("Failed to upload file to IBM Cloud Object Storage");
+
+    // Provide more specific error messages for common issues
+    let errorMessage = "Failed to upload file to IBM Cloud Object Storage";
+
+    if (error.code === "AccessDenied") {
+      errorMessage =
+        "IBM COS Access Denied - check API key permissions and bucket access";
+    } else if (error.code === "NoSuchBucket") {
+      errorMessage = "IBM COS bucket not found - verify bucket name and region";
+    } else if (error.code === "InvalidAccessKeyId") {
+      errorMessage = "IBM COS invalid API key - check your credentials";
+    } else if (error.code === "SignatureDoesNotMatch") {
+      errorMessage =
+        "IBM COS authentication failed - verify API key and endpoint";
+    }
+
+    throw new Error(errorMessage);
   }
 }
 
@@ -169,26 +248,44 @@ export async function uploadFile(
 
   let url: string;
 
-  try {
-    if (isIBMCosConfigured) {
+  // Try IBM COS first, fallback to local storage on any error
+  if (isIBMCosConfigured) {
+    try {
+      console.log("Attempting IBM COS upload for:", originalFilename);
       url = await uploadToIBMCos(buffer, filePath, mimeType, onProgress);
-    } else {
-      url = await uploadToLocal(buffer, filePath, mimeType);
+      console.log("IBM COS upload successful:", originalFilename);
+    } catch (cosError) {
+      console.warn(
+        "IBM COS upload failed, falling back to local storage:",
+        cosError
+      );
+      // Fallback to local storage
+      try {
+        url = await uploadToLocal(buffer, filePath, mimeType);
+        console.log("Local storage fallback successful:", originalFilename);
+      } catch (localError) {
+        console.error("Both IBM COS and local storage failed:", localError);
+        throw new Error("Failed to upload file to any storage system");
+      }
     }
-
-    return {
-      id: fileId,
-      filename,
-      originalFilename,
-      mimeType,
-      size,
-      url,
-      path: filePath,
-    };
-  } catch (error) {
-    console.error("File upload error:", error);
-    throw new Error("Failed to upload file");
+  } else {
+    try {
+      url = await uploadToLocal(buffer, filePath, mimeType);
+    } catch (localError) {
+      console.error("Local storage upload failed:", localError);
+      throw new Error("Failed to upload file to local storage");
+    }
   }
+
+  return {
+    id: fileId,
+    filename,
+    originalFilename,
+    mimeType,
+    size,
+    url,
+    path: filePath,
+  };
 }
 
 // Delete file from IBM COS
@@ -256,8 +353,12 @@ export async function getSignedUrl(
     });
     return url;
   } catch (error) {
-    console.error("Signed URL generation error:", error);
-    throw new Error("Failed to generate signed URL");
+    console.warn(
+      "IBM COS signed URL generation failed, using local path:",
+      error
+    );
+    // Fallback to local storage path
+    return `/${filePath}`;
   }
 }
 

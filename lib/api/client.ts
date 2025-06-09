@@ -127,6 +127,23 @@ export interface SendMessageRequest {
   conversationId: string;
   content: string;
   model: string;
+  attachments?: Array<{
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    url: string;
+    extractedText?: string;
+    thumbnailUrl?: string;
+    category?: string;
+    metadata?: {
+      width?: number;
+      height?: number;
+      pages?: number;
+      wordCount?: number;
+      hasImages?: boolean;
+    };
+  }>;
 }
 
 export interface StreamChunk {

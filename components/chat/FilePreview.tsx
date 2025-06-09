@@ -25,7 +25,16 @@ import {
   Copy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { formatFileSize } from "@/lib/file-processing";
+// Utility function for formatting file sizes (moved here to avoid server imports)
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return "0 Bytes";
+
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 interface FilePreviewProps {
   isOpen: boolean;

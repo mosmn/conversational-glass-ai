@@ -52,6 +52,7 @@ import {
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
 import { MessageContent } from "./MessageContent";
+import { MessageAttachments } from "./MessageAttachments";
 import { ShareModal } from "./ShareModal";
 import {
   DropdownMenu,
@@ -83,6 +84,12 @@ interface Message {
     regenerated?: boolean;
     provider?: string;
     error?: boolean;
+    attachments?: Array<{
+      type: "image" | "pdf" | "text";
+      url: string;
+      filename: string;
+      size: number;
+    }>;
   };
 }
 
@@ -198,15 +205,24 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   ];
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !chatId) return;
+    if ((!inputValue.trim() && attachments.length === 0) || !chatId) return;
 
     const content = inputValue;
+    const messageAttachments = attachments.filter(
+      (a) => a.status === "uploaded"
+    );
+
     setInputValue("");
+    // Don't clear attachments immediately - let them see in the sent message
 
     try {
-      await sendMessage(content, selectedModel);
+      // Send message with attachment data
+      await sendMessage(content, selectedModel, messageAttachments);
+      // Clear attachments only after successful send
+      setAttachments([]);
     } catch (error) {
       console.error("Failed to send message:", error);
+      // Don't clear attachments on error so user can retry
     }
   };
 
@@ -536,6 +552,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 <FileAttachment
                   attachments={attachments}
                   onAttachmentsChange={setAttachments}
+                  conversationId={chatId}
                 />
               )}
 
@@ -762,6 +779,8 @@ function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
+  const hasAttachments =
+    message.metadata?.attachments && message.metadata.attachments.length > 0;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} group`}>
@@ -805,14 +824,29 @@ function MessageBubble({ message }: { message: Message }) {
                   {message.error || "Failed to generate response"}
                 </div>
               ) : (
-                <MessageContent
-                  content={message.content}
-                  isStreaming={isStreaming}
-                  isUser={isUser}
-                  showLineNumbers={false}
-                  maxCodeBlockHeight="300px"
-                  allowHtml={false}
-                />
+                <>
+                  <MessageContent
+                    content={message.content}
+                    isStreaming={isStreaming}
+                    isUser={isUser}
+                    showLineNumbers={false}
+                    maxCodeBlockHeight="300px"
+                    allowHtml={false}
+                  />
+
+                  {/* Display attachments within the message bubble */}
+                  {hasAttachments && (
+                    <MessageAttachments
+                      attachments={message.metadata!.attachments!}
+                      isUser={isUser}
+                      className={
+                        message.content.trim()
+                          ? "border-t border-white/10 pt-3 mt-3"
+                          : ""
+                      }
+                    />
+                  )}
+                </>
               )}
             </div>
 
@@ -832,6 +866,18 @@ function MessageBubble({ message }: { message: Message }) {
                 ) : (
                   <span className="text-emerald-400" title="Delivered">
                     ✓
+                  </span>
+                )}
+
+                {/* Attachment indicator */}
+                {hasAttachments && (
+                  <span
+                    className="text-blue-400"
+                    title={`${
+                      message.metadata!.attachments!.length
+                    } attachment(s)`}
+                  >
+                    📎 {message.metadata!.attachments!.length}
                   </span>
                 )}
               </div>

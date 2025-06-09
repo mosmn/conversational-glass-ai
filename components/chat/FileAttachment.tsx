@@ -63,6 +63,8 @@ export function FileAttachment({
   acceptedTypes = ["image/*", "application/pdf", ".txt", ".md"],
 }: FileAttachmentProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewFileIndex, setPreviewFileIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getFileIcon = (type: string) => {
@@ -335,20 +337,51 @@ export function FileAttachment({
                         </p>
                         <div className="flex items-center space-x-2">
                           {attachment.status === "uploaded" && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 w-6 p-0"
-                                >
-                                  <Download className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Download file</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => {
+                                      const index = attachments.findIndex(
+                                        (a) => a.id === attachment.id
+                                      );
+                                      setPreviewFileIndex(index);
+                                      setShowPreview(true);
+                                    }}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Preview file</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.url!;
+                                      link.download = attachment.name;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Download file</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </>
                           )}
                           <Button
                             size="sm"
@@ -420,6 +453,27 @@ export function FileAttachment({
           })}
         </div>
       )}
+
+      {/* File Preview Modal */}
+      <FilePreview
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        files={attachments
+          .filter((a) => a.status === "uploaded")
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            originalFilename: a.name,
+            size: a.size,
+            type: a.type,
+            url: a.url!,
+            extractedText: a.extractedText,
+            thumbnailUrl: a.thumbnailUrl,
+            category: a.category,
+            metadata: a.metadata,
+          }))}
+        initialFileIndex={previewFileIndex}
+      />
     </div>
   );
 }

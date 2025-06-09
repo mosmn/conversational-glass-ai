@@ -22,7 +22,7 @@ const sendMessageSchema = z.object({
   conversationId: z
     .string()
     .uuid("Invalid conversation ID format. Please use a valid UUID."),
-  content: z.string().min(1).max(10000),
+  content: z.string().max(10000),
   model: z.enum([
     // OpenAI models
     "gpt-4",
@@ -32,6 +32,29 @@ const sendMessageSchema = z.object({
     "llama-3.1-8b-instant",
     "gemma2-9b-it",
   ]),
+  attachments: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        size: z.number(),
+        type: z.string(),
+        url: z.string(),
+        extractedText: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        category: z.string().optional(),
+        metadata: z
+          .object({
+            width: z.number().optional(),
+            height: z.number().optional(),
+            pages: z.number().optional(),
+            wordCount: z.number().optional(),
+            hasImages: z.boolean().optional(),
+          })
+          .optional(),
+      })
+    )
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -47,7 +70,16 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    const { conversationId, content, model } = sendMessageSchema.parse(body);
+    const { conversationId, content, model, attachments } =
+      sendMessageSchema.parse(body);
+
+    // Validate that we have either content or attachments
+    if (!content.trim() && (!attachments || attachments.length === 0)) {
+      return NextResponse.json(
+        { error: "Message content or attachments required" },
+        { status: 400 }
+      );
+    }
 
     // Validate model availability
     const aiModel = getModelById(model as ModelId);
@@ -107,6 +139,14 @@ export async function POST(request: NextRequest) {
       metadata: {
         streamingComplete: true,
         regenerated: false,
+        attachments: attachments?.map((att) => ({
+          type:
+            att.category ||
+            (att.type.split("/")[0] as "image" | "pdf" | "text"),
+          url: att.url,
+          filename: att.name,
+          size: att.size,
+        })),
       },
     });
 
@@ -134,10 +174,44 @@ export async function POST(request: NextRequest) {
     // Prepare messages for AI API (exclude the empty assistant message we just created)
     const chatMessages: AIMessage[] = conversationHistory.messages
       .filter((msg) => msg.id !== assistantMessage.id)
-      .map((msg) => ({
-        role: msg.role as "system" | "user" | "assistant",
-        content: msg.content,
-      }));
+      .map((msg) => {
+        let messageContent = msg.content;
+
+        // Add attachment context for the current user message
+        if (
+          msg.id === userMessage.id &&
+          attachments &&
+          attachments.length > 0
+        ) {
+          messageContent += "\n\nAttached files:\n";
+
+          for (const attachment of attachments) {
+            messageContent += `\n📎 ${attachment.name} (${attachment.type})`;
+
+            if (attachment.extractedText) {
+              messageContent += `\nContent: ${attachment.extractedText.substring(
+                0,
+                2000
+              )}${attachment.extractedText.length > 2000 ? "..." : ""}`;
+            }
+
+            if (attachment.metadata?.pages) {
+              messageContent += `\nPages: ${attachment.metadata.pages}`;
+            }
+
+            if (attachment.metadata?.width && attachment.metadata?.height) {
+              messageContent += `\nDimensions: ${attachment.metadata.width}x${attachment.metadata.height}`;
+            }
+
+            messageContent += "\n";
+          }
+        }
+
+        return {
+          role: msg.role as "system" | "user" | "assistant",
+          content: messageContent,
+        };
+      });
 
     // Create streaming response
     const encoder = new TextEncoder();

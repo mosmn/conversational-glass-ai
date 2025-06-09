@@ -22,7 +22,11 @@ interface UseChatReturn {
   error: string | null;
   isStreaming: boolean;
   hasMore: boolean;
-  sendMessage: (content: string, model: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    model: string,
+    attachments?: any[]
+  ) => Promise<void>;
   refetchMessages: () => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   currentStreamContent: string;
@@ -153,21 +157,39 @@ export function useChat(conversationId: string): UseChatReturn {
   }, [conversationId, lastSyncTime]);
 
   const sendMessage = useCallback(
-    async (content: string, model: string) => {
-      if (!content.trim() || !conversationId) return;
+    async (content: string, model: string, attachments?: any[]) => {
+      if (
+        (!content.trim() && (!attachments || attachments.length === 0)) ||
+        !conversationId
+      )
+        return;
 
       try {
         setError(null);
         setIsStreaming(true);
         setCurrentStreamContent("");
 
-        // Create optimistic user message
+        // Create optimistic user message with attachments
         const optimisticUserMessage: Message = {
           id: `temp-user-${Date.now()}`,
           role: "user",
           content,
           timestamp: new Date().toISOString(),
-          metadata: { streamingComplete: true },
+          metadata: {
+            streamingComplete: true,
+            attachments: attachments?.map((att) => ({
+              type:
+                att.category ||
+                ((att.type.startsWith("image/")
+                  ? "image"
+                  : att.type === "application/pdf"
+                  ? "pdf"
+                  : "text") as "image" | "pdf" | "text"),
+              url: att.url,
+              filename: att.name,
+              size: att.size,
+            })),
+          },
         };
 
         // Create optimistic assistant message
@@ -202,6 +224,7 @@ export function useChat(conversationId: string): UseChatReturn {
           conversationId,
           content,
           model,
+          attachments,
         });
 
         for await (const chunk of stream) {
@@ -242,6 +265,11 @@ export function useChat(conversationId: string): UseChatReturn {
                   {
                     ...optimisticUserMessage,
                     id: realUserMessageId,
+                    // Preserve attachment metadata in final message
+                    metadata: {
+                      ...optimisticUserMessage.metadata,
+                      streamingComplete: true,
+                    },
                   },
                   {
                     ...optimisticAssistantMessage,
