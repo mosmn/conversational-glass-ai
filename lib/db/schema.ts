@@ -235,6 +235,58 @@ export const conversationArtifacts = pgTable(
   })
 );
 
+// Files table - comprehensive attachment tracking
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "cascade",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "cascade",
+    }),
+    filename: varchar("filename", { length: 255 }).notNull(), // Generated filename (with UUID)
+    originalFilename: varchar("original_filename", { length: 255 }).notNull(), // User's original filename
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    size: integer("size").notNull(), // File size in bytes
+    category: varchar("category", { length: 50 }).notNull(), // "image", "pdf", "text"
+    url: text("url").notNull(), // Storage URL (IBM COS or local)
+    thumbnailUrl: text("thumbnail_url"), // Thumbnail URL if generated
+    extractedText: text("extracted_text"), // Extracted text content
+    tags: jsonb("tags").$type<string[]>().default([]), // User-defined tags for organization
+    metadata: jsonb("metadata")
+      .$type<{
+        width?: number; // Image width
+        height?: number; // Image height
+        pages?: number; // PDF page count
+        wordCount?: number; // Text word count
+        hasImages?: boolean; // Whether PDF contains images
+        processingStatus?: "pending" | "completed" | "failed";
+        error?: string; // Processing error if any
+        checksum?: string; // File integrity checksum
+      }>()
+      .default({}),
+    isOrphaned: boolean("is_orphaned").default(false), // Not referenced by any message
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    accessedAt: timestamp("accessed_at").defaultNow().notNull(), // Last access time for cleanup
+  },
+  (table) => ({
+    userIdIdx: index("files_user_id_idx").on(table.userId),
+    conversationIdIdx: index("files_conversation_id_idx").on(
+      table.conversationId
+    ),
+    messageIdIdx: index("files_message_id_idx").on(table.messageId),
+    categoryIdx: index("files_category_idx").on(table.category),
+    createdAtIdx: index("files_created_at_idx").on(table.createdAt),
+    orphanedIdx: index("files_orphaned_idx").on(table.isOrphaned),
+  })
+);
+
 // User API Keys table - BYOK (Bring Your Own Keys) management
 export const userApiKeys = pgTable(
   "user_api_keys",
@@ -295,6 +347,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
   messages: many(messages),
   apiKeys: many(userApiKeys),
+  files: many(files),
 }));
 
 export const conversationsRelations = relations(
@@ -306,6 +359,7 @@ export const conversationsRelations = relations(
     }),
     messages: many(messages),
     artifacts: many(conversationArtifacts),
+    files: many(files),
   })
 );
 
@@ -323,6 +377,22 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     references: [messages.id],
   }),
   children: many(messages),
+  files: many(files),
+}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  user: one(users, {
+    fields: [files.userId],
+    references: [users.id],
+  }),
+  conversation: one(conversations, {
+    fields: [files.conversationId],
+    references: [conversations.id],
+  }),
+  message: one(messages, {
+    fields: [files.messageId],
+    references: [messages.id],
+  }),
 }));
 
 export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
@@ -349,6 +419,8 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type File = typeof files.$inferSelect;
+export type NewFile = typeof files.$inferInsert;
 export type ConversationArtifact = typeof conversationArtifacts.$inferSelect;
 export type NewConversationArtifact = typeof conversationArtifacts.$inferInsert;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
