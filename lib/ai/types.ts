@@ -72,14 +72,17 @@ export type ModelId =
   // OpenAI models
   | "gpt-4"
   | "gpt-3.5-turbo"
-  // Groq models
-  | "llama-3.3-70b"
-  | "llama-3.1-8b"
-  | "gemma2-9b";
+  // Groq models (using actual model IDs)
+  | "llama-3.3-70b-versatile"
+  | "llama-3.1-8b-instant"
+  | "gemma2-9b-it";
 
 // Provider-specific model IDs for type safety
 export type OpenAIModelId = "gpt-4" | "gpt-3.5-turbo";
-export type GroqModelId = "llama-3.3-70b" | "llama-3.1-8b" | "gemma2-9b";
+export type GroqModelId =
+  | "llama-3.3-70b-versatile"
+  | "llama-3.1-8b-instant"
+  | "gemma2-9b-it";
 
 // System prompt templates
 export interface SystemPromptTemplate {

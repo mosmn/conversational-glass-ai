@@ -49,9 +49,9 @@ export function getProviderFromModelId(modelId: ModelId): string {
   const providerMap: Record<string, string> = {
     "gpt-4": "openai",
     "gpt-3.5-turbo": "openai",
-    "llama-3.3-70b": "groq",
-    "llama-3.1-8b": "groq",
-    "gemma2-9b": "groq",
+    "llama-3.3-70b-versatile": "groq",
+    "llama-3.1-8b-instant": "groq",
+    "gemma2-9b-it": "groq",
   };
 
   return providerMap[modelId] || "unknown";

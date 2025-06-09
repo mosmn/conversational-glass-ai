@@ -1,300 +1,159 @@
-import { useState, useCallback, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
+"use client";
 
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  model?: string;
-  provider?: string;
-  isStreaming?: boolean;
-  error?: string;
-  metadata?: {
-    tokenCount?: number;
-    modelName?: string;
-    personality?: string;
-  };
-}
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  apiClient,
+  type Message,
+  type APIError,
+  type StreamChunk,
+} from "@/lib/api/client";
 
-export interface ChatState {
-  messages: ChatMessage[];
-  isLoading: boolean;
+interface UseChatReturn {
+  messages: Message[];
+  loading: boolean;
   error: string | null;
   isStreaming: boolean;
+  sendMessage: (content: string, model: string) => Promise<void>;
+  refetchMessages: () => Promise<void>;
+  currentStreamContent: string;
 }
 
-// Updated to support all providers
-export type SupportedModel =
-  // OpenAI models
-  | "gpt-4"
-  | "gpt-3.5-turbo"
-  // Groq models
-  | "llama-3.3-70b"
-  | "llama-3.1-8b"
-  | "gemma2-9b";
-
-export interface UseChatOptions {
-  conversationId: string;
-  model: SupportedModel;
-  onMessageReceived?: (message: ChatMessage) => void;
-  onError?: (error: string) => void;
-}
-
-export function useChat({
-  conversationId,
-  model,
-  onMessageReceived,
-  onError,
-}: UseChatOptions) {
-  const { user } = useUser();
-  const [state, setState] = useState<ChatState>({
-    messages: [],
-    isLoading: false,
-    error: null,
-    isStreaming: false,
-  });
-
-  const streamingMessageRef = useRef<string>("");
-  const streamingMessageIdRef = useRef<string>("");
+export function useChat(conversationId: string): UseChatReturn {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [currentStreamContent, setCurrentStreamContent] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Generate a unique message ID
-  const generateMessageId = useCallback(() => {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }, []);
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
 
-  // Add a message to the chat
-  const addMessage = useCallback(
-    (message: ChatMessage) => {
-      setState((prev) => ({
-        ...prev,
-        messages: [...prev.messages, message],
-      }));
+    try {
+      setLoading(true);
+      setError(null);
 
-      if (onMessageReceived) {
-        onMessageReceived(message);
-      }
-    },
-    [onMessageReceived]
-  );
+      const response = await apiClient.getConversationMessages(conversationId);
+      setMessages(response.messages);
+    } catch (err) {
+      const apiError = err as APIError;
+      setError(apiError.error || "Failed to fetch messages");
+      console.error("Fetch messages error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId]);
 
-  // Update a message in the chat
-  const updateMessage = useCallback(
-    (messageId: string, updates: Partial<ChatMessage>) => {
-      setState((prev) => ({
-        ...prev,
-        messages: prev.messages.map((msg) =>
-          msg.id === messageId ? { ...msg, ...updates } : msg
-        ),
-      }));
-    },
-    []
-  );
-
-  // Send a message to the chat
   const sendMessage = useCallback(
-    async (content: string) => {
-      if (!user) {
-        const error = "User must be authenticated to send messages";
-        setState((prev) => ({ ...prev, error }));
-        if (onError) onError(error);
-        return;
-      }
-
-      if (!content.trim()) {
-        return;
-      }
-
-      // Reset error state
-      setState((prev) => ({ ...prev, error: null, isLoading: true }));
-
-      // Add user message immediately
-      const userMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: "user",
-        content: content.trim(),
-        timestamp: new Date().toISOString(),
-      };
-
-      addMessage(userMessage);
-
-      // Create assistant message placeholder
-      const assistantMessageId = generateMessageId();
-      const assistantMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "",
-        timestamp: new Date().toISOString(),
-        model,
-        isStreaming: true,
-      };
-
-      addMessage(assistantMessage);
-
-      // Set up streaming
-      streamingMessageRef.current = "";
-      streamingMessageIdRef.current = assistantMessageId;
-      setState((prev) => ({ ...prev, isStreaming: true }));
+    async (content: string, model: string) => {
+      if (!content.trim() || !conversationId) return;
 
       try {
-        // Create abort controller for this request
+        setError(null);
+        setIsStreaming(true);
+        setCurrentStreamContent("");
+
+        // Add user message immediately to UI
+        const userMessage: Message = {
+          id: `temp-${Date.now()}`,
+          role: "user",
+          content,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+
+        // Add temporary assistant message for streaming
+        const tempAssistantMessage: Message = {
+          id: `temp-assistant-${Date.now()}`,
+          role: "assistant",
+          content: "",
+          model,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, tempAssistantMessage]);
+
+        // Cancel any existing stream
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
         abortControllerRef.current = new AbortController();
 
-        const response = await fetch("/api/chat/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            conversationId,
-            content: content.trim(),
-            model,
-          }),
-          signal: abortControllerRef.current.signal,
+        let assistantContent = "";
+
+        // Stream the response
+        const stream = apiClient.sendMessageStream({
+          conversationId,
+          content,
+          model,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to send message");
-        }
+        for await (const chunk of stream) {
+          if (chunk.type === "content" && chunk.content) {
+            assistantContent += chunk.content;
+            setCurrentStreamContent(assistantContent);
 
-        // Handle streaming response
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
-          throw new Error("No response body reader available");
-        }
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
-
-                if (data.type === "content") {
-                  streamingMessageRef.current += data.content;
-                  updateMessage(assistantMessageId, {
-                    content: streamingMessageRef.current,
-                    isStreaming: true,
-                    provider: data.provider,
-                    metadata: {
-                      modelName: data.model,
-                    },
-                  });
-                } else if (data.type === "completion") {
-                  updateMessage(assistantMessageId, {
-                    content: data.content,
-                    isStreaming: false,
-                    provider: data.provider,
-                    metadata: {
-                      tokenCount: data.tokenCount,
-                      modelName: data.model,
-                    },
-                  });
-
-                  setState((prev) => ({
-                    ...prev,
-                    isLoading: false,
-                    isStreaming: false,
-                  }));
-                  break;
-                } else if (data.type === "error") {
-                  throw new Error(data.error);
-                }
-              } catch (parseError) {
-                console.error("Failed to parse SSE data:", parseError);
-              }
-            }
+            // Update the temporary message
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === tempAssistantMessage.id
+                  ? { ...msg, content: assistantContent }
+                  : msg
+              )
+            );
+          } else if (chunk.type === "error") {
+            throw new Error(chunk.error || "Streaming error");
+          } else if (chunk.finished) {
+            break;
           }
         }
-      } catch (error) {
-        console.error("Chat error:", error);
 
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error occurred";
+        // Refresh messages to get the real ones from the database
+        await fetchMessages();
+      } catch (err) {
+        const apiError = err as APIError;
+        setError(apiError.error || "Failed to send message");
+        console.error("Send message error:", err);
 
-        // Update the assistant message with error
-        updateMessage(assistantMessageId, {
-          content:
-            "Sorry, I encountered an error while processing your message.",
-          error: errorMessage,
-          isStreaming: false,
-        });
-
-        setState((prev) => ({
-          ...prev,
-          error: errorMessage,
-          isLoading: false,
-          isStreaming: false,
-        }));
-
-        if (onError) {
-          onError(errorMessage);
-        }
+        // Remove the temporary messages on error
+        setMessages((prev) =>
+          prev.filter((msg) => !msg.id.startsWith("temp-"))
+        );
       } finally {
+        setIsStreaming(false);
+        setCurrentStreamContent("");
         abortControllerRef.current = null;
       }
     },
-    [
-      user,
-      conversationId,
-      model,
-      generateMessageId,
-      addMessage,
-      updateMessage,
-      onError,
-    ]
+    [conversationId, fetchMessages]
   );
 
-  // Stop streaming (abort current request)
-  const stopStreaming = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  const refetchMessages = useCallback(async () => {
+    await fetchMessages();
+  }, [fetchMessages]);
+
+  // Initial load
+  useEffect(() => {
+    if (conversationId) {
+      fetchMessages();
     }
+  }, [conversationId, fetchMessages]);
 
-    setState((prev) => ({
-      ...prev,
-      isLoading: false,
-      isStreaming: false,
-    }));
-
-    // Finalize any streaming message
-    if (streamingMessageIdRef.current && streamingMessageRef.current) {
-      updateMessage(streamingMessageIdRef.current, {
-        content: streamingMessageRef.current,
-        isStreaming: false,
-      });
-    }
-  }, [updateMessage]);
-
-  // Clear error
-  const clearError = useCallback(() => {
-    setState((prev) => ({ ...prev, error: null }));
-  }, []);
-
-  // Set messages (for loading existing conversation)
-  const setMessages = useCallback((messages: ChatMessage[]) => {
-    setState((prev) => ({ ...prev, messages, error: null }));
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   return {
-    messages: state.messages,
-    isLoading: state.isLoading,
-    isStreaming: state.isStreaming,
-    error: state.error,
+    messages,
+    loading,
+    error,
+    isStreaming,
     sendMessage,
-    stopStreaming,
-    clearError,
-    setMessages,
+    refetchMessages,
+    currentStreamContent,
   };
 }

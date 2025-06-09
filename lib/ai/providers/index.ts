@@ -154,10 +154,10 @@ export function getProviderStatus() {
 export function getDefaultModel(): ModelId | null {
   // Prefer faster, cheaper models for default experience
   const preferences: ModelId[] = [
-    "llama-3.1-8b", // Fastest and cheapest
+    "llama-3.1-8b-instant", // Fastest and cheapest
     "gpt-3.5-turbo", // Reliable OpenAI option
-    "gemma2-9b", // Good balance
-    "llama-3.3-70b", // Most capable Groq model
+    "gemma2-9b-it", // Good balance
+    "llama-3.3-70b-versatile", // Most capable Groq model
     "gpt-4", // Most capable overall
   ];
 

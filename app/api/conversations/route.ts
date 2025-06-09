@@ -4,11 +4,22 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { conversations, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { getCurrentDbUser } from "@/lib/db/clerk-utils";
 
 // Request validation for creating conversation
 const createConversationSchema = z.object({
   title: z.string().min(1).max(255).optional(),
-  model: z.enum(["gpt-4", "gpt-3.5-turbo"]).default("gpt-4"),
+  model: z
+    .enum([
+      // OpenAI models
+      "gpt-4",
+      "gpt-3.5-turbo",
+      // Groq models (using actual model IDs)
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "gemma2-9b-it",
+    ])
+    .default("llama-3.1-8b-instant"), // Default to fastest model
 });
 
 // Query parameters for listing conversations
@@ -25,9 +36,9 @@ const listQuerySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const { userId: clerkUserId } = await auth();
-    if (!clerkUserId) {
+    // Get or create user in database (handles authentication internally)
+    const user = await getCurrentDbUser();
+    if (!user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -37,17 +48,6 @@ export async function POST(request: NextRequest) {
     // Parse and validate request body
     const body = await request.json();
     const { title, model } = createConversationSchema.parse(body);
-
-    // Find user in database
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkUserId))
-      .limit(1);
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
 
     // Create new conversation
     const [conversation] = await db
@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate user
-    const { userId: clerkUserId } = await auth();
-    if (!clerkUserId) {
+    // Get or create user in database (handles authentication internally)
+    const user = await getCurrentDbUser();
+    if (!user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -107,17 +107,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const queryParams = Object.fromEntries(searchParams.entries());
     const { limit, offset } = listQuerySchema.parse(queryParams);
-
-    // Find user in database
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkUserId))
-      .limit(1);
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
 
     // Get user's conversations
     const userConversations = await db

@@ -18,16 +18,18 @@ import { estimateTokens } from "@/lib/ai/utils";
 
 // Request validation schema - now supports all provider models
 const sendMessageSchema = z.object({
-  conversationId: z.string().uuid(),
+  conversationId: z
+    .string()
+    .uuid("Invalid conversation ID format. Please use a valid UUID."),
   content: z.string().min(1).max(10000),
   model: z.enum([
     // OpenAI models
     "gpt-4",
     "gpt-3.5-turbo",
-    // Groq models
-    "llama-3.3-70b",
-    "llama-3.1-8b",
-    "gemma2-9b",
+    // Groq models (using actual model IDs)
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
   ]),
 });
 
@@ -222,7 +224,6 @@ export async function POST(request: NextRequest) {
               metadata: {
                 totalMessages: currentMetadata.totalMessages + 2,
                 lastModel: model,
-                lastProvider: provider.name,
                 tags: currentMetadata.tags,
                 sentiment: currentMetadata.sentiment,
                 summary: currentMetadata.summary,

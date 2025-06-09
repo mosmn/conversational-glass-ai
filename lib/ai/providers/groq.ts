@@ -52,7 +52,7 @@ function getGroqClient(): Groq {
 
 // Groq models configuration with unique personalities and visual identities
 export const GROQ_MODELS: Record<GroqModelId, AIModel> = {
-  "llama-3.3-70b": {
+  "llama-3.3-70b-versatile": {
     id: "llama-3.3-70b-versatile",
     name: "Llama 3.3 70B Versatile",
     provider: "groq",
@@ -77,7 +77,7 @@ export const GROQ_MODELS: Record<GroqModelId, AIModel> = {
       outputCostPer1kTokens: 0.00079,
     },
   },
-  "llama-3.1-8b": {
+  "llama-3.1-8b-instant": {
     id: "llama-3.1-8b-instant",
     name: "Llama 3.1 8B Instant",
     provider: "groq",
@@ -101,7 +101,7 @@ export const GROQ_MODELS: Record<GroqModelId, AIModel> = {
       outputCostPer1kTokens: 0.00008,
     },
   },
-  "gemma2-9b": {
+  "gemma2-9b-it": {
     id: "gemma2-9b-it",
     name: "Gemma 2 9B IT",
     provider: "groq",
