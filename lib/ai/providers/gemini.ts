@@ -7,10 +7,11 @@ import {
   AIProviderError,
 } from "../types";
 import { z } from "zod";
+import { BYOKManager } from "./byok-manager";
 
 // Environment validation
 const geminiEnvSchema = z.object({
-  GOOGLE_AI_API_KEY: z.string().min(1, "Google AI API key is required"),
+  GOOGLE_AI_API_KEY: z.string().optional(),
 });
 
 type GeminiEnv = z.infer<typeof geminiEnvSchema>;
@@ -128,7 +129,9 @@ function generateGeminiModelConfig(
 }
 
 // Fetch available models from Gemini API
-async function fetchGeminiModels(): Promise<Record<string, AIModel>> {
+async function fetchGeminiModels(
+  userApiKey?: string
+): Promise<Record<string, AIModel>> {
   const now = Date.now();
 
   // Return cached models if still fresh
@@ -139,13 +142,14 @@ async function fetchGeminiModels(): Promise<Record<string, AIModel>> {
     return cachedModels;
   }
 
-  if (!env?.GOOGLE_AI_API_KEY) {
+  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
     console.warn("🔴 Gemini: No API key configured");
     return {};
   }
 
   try {
-    const url = `${GEMINI_CONFIG.baseUrl}/models?key=${env.GOOGLE_AI_API_KEY}`;
+    const url = `${GEMINI_CONFIG.baseUrl}/models?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -297,11 +301,13 @@ function formatMessagesForGemini(messages: ChatMessage[]): {
 async function* createGeminiStreamingCompletion(
   messages: ChatMessage[],
   modelId: string,
-  options: StreamingOptions = {}
+  options: StreamingOptions = {},
+  userApiKey?: string
 ): AsyncIterable<StreamingChunk> {
-  if (!env) {
+  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
     throw new AIProviderError(
-      "Gemini provider not configured. Please set GOOGLE_AI_API_KEY environment variable.",
+      "Gemini API key is required. Please configure a GOOGLE_AI_API_KEY environment variable or add your own API key in Settings → API Keys.",
       "gemini"
     );
   }
@@ -343,7 +349,7 @@ async function* createGeminiStreamingCompletion(
     ],
   };
 
-  const url = `${GEMINI_CONFIG.baseUrl}/models/${modelId}:streamGenerateContent?key=${env.GOOGLE_AI_API_KEY}`;
+  const url = `${GEMINI_CONFIG.baseUrl}/models/${modelId}:streamGenerateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
@@ -531,11 +537,12 @@ function calculateConversationTokens(messages: ChatMessage[]): number {
 }
 
 // Test connection
-async function testGeminiConnection(): Promise<boolean> {
-  if (!env) return false;
+async function testGeminiConnection(userApiKey?: string): Promise<boolean> {
+  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  if (!apiKey) return false;
 
   try {
-    const url = `${GEMINI_CONFIG.baseUrl}/models/gemini-1.5-flash:generateContent?key=${env.GOOGLE_AI_API_KEY}`;
+    const url = `${GEMINI_CONFIG.baseUrl}/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -572,13 +579,13 @@ export class GeminiProvider implements AIProvider {
   }
 
   get isConfigured(): boolean {
-    return !!env;
+    return true; // Always configured with BYOK support
   }
 
   // Load models dynamically
-  async ensureModelsLoaded(): Promise<void> {
+  async ensureModelsLoaded(userApiKey?: string): Promise<void> {
     if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
-      this._models = await fetchGeminiModels();
+      this._models = await fetchGeminiModels(userApiKey);
       this._modelsLoaded = true;
     }
   }
@@ -591,16 +598,28 @@ export class GeminiProvider implements AIProvider {
     modelId: string,
     options: StreamingOptions = {}
   ): AsyncIterable<StreamingChunk> {
-    // Ensure models are loaded
-    await this.ensureModelsLoaded();
+    // Get user's API key through BYOK manager
+    const byokConfig = await BYOKManager.getUserApiKey(
+      "gemini",
+      options.userId
+    );
+    const userApiKey = byokConfig?.apiKey;
+
+    // Ensure models are loaded with user's API key
+    await this.ensureModelsLoaded(userApiKey);
 
     const model = this.models[modelId];
     if (!model) {
       throw new AIProviderError(`Model '${modelId}' not found`, this.name);
     }
 
-    // Use the existing streaming function with dynamic model lookup
-    yield* createGeminiStreamingCompletion(messages, modelId, options);
+    // Use the existing streaming function with user's API key
+    yield* createGeminiStreamingCompletion(
+      messages,
+      modelId,
+      options,
+      userApiKey
+    );
   }
 
   handleError = handleGeminiError;

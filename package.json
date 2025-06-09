@@ -8,6 +8,12 @@
     "postbuild": "echo 'Build completed successfully'",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:byok": "vitest run test/lib/ai/providers test/lib/utils/encryption.test.ts test/app/api/user/api-keys.test.ts",
+    "test:validate": "tsx test/run-tests.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -89,13 +95,18 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^22",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
+    "@vitest/ui": "^3.2.3",
+    "jsdom": "^26.1.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.7.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.3"
   }
 }

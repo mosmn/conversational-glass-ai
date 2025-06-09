@@ -227,13 +227,14 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Create multi-provider streaming completion
+          // Create multi-provider streaming completion with user context for BYOK
           const aiStream = createStreamingCompletion(
             chatMessages,
             model as ModelId,
             {
-              userId: clerkUserId,
+              userId: user.id, // Pass database user ID for BYOK lookup
               conversationId,
+              clerkUserId, // Also pass Clerk ID for backwards compatibility
             }
           );
 

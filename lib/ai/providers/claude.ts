@@ -7,23 +7,7 @@ import {
   AIProviderError,
 } from "../types";
 import { z } from "zod";
-
-// Environment validation
-const claudeEnvSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().min(1, "Anthropic API key is required"),
-});
-
-type ClaudeEnv = z.infer<typeof claudeEnvSchema>;
-
-// Validate environment
-let env: ClaudeEnv | null = null;
-try {
-  env = claudeEnvSchema.parse({
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  });
-} catch (error) {
-  console.warn("Claude provider not configured:", error);
-}
+import { BYOKManager } from "./byok-manager";
 
 // Claude-specific configuration
 const CLAUDE_CONFIG = {
@@ -117,9 +101,16 @@ async function* createClaudeStreamingCompletion(
   modelId: string,
   options: StreamingOptions = {}
 ): AsyncIterable<StreamingChunk> {
-  if (!env) {
+  // Get API key using BYOK manager (with graceful fallback to environment)
+  const keyConfig = await BYOKManager.getApiKeyWithFallback(
+    "claude",
+    "ANTHROPIC_API_KEY",
+    options.userId
+  );
+
+  if (!keyConfig) {
     throw new AIProviderError(
-      "Claude provider not configured. Please set ANTHROPIC_API_KEY environment variable.",
+      "Anthropic API key not found. Please add your Claude API key in Settings > API Keys or configure ANTHROPIC_API_KEY environment variable.",
       "claude"
     );
   }
@@ -152,7 +143,7 @@ async function* createClaudeStreamingCompletion(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": env.ANTHROPIC_API_KEY,
+        "x-api-key": keyConfig.apiKey,
         "anthropic-version": CLAUDE_CONFIG.apiVersion,
         "anthropic-beta": "messages-2023-12-15",
       },
@@ -287,15 +278,21 @@ function calculateConversationTokens(messages: ChatMessage[]): number {
 }
 
 // Test connection
-async function testClaudeConnection(): Promise<boolean> {
-  if (!env) return false;
-
+async function testClaudeConnection(userId?: string): Promise<boolean> {
   try {
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "claude",
+      "ANTHROPIC_API_KEY",
+      userId
+    );
+
+    if (!keyConfig) return false;
+
     const response = await fetch(`${CLAUDE_CONFIG.baseUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": env.ANTHROPIC_API_KEY,
+        "x-api-key": keyConfig.apiKey,
         "anthropic-version": CLAUDE_CONFIG.apiVersion,
       },
       body: JSON.stringify({
@@ -316,7 +313,7 @@ export const claudeProvider: AIProvider = {
   name: "claude",
   displayName: "Anthropic Claude",
   models: claudeModels,
-  isConfigured: !!env,
+  isConfigured: true, // Always true to allow BYOK - actual key checking happens at runtime
   createStreamingCompletion: createClaudeStreamingCompletion,
   handleError: handleClaudeError,
   estimateTokens,

@@ -7,6 +7,7 @@ import {
   AIProviderError,
 } from "../types";
 import { z } from "zod";
+import { BYOKManager } from "./byok-manager";
 
 // Environment validation
 const openrouterEnvSchema = z.object({
@@ -432,19 +433,15 @@ async function* createOpenRouterStreamingCompletion(
 
               if (data.choices?.[0]?.delta?.content) {
                 yield {
-                  type: "content" as const,
                   content: data.choices[0].delta.content,
-                  model: modelId,
-                  provider: "openrouter",
+                  tokenCount: estimateTokens(data.choices[0].delta.content),
+                  finished: false,
                 };
               }
 
               if (data.choices?.[0]?.finish_reason) {
                 yield {
-                  type: "done" as const,
-                  content: "",
-                  model: modelId,
-                  provider: "openrouter",
+                  finished: true,
                 };
                 return;
               }
@@ -593,18 +590,36 @@ async function getAvailableModels(apiKey?: string): Promise<string[]> {
   return Object.keys(openrouterModels);
 }
 
-// OpenRouter provider implementation
+// OpenRouter provider implementation with BYOK support
 export const openrouterProvider: AIProvider = {
   name: "openrouter",
   displayName: "OpenRouter",
   models: openrouterModels,
-  isConfigured: !!env?.OPENROUTER_API_KEY,
-  createStreamingCompletion: createOpenRouterStreamingCompletion,
+  isConfigured: true, // Always configured with BYOK support
+  createStreamingCompletion: async function* (
+    messages: ChatMessage[],
+    modelId: string,
+    options: StreamingOptions = {}
+  ): AsyncIterable<StreamingChunk> {
+    // Get user's API key through BYOK manager
+    const byokConfig = await BYOKManager.getUserApiKey(
+      "openrouter",
+      options.userId
+    );
+    const userApiKey = byokConfig?.apiKey;
+
+    yield* createOpenRouterStreamingCompletion(
+      messages,
+      modelId,
+      options,
+      userApiKey
+    );
+  },
   handleError: handleOpenRouterError,
   estimateTokens,
   calculateConversationTokens,
-  testConnection: async () => {
-    const result = await testOpenRouterConnection();
+  testConnection: async (userApiKey?: string) => {
+    const result = await testOpenRouterConnection(userApiKey);
     return result.success;
   },
 };

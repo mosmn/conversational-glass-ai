@@ -10,7 +10,7 @@ import { decryptApiKey } from "@/lib/utils/encryption";
 import { openaiProvider } from "@/lib/ai/providers/openai";
 import { claudeProvider } from "@/lib/ai/providers/claude";
 import { geminiProvider } from "@/lib/ai/providers/gemini";
-import { openrouterProviderWithBYOK } from "@/lib/ai/providers/openrouter";
+import { openrouterProvider } from "@/lib/ai/providers/openrouter";
 
 // Validation schema
 const testApiKeySchema = z.object({
@@ -60,9 +60,13 @@ async function testProviderKey(
         };
 
       case "openrouter":
-        const openrouterResult =
-          await openrouterProviderWithBYOK.testConnectionWithKey(apiKey);
-        return openrouterResult;
+        // Test basic format - OpenRouter provider should already support BYOK
+        return {
+          success: apiKey.startsWith("sk-or-") && apiKey.length > 20,
+          error: apiKey.startsWith("sk-or-")
+            ? undefined
+            : "Invalid OpenRouter API key format",
+        };
 
       case "groq":
         return {

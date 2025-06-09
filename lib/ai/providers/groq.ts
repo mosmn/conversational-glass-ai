@@ -18,10 +18,11 @@ import {
   prepareMessagesWithSystemPrompt,
   createErrorResponse,
 } from "../utils";
+import { BYOKManager } from "./byok-manager";
 
 // Environment validation
 const envSchema = z.object({
-  GROQ_API_KEY: z.string().min(1, "Groq API key is required"),
+  GROQ_API_KEY: z.string().optional(),
 });
 
 // Groq API model response interface
@@ -44,26 +45,41 @@ let cachedModels: Record<string, AIModel> = {};
 let modelsLastFetched: number = 0;
 const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-function getGroqClient(): Groq {
-  if (!groqClient) {
-    try {
-      const env = envSchema.parse({
-        GROQ_API_KEY: process.env.GROQ_API_KEY,
-      });
+// Client cache for BYOK
+const clientCache = new Map<string, Groq>();
 
-      groqClient = new Groq({
-        apiKey: env.GROQ_API_KEY,
-      });
-    } catch (error) {
-      throw new AIProviderError(
-        "Failed to initialize Groq client. Please check your API key configuration.",
-        "groq",
-        undefined,
-        error
-      );
-    }
+function getGroqClient(apiKey?: string): Groq {
+  const key = apiKey || process.env.GROQ_API_KEY;
+
+  if (!key) {
+    throw new AIProviderError(
+      "Groq API key is required. Please configure a GROQ_API_KEY environment variable or add your own API key in Settings → API Keys.",
+      "groq"
+    );
   }
-  return groqClient;
+
+  // Use cached client if available
+  if (clientCache.has(key)) {
+    return clientCache.get(key)!;
+  }
+
+  try {
+    const client = new Groq({
+      apiKey: key,
+    });
+
+    // Cache the client
+    clientCache.set(key, client);
+
+    return client;
+  } catch (error) {
+    throw new AIProviderError(
+      "Failed to initialize Groq client. Please check your API key configuration.",
+      "groq",
+      undefined,
+      error
+    );
+  }
 }
 
 // Generate personality and visual config based on model characteristics
@@ -176,7 +192,9 @@ function generateModelConfig(
 }
 
 // Fetch models from Groq API
-async function fetchGroqModels(): Promise<Record<string, AIModel>> {
+async function fetchGroqModels(
+  userApiKey?: string
+): Promise<Record<string, AIModel>> {
   const now = Date.now();
 
   // Return cached models if they're still fresh
@@ -189,12 +207,13 @@ async function fetchGroqModels(): Promise<Record<string, AIModel>> {
   }
 
   try {
-    const client = getGroqClient();
+    const client = getGroqClient(userApiKey);
 
     // Fetch models from Groq API
+    const apiKey = userApiKey || process.env.GROQ_API_KEY;
     const response = await fetch("https://api.groq.com/openai/v1/models", {
       headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
     });
@@ -311,17 +330,13 @@ export class GroqProvider implements AIProvider {
   }
 
   get isConfigured(): boolean {
-    try {
-      return !!process.env.GROQ_API_KEY;
-    } catch {
-      return false;
-    }
+    return true; // Always configured with BYOK support
   }
 
   // Load models dynamically
-  async ensureModelsLoaded(): Promise<void> {
+  async ensureModelsLoaded(userApiKey?: string): Promise<void> {
     if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
-      this._models = await fetchGroqModels();
+      this._models = await fetchGroqModels(userApiKey);
       this._modelsLoaded = true;
     }
   }
@@ -334,8 +349,12 @@ export class GroqProvider implements AIProvider {
     modelId: string,
     options: StreamingOptions = {}
   ): AsyncIterable<StreamingChunk> {
+    // Get user's API key through BYOK manager
+    const byokConfig = await BYOKManager.getUserApiKey("groq", options.userId);
+    const userApiKey = byokConfig?.apiKey;
+
     // Ensure models are loaded
-    await this.ensureModelsLoaded();
+    await this.ensureModelsLoaded(userApiKey);
 
     const model = this.models[modelId];
     if (!model) {
@@ -361,7 +380,7 @@ export class GroqProvider implements AIProvider {
     }
 
     try {
-      const client = getGroqClient();
+      const client = getGroqClient(userApiKey);
 
       const stream = await client.chat.completions.create({
         model: model.id,
@@ -451,10 +470,10 @@ export class GroqProvider implements AIProvider {
   }
 
   // Test connection to Groq
-  async testConnection(): Promise<boolean> {
+  async testConnection(userApiKey?: string): Promise<boolean> {
     try {
-      const client = getGroqClient();
-      await this.ensureModelsLoaded();
+      const client = getGroqClient(userApiKey);
+      await this.ensureModelsLoaded(userApiKey);
 
       // Get the first available model for testing
       const availableModels = Object.keys(this.models);

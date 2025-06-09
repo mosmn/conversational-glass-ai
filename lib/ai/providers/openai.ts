@@ -19,41 +19,65 @@ import {
   prepareMessagesWithSystemPrompt,
   createErrorResponse,
 } from "../utils";
+import { BYOKManager } from "./byok-manager";
 
-// Environment validation
-const envSchema = z.object({
-  OPENAI_API_KEY: z.string().min(1, "OpenAI API key is required"),
-  OPENAI_ORG_ID: z.string().optional(),
-  OPENAI_PROJECT_ID: z.string().optional(),
-});
+// OpenAI client cache for different API keys
+const clientCache = new Map<string, OpenAI>();
 
-// OpenAI client initialization
-let openaiClient: OpenAI | null = null;
+async function getOpenAIClient(userId?: string): Promise<OpenAI> {
+  try {
+    // Get API key using BYOK manager (with graceful fallback to environment)
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "openai",
+      "OPENAI_API_KEY",
+      userId
+    );
 
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    try {
-      const env = envSchema.parse({
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        OPENAI_ORG_ID: process.env.OPENAI_ORG_ID,
-        OPENAI_PROJECT_ID: process.env.OPENAI_PROJECT_ID,
-      });
-
-      openaiClient = new OpenAI({
-        apiKey: env.OPENAI_API_KEY,
-        organization: env.OPENAI_ORG_ID,
-        project: env.OPENAI_PROJECT_ID,
-      });
-    } catch (error) {
+    if (!keyConfig) {
       throw new AIProviderError(
-        "Failed to initialize OpenAI client. Please check your API key configuration.",
-        "openai",
-        undefined,
-        error
+        "OpenAI API key not found. Please add your OpenAI API key in Settings > API Keys or configure OPENAI_API_KEY environment variable.",
+        "openai"
       );
     }
+
+    // Create cache key (using last 8 chars of API key + user indicator)
+    const keyHash = keyConfig.apiKey.slice(-8);
+    const userIndicator = keyConfig.isUserKey ? `user:${userId}` : "env";
+    const cacheKey = `openai:${keyHash}:${userIndicator}`;
+
+    // Use cached client if available
+    const cachedClient = clientCache.get(cacheKey);
+    if (cachedClient) {
+      return cachedClient;
+    }
+
+    // Create new client
+    const client = new OpenAI({
+      apiKey: keyConfig.apiKey,
+      organization: process.env.OPENAI_ORG_ID,
+      project: process.env.OPENAI_PROJECT_ID,
+    });
+
+    // Cache the client
+    clientCache.set(cacheKey, client);
+
+    // Clean up old clients to prevent memory leaks
+    if (clientCache.size > 10) {
+      const firstKey = clientCache.keys().next().value;
+      if (firstKey) {
+        clientCache.delete(firstKey);
+      }
+    }
+
+    return client;
+  } catch (error) {
+    throw new AIProviderError(
+      "Failed to initialize OpenAI client. Please check your API key configuration.",
+      "openai",
+      undefined,
+      error
+    );
   }
-  return openaiClient;
 }
 
 // OpenAI models configuration
@@ -115,11 +139,9 @@ export class OpenAIProvider implements AIProvider {
   models = OPENAI_MODELS;
 
   get isConfigured(): boolean {
-    try {
-      return !!process.env.OPENAI_API_KEY;
-    } catch {
-      return false;
-    }
+    // Always return true to allow BYOK - actual key checking happens at runtime
+    // This allows users to add their own keys even if no environment key is set
+    return true;
   }
 
   estimateTokens = estimateTokens;
@@ -154,7 +176,7 @@ export class OpenAIProvider implements AIProvider {
     }
 
     try {
-      const client = getOpenAIClient();
+      const client = await getOpenAIClient(options.userId);
 
       const stream = await client.chat.completions.create({
         model: model.id,
@@ -205,7 +227,7 @@ export class OpenAIProvider implements AIProvider {
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {
         case 401:
-          return "Invalid OpenAI API key. Please check your configuration.";
+          return "Invalid OpenAI API key. Please check your API key in Settings > API Keys or verify your OPENAI_API_KEY environment variable.";
         case 429:
           return "OpenAI rate limit exceeded. Please wait a moment and try again.";
         case 500:
@@ -239,12 +261,13 @@ export class OpenAIProvider implements AIProvider {
   }
 
   // Test connection to OpenAI
-  async testConnection(): Promise<boolean> {
+  async testConnection(userId?: string): Promise<boolean> {
     try {
-      const client = getOpenAIClient();
+      const client = await getOpenAIClient(userId);
       await client.models.list();
       return true;
-    } catch {
+    } catch (error) {
+      console.error("OpenAI connection test failed:", error);
       return false;
     }
   }
