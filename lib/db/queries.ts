@@ -326,7 +326,7 @@ export class MessageQueries {
         and(
           eq(messages.conversationId, conversationId),
           eq(messages.userId, userId),
-          sql`${messages.createdAt} > ${afterTimestamp}`
+          sql`${messages.createdAt} > ${afterTimestamp.toISOString()}`
         )
       )
       .orderBy(messages.createdAt);
@@ -420,7 +420,7 @@ export class MessageQueries {
         and(
           eq(messages.conversationId, conversationId),
           eq(messages.userId, userId),
-          sql`${messages.createdAt} > ${lastSyncTime}`
+          sql`${messages.createdAt} > ${lastSyncTime.toISOString()}`
         )
       )
       .orderBy(messages.createdAt);
@@ -433,8 +433,8 @@ export class MessageQueries {
         and(
           eq(messages.conversationId, conversationId),
           eq(messages.userId, userId),
-          sql`${messages.createdAt} <= ${lastSyncTime}`,
-          sql`${messages.updatedAt} > ${lastSyncTime}`
+          sql`${messages.createdAt} <= ${lastSyncTime.toISOString()}`,
+          sql`${messages.updatedAt} > ${lastSyncTime.toISOString()}`
         )
       )
       .orderBy(messages.createdAt);
@@ -498,7 +498,10 @@ export class AnalyticsQueries {
       })
       .from(messages)
       .where(
-        and(eq(messages.userId, userId), sql`${messages.createdAt} >= ${since}`)
+        and(
+          eq(messages.userId, userId),
+          sql`${messages.createdAt} >= ${since.toISOString()}`
+        )
       )
       .groupBy(sql`DATE(${messages.createdAt})`)
       .orderBy(sql`DATE(${messages.createdAt})`);

@@ -75,7 +75,13 @@ export type ModelId =
   // Groq models (using actual model IDs)
   | "llama-3.3-70b-versatile"
   | "llama-3.1-8b-instant"
-  | "gemma2-9b-it";
+  | "gemma2-9b-it"
+  // Claude models
+  | "claude-3-5-sonnet-20241022"
+  | "claude-3-haiku-20240307"
+  // Gemini models
+  | "gemini-1.5-pro"
+  | "gemini-1.5-flash";
 
 // Provider-specific model IDs for type safety
 export type OpenAIModelId = "gpt-4" | "gpt-3.5-turbo";
@@ -83,6 +89,10 @@ export type GroqModelId =
   | "llama-3.3-70b-versatile"
   | "llama-3.1-8b-instant"
   | "gemma2-9b-it";
+export type ClaudeModelId =
+  | "claude-3-5-sonnet-20241022"
+  | "claude-3-haiku-20240307";
+export type GeminiModelId = "gemini-1.5-pro" | "gemini-1.5-flash";
 
 // System prompt templates
 export interface SystemPromptTemplate {

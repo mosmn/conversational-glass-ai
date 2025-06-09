@@ -92,11 +92,11 @@
   - [x] Streaming responses with UI updates
   - [x] Error handling and loading states
 
-- [ ] **Message Persistence**
+- [x] **Message Persistence**
 
-  - [ ] Save/load conversations
-  - [ ] Real-time message updates
-  - [ ] Message history synchronization
+  - [x] Save/load conversations
+  - [x] Real-time message updates
+  - [x] Message history synchronization
 
 ### **🚀 Days 3-4: MULTI-LLM POWER (Core Requirement)**
 
@@ -104,23 +104,23 @@
 
 #### **Priority 3: Multi-LLM Support**
 
-- [ ] **Claude API Integration**
+- [x] **Claude API Integration**
 
-  - [ ] Anthropic API setup
-  - [ ] Claude-3 Sonnet/Haiku models
-  - [ ] Streaming with personality matching
+  - [x] Anthropic API setup
+  - [x] Claude-3 Sonnet/Haiku models
+  - [x] Streaming with personality matching
 
-- [ ] **Gemini API Integration**
+- [x] **Gemini API Integration**
 
-  - [ ] Google AI API setup
-  - [ ] Gemini Pro model support
-  - [ ] Multi-modal capabilities prep
+  - [x] Google AI API setup
+  - [x] Gemini Pro model support
+  - [x] Multi-modal capabilities prep
 
-- [ ] **Model Switching System**
+- [x] **Model Switching System**
 
-  - [ ] Mid-conversation model switching
-  - [ ] Context preservation across models
-  - [ ] Model selection UI enhancements
+  - [x] Mid-conversation model switching
+  - [x] Context preservation across models
+  - [x] Model selection UI enhancements
 
 ### **⭐ Days 5-6: COMPETITIVE EDGE (Bonus Features)**
 
@@ -128,12 +128,12 @@
 
 #### **Priority 4: High-Impact Bonus Features**
 
-- [ ] **Syntax Highlighting** (Quick Win)
+- [x] **Syntax Highlighting** (Quick Win)
 
-  - [ ] Prism.js or Shiki integration
-  - [ ] Code block detection and formatting
-  - [ ] Multiple language support
-  - [ ] Copy code functionality
+  - [x] Prism.js or Shiki integration
+  - [x] Code block detection and formatting
+  - [x] Multiple language support
+  - [x] Copy code functionality
 
 - [ ] **Chat Sharing** (Leverage Existing UI)
 

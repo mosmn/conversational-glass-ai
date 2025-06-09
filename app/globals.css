@@ -233,4 +233,121 @@ body {
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(16, 185, 129, 0.7);
   }
+
+  /* Syntax highlighting styles */
+  .shiki-container {
+    @apply font-mono text-sm leading-relaxed;
+    background: transparent !important;
+  }
+
+  .glassmorphic-code-block {
+    @apply bg-slate-900/30 backdrop-blur-sm border border-slate-700/40;
+    @apply rounded-lg overflow-hidden;
+    @apply shadow-lg shadow-black/20;
+  }
+
+  .glassmorphic-code-block pre {
+    @apply m-0 p-4 overflow-x-auto;
+    background: transparent !important;
+  }
+
+  .glassmorphic-code-block code {
+    @apply font-mono;
+    background: transparent !important;
+  }
+
+  /* Fallback code block styles */
+  .code-block.fallback {
+    @apply bg-slate-800/50 border border-slate-700/40;
+    @apply rounded-lg overflow-hidden;
+    @apply font-mono text-sm;
+  }
+
+  .code-block.fallback pre {
+    @apply m-0 p-4 text-slate-200;
+    @apply overflow-x-auto;
+    background: transparent;
+  }
+
+  /* Line numbers */
+  .line-numbers .line {
+    @apply block;
+  }
+
+  .line-numbers .line-number {
+    @apply inline-block w-8 text-right pr-4 text-slate-500;
+    @apply select-none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Highlighted lines */
+  .highlighted-line {
+    @apply bg-amber-500/10 border-l-2 border-amber-500/50;
+    @apply pl-2 -ml-2;
+  }
+
+  /* Markdown content integration */
+  .markdown-content {
+    @apply leading-relaxed;
+  }
+
+  .markdown-content pre {
+    @apply my-4;
+  }
+
+  .markdown-content code:not(pre code) {
+    @apply px-1.5 py-0.5 mx-0.5;
+    @apply bg-slate-700/40 text-slate-200;
+    @apply border border-slate-600/40 rounded;
+    @apply font-mono text-sm;
+  }
+
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4,
+  .markdown-content h5,
+  .markdown-content h6 {
+    @apply text-slate-100 font-semibold mt-6 mb-3;
+  }
+
+  .markdown-content h1 {
+    @apply text-2xl;
+  }
+  .markdown-content h2 {
+    @apply text-xl;
+  }
+  .markdown-content h3 {
+    @apply text-lg;
+  }
+
+  .markdown-content p {
+    @apply mb-4 text-slate-200;
+  }
+
+  .markdown-content ul,
+  .markdown-content ol {
+    @apply mb-4 pl-6;
+  }
+
+  .markdown-content li {
+    @apply mb-1 text-slate-200;
+  }
+
+  .markdown-content blockquote {
+    @apply border-l-4 border-slate-600 pl-4 italic text-slate-300;
+    @apply bg-slate-800/30 py-2 my-4;
+  }
+
+  .markdown-content strong {
+    @apply font-semibold text-slate-100;
+  }
+
+  .markdown-content em {
+    @apply italic text-slate-200;
+  }
+
+  .markdown-content a {
+    @apply text-emerald-400 hover:text-emerald-300 underline;
+  }
 }

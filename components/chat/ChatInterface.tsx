@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
+import { MessageContent } from "./MessageContent";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,7 +104,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gpt-4");
+  const [selectedModel, setSelectedModel] = useState("llama-3.3-70b-versatile");
   const [searchQuery, setSearchQuery] = useState("");
   const [usage, setUsage] = useState(65); // Usage percentage
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -620,8 +621,15 @@ function ChatHistoryItem({
   chat: Chat;
   isActive: boolean;
 }) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.push(`/chat/${chat.id}`);
+  };
+
   return (
     <div
+      onClick={handleClick}
       className={`p-3 rounded-lg cursor-pointer transition-all duration-200 group ${
         isActive
           ? "bg-emerald-600/20 border border-emerald-500/30"
@@ -767,33 +775,21 @@ function MessageBubble({ message }: { message: Message }) {
                   : "bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm text-slate-100"
               }`}
             >
-              <div className="prose prose-invert max-w-none text-current">
-                {hasError ? (
-                  <div className="flex items-center">
-                    <span className="mr-2">⚠️</span>
-                    {message.error || "Failed to generate response"}
-                  </div>
-                ) : (
-                  <>
-                    {message.content}
-                    {isStreaming && (
-                      <div className="inline-block ml-2">
-                        <div className="flex space-x-1">
-                          <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" />
-                          <div
-                            className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "0.1s" }}
-                          />
-                          <div
-                            className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "0.2s" }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              {hasError ? (
+                <div className="flex items-center text-current">
+                  <span className="mr-2">⚠️</span>
+                  {message.error || "Failed to generate response"}
+                </div>
+              ) : (
+                <MessageContent
+                  content={message.content}
+                  isStreaming={isStreaming}
+                  isUser={isUser}
+                  showLineNumbers={false}
+                  maxCodeBlockHeight="300px"
+                  allowHtml={false}
+                />
+              )}
             </div>
 
             <div

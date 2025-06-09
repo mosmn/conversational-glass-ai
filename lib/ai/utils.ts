@@ -52,6 +52,10 @@ export function getProviderFromModelId(modelId: ModelId): string {
     "llama-3.3-70b-versatile": "groq",
     "llama-3.1-8b-instant": "groq",
     "gemma2-9b-it": "groq",
+    "claude-3-5-sonnet-20241022": "claude",
+    "claude-3-haiku-20240307": "claude",
+    "gemini-1.5-pro": "gemini",
+    "gemini-1.5-flash": "gemini",
   };
 
   return providerMap[modelId] || "unknown";
@@ -174,6 +178,14 @@ function getSpeedRating(model: AIModel): "fast" | "medium" | "slow" {
 
   if (model.provider === "openai") {
     return model.name.includes("3.5") ? "fast" : "medium";
+  }
+
+  if (model.provider === "claude") {
+    return model.name.includes("Haiku") ? "fast" : "medium";
+  }
+
+  if (model.provider === "gemini") {
+    return model.name.includes("Flash") ? "fast" : "medium";
   }
 
   return "medium";

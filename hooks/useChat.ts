@@ -56,6 +56,7 @@ export function useChat(conversationId: string): UseChatReturn {
 
         if (reset) {
           setMessages(response.messages);
+          setNextCursor(response.pagination.nextCursor); // Reset cursor when resetting messages
         } else {
           setMessages((prev) => [...response.messages, ...prev]);
         }
@@ -287,10 +288,54 @@ export function useChat(conversationId: string): UseChatReturn {
     }
   }, [conversationId, lastSyncTime, isStreaming, syncMessages]);
 
-  // Initial load
+  // Reset state and load messages when conversationId changes
   useEffect(() => {
     if (conversationId) {
-      fetchMessages(true);
+      // Clear previous state
+      setMessages([]);
+      setError(null);
+      setHasMore(false);
+      setNextCursor(null);
+      setLastSyncTime(null);
+      setCurrentStreamContent("");
+      setIsStreaming(false);
+
+      // Load new messages
+      const loadMessages = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+
+          const response = await apiClient.getConversationMessages(
+            conversationId,
+            {
+              limit: 50,
+              includeMetadata: true,
+            }
+          );
+
+          setMessages(response.messages);
+          setHasMore(response.pagination.hasMore);
+          setNextCursor(response.pagination.nextCursor);
+          setLastSyncTime(response.sync.currentTimestamp);
+        } catch (err) {
+          const apiError = err as APIError;
+          setError(apiError.error || "Failed to fetch messages");
+          console.error("Fetch messages error:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadMessages();
+    } else {
+      // Clear everything if no conversationId
+      setMessages([]);
+      setLoading(false);
+      setError(null);
+      setHasMore(false);
+      setNextCursor(null);
+      setLastSyncTime(null);
     }
   }, [conversationId]);
 

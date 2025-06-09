@@ -11,11 +11,15 @@ import {
 import { getProviderFromModelId } from "../utils";
 import { openaiProvider } from "./openai";
 import { groqProvider } from "./groq";
+import { claudeProvider } from "./claude";
+import { geminiProvider } from "./gemini";
 
 // Provider registry
 export const providers: Record<string, AIProvider> = {
   openai: openaiProvider,
   groq: groqProvider,
+  claude: claudeProvider,
+  gemini: geminiProvider,
 };
 
 // Get all configured providers
@@ -155,8 +159,12 @@ export function getDefaultModel(): ModelId | null {
   // Prefer faster, cheaper models for default experience
   const preferences: ModelId[] = [
     "llama-3.1-8b-instant", // Fastest and cheapest
+    "claude-3-haiku-20240307", // Fast Claude model
+    "gemini-1.5-flash", // Fast Gemini model
     "gpt-3.5-turbo", // Reliable OpenAI option
     "gemma2-9b-it", // Good balance
+    "claude-3-5-sonnet-20241022", // Most capable Claude model
+    "gemini-1.5-pro", // Most capable Gemini model
     "llama-3.3-70b-versatile", // Most capable Groq model
     "gpt-4", // Most capable overall
   ];
@@ -180,9 +188,19 @@ export function getRecommendedModels() {
   return {
     fastest:
       (allModels
-        .filter((m) => m.provider === "groq")
+        .filter(
+          (m) =>
+            m.provider === "groq" ||
+            m.name.includes("Haiku") ||
+            m.name.includes("Flash")
+        )
         .sort((a, b) => {
-          // Prioritize smaller parameter models for speed
+          // Prioritize specific fast models, then smaller parameter models
+          if (a.name.includes("Flash")) return -1;
+          if (b.name.includes("Flash")) return 1;
+          if (a.name.includes("Haiku")) return -1;
+          if (b.name.includes("Haiku")) return 1;
+
           const aParams = parseInt(a.name.match(/(\d+)b/i)?.[1] || "0");
           const bParams = parseInt(b.name.match(/(\d+)b/i)?.[1] || "0");
           return aParams - bParams;
@@ -212,6 +230,8 @@ export function getRecommendedModels() {
 // Export individual providers for direct access if needed
 export { openaiProvider } from "./openai";
 export { groqProvider } from "./groq";
+export { claudeProvider } from "./claude";
+export { geminiProvider } from "./gemini";
 
 // Export types
 export type { AIProvider, AIModel } from "../types";
