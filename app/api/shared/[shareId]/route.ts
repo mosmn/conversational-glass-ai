@@ -6,10 +6,10 @@ import { validateShareId } from "@/lib/db/utils";
 // GET: Get shared conversation (public access, no authentication required)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { shareId: string } }
+  { params }: { params: Promise<{ shareId: string }> }
 ) {
   try {
-    const shareId = params.shareId;
+    const { shareId } = await params;
 
     // Validate share ID format
     if (!validateShareId(shareId)) {

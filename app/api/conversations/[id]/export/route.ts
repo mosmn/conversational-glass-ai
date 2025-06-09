@@ -13,7 +13,7 @@ const exportRequestSchema = z.object({
 // POST: Export private conversation in specified format
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get authenticated user
@@ -25,7 +25,8 @@ export async function POST(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Validate conversation ID format
     if (!z.string().uuid().safeParse(conversationId).success) {

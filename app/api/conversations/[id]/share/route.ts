@@ -17,7 +17,7 @@ const shareSettingsSchema = z.object({
 // POST: Enable sharing for a conversation
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get authenticated user
@@ -29,7 +29,8 @@ export async function POST(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Validate conversation ID format
     if (!z.string().uuid().safeParse(conversationId).success) {
@@ -114,7 +115,7 @@ export async function POST(
 // GET: Get current sharing status
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get authenticated user
@@ -126,7 +127,8 @@ export async function GET(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Validate conversation ID format
     if (!z.string().uuid().safeParse(conversationId).success) {
@@ -172,7 +174,7 @@ export async function GET(
 // DELETE: Disable sharing (alternative to POST with enabled: false)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get authenticated user
@@ -184,7 +186,8 @@ export async function DELETE(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Validate conversation ID format
     if (!z.string().uuid().safeParse(conversationId).success) {

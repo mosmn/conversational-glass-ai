@@ -11,7 +11,7 @@ interface RouteParams {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: RouteParams }
+  { params }: { params: Promise<RouteParams> }
 ) {
   try {
     // Authenticate user
@@ -23,7 +23,7 @@ export async function GET(
       );
     }
 
-    const { fileId } = params;
+    const { fileId } = await params;
 
     // Get file path from query parameters
     const searchParams = request.nextUrl.searchParams;

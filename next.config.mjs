@@ -9,9 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    serverComponentsExternalPackages: ["sharp", "pdf-parse"],
-  },
+  serverExternalPackages: ["sharp", "pdf-parse"],
   // Increase the maximum request body size for file uploads
   async headers() {
     return [

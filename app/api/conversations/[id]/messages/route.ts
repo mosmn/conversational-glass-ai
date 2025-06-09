@@ -22,7 +22,7 @@ const querySchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authenticate user
@@ -34,7 +34,8 @@ export async function GET(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Validate conversation ID
     if (
@@ -173,7 +174,7 @@ export async function GET(
 // POST method for batch message operations (sync support)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authenticate user
@@ -185,7 +186,8 @@ export async function POST(
       );
     }
 
-    const conversationId = params.id;
+    const { id } = await params;
+    const conversationId = id;
 
     // Parse request body
     const body = await request.json();

@@ -13,10 +13,10 @@ const exportRequestSchema = z.object({
 // POST: Export shared conversation in specified format
 export async function POST(
   request: NextRequest,
-  { params }: { params: { shareId: string } }
+  { params }: { params: Promise<{ shareId: string }> }
 ) {
   try {
-    const shareId = params.shareId;
+    const { shareId } = await params;
 
     // Validate share ID format
     if (!validateShareId(shareId)) {

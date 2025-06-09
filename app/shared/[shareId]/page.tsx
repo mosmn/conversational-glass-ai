@@ -4,7 +4,7 @@ import { PublicConversationView } from "@/components/chat/PublicConversationView
 import { validateShareId } from "@/lib/db/utils";
 
 interface PageProps {
-  params: { shareId: string };
+  params: Promise<{ shareId: string }>;
 }
 
 // Fetch conversation data on the server for SEO and meta tags
@@ -32,9 +32,10 @@ async function getSharedConversation(shareId: string) {
 }
 
 // Generate dynamic metadata for social sharing
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
+export async function generateMetadata(props: {
+  params: Promise<{ shareId: string }>;
+}): Promise<Metadata> {
+  const params = await props.params;
   const { shareId } = params;
 
   // Validate share ID format
@@ -94,7 +95,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function SharedConversationPage({ params }: PageProps) {
+export default async function SharedConversationPage(props: {
+  params: Promise<{ shareId: string }>;
+}) {
+  const params = await props.params;
   const { shareId } = params;
 
   // Validate share ID format
