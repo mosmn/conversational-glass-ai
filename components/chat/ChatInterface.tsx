@@ -111,6 +111,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [showAttachments, setShowAttachments] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Debug logging (reduced noise)
+  useEffect(() => {
+    console.log("ChatInterface: chatId changed to:", chatId);
+  }, [chatId]);
+
   // API hooks
   const {
     conversations,
@@ -119,6 +124,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   } = useConversations();
   const {
     messages,
+    conversation,
     loading: messagesLoading,
     error: chatError,
     isStreaming,
@@ -400,14 +406,15 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           <div className="flex items-center justify-between p-4 border-b border-slate-700/50 bg-slate-800/30 backdrop-blur-xl">
             <div className="flex items-center space-x-4">
               <h2 className="text-lg font-semibold">
-                {messages.length > 0 ? "Chat Session" : "New Conversation"}
+                {conversation?.title ||
+                  (messages.length > 0 ? "Chat Session" : "New Conversation")}
               </h2>
-              {messages.length > 0 && (
+              {(conversation || messages.length > 0) && (
                 <Badge
                   variant="outline"
                   className="border-emerald-500 text-emerald-400"
                 >
-                  {selectedModel}
+                  {conversation?.model || selectedModel}
                 </Badge>
               )}
             </div>

@@ -11,6 +11,13 @@ import {
 
 interface UseChatReturn {
   messages: Message[];
+  conversation: {
+    id: string;
+    title: string;
+    model: string;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
   loading: boolean;
   error: string | null;
   isStreaming: boolean;
@@ -25,6 +32,13 @@ interface UseChatReturn {
 
 export function useChat(conversationId: string): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversation, setConversation] = useState<{
+    id: string;
+    title: string;
+    model: string;
+    createdAt: string;
+    updatedAt: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -35,6 +49,7 @@ export function useChat(conversationId: string): UseChatReturn {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentConversationIdRef = useRef<string | null>(null);
 
   const fetchMessages = useCallback(
     async (reset = false) => {
@@ -290,9 +305,20 @@ export function useChat(conversationId: string): UseChatReturn {
 
   // Reset state and load messages when conversationId changes
   useEffect(() => {
+    console.log("useChat: conversationId changed to:", conversationId);
+
+    // Prevent duplicate calls for the same conversation
+    if (conversationId === currentConversationIdRef.current) {
+      console.log("useChat: Skipping duplicate call for same conversationId");
+      return;
+    }
+
+    currentConversationIdRef.current = conversationId;
+
     if (conversationId) {
       // Clear previous state
       setMessages([]);
+      setConversation(null);
       setError(null);
       setHasMore(false);
       setNextCursor(null);
@@ -305,6 +331,10 @@ export function useChat(conversationId: string): UseChatReturn {
         try {
           setLoading(true);
           setError(null);
+          console.log(
+            "useChat: Loading messages for conversation:",
+            conversationId
+          );
 
           const response = await apiClient.getConversationMessages(
             conversationId,
@@ -314,14 +344,21 @@ export function useChat(conversationId: string): UseChatReturn {
             }
           );
 
+          console.log("useChat: Received response:", {
+            messagesCount: response.messages.length,
+            conversation: response.conversation,
+            hasMore: response.pagination.hasMore,
+          });
+
           setMessages(response.messages);
+          setConversation(response.conversation);
           setHasMore(response.pagination.hasMore);
           setNextCursor(response.pagination.nextCursor);
           setLastSyncTime(response.sync.currentTimestamp);
         } catch (err) {
           const apiError = err as APIError;
           setError(apiError.error || "Failed to fetch messages");
-          console.error("Fetch messages error:", err);
+          console.error("useChat: Fetch messages error:", err);
         } finally {
           setLoading(false);
         }
@@ -330,7 +367,9 @@ export function useChat(conversationId: string): UseChatReturn {
       loadMessages();
     } else {
       // Clear everything if no conversationId
+      currentConversationIdRef.current = null;
       setMessages([]);
+      setConversation(null);
       setLoading(false);
       setError(null);
       setHasMore(false);
@@ -353,6 +392,7 @@ export function useChat(conversationId: string): UseChatReturn {
 
   return {
     messages,
+    conversation,
     loading,
     error,
     isStreaming,
