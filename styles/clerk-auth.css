@@ -1,0 +1,522 @@
+/* Conversational Glass AI - Custom Clerk Authentication Styling */
+/* This file customizes Clerk's authentication forms to match our glassmorphic design */
+
+/* Hide Clerk branding completely */
+.cl-internal-1dauvpw,
+.cl-internal-piyvrh,
+.cl-internal-df7v37,
+.cl-internal-y44tp9,
+.cl-internal-16mc20d,
+.cl-internal-wf8x4b,
+.cl-internal-1fcj7sw,
+.cl-internal-5ghyhf,
+.cl-internal-16vtwdp {
+  display: none !important;
+}
+
+/* Root container styling - ensure proper centering */
+.cl-rootBox {
+  margin: 0 auto !important;
+  padding: 0 !important;
+  max-width: 420px !important;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+/* Card box wrapper - this is the outer container */
+.cl-cardBox {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  box-shadow: none !important;
+  max-width: 420px !important;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+/* Main card styling - glassmorphic container */
+.cl-card {
+  background: rgba(30, 41, 59, 0.6) !important; /* slate-800/60 */
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(51, 65, 85, 0.5) !important; /* slate-700/50 */
+  border-radius: 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(16, 185, 129, 0.1) !important;
+  padding: 32px !important;
+  max-width: 420px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  position: relative !important;
+}
+
+/* Remove any default pseudo-elements */
+.cl-card::before {
+  display: none !important;
+}
+
+/* Header styling */
+.cl-header {
+  text-align: center !important;
+  margin-bottom: 32px !important;
+  padding-top: 0 !important;
+}
+
+/* Hide default header content since we're using our own logo */
+.cl-headerTitle,
+.cl-headerSubtitle {
+  display: none !important;
+}
+
+/* Social buttons container */
+.cl-socialButtonsRoot {
+  margin-bottom: 24px !important;
+}
+
+.cl-socialButtons {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+/* Social buttons styling - glassmorphic */
+.cl-socialButtonsBlockButton {
+  width: 100% !important;
+  height: 48px !important;
+  border: 1px solid rgba(51, 65, 85, 0.6) !important; /* slate-700/60 */
+  border-radius: 12px !important;
+  background: rgba(51, 65, 85, 0.5) !important; /* slate-700/50 */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  color: white !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  cursor: pointer !important;
+}
+
+.cl-socialButtonsBlockButton:hover {
+  border-color: rgba(16, 185, 129, 0.6) !important; /* emerald-500/60 */
+  background: rgba(51, 65, 85, 0.7) !important; /* slate-700/70 */
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.15) !important;
+}
+
+.cl-socialButtonsProviderIcon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.cl-socialButtonsBlockButtonText {
+  font-weight: 500 !important;
+  color: white !important;
+}
+
+/* Divider styling */
+.cl-dividerRow {
+  display: flex !important;
+  align-items: center !important;
+  margin: 28px 0 !important;
+}
+
+.cl-dividerLine {
+  flex: 1 !important;
+  height: 1px !important;
+  background: rgba(51, 65, 85, 0.6) !important; /* slate-700/60 */
+}
+
+.cl-dividerText {
+  margin: 0 20px !important;
+  color: rgba(148, 163, 184, 0.8) !important; /* slate-400/80 */
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Form styling */
+.cl-form {
+  width: 100% !important;
+}
+
+.cl-formFieldRow {
+  margin-bottom: 20px !important;
+}
+
+.cl-formField {
+  width: 100% !important;
+}
+
+/* Form labels */
+.cl-formFieldLabel {
+  display: block !important;
+  color: rgba(226, 232, 240, 0.9) !important; /* slate-200/90 */
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin-bottom: 8px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+/* Form inputs - glassmorphic */
+.cl-formFieldInput {
+  width: 100% !important;
+  height: 48px !important;
+  padding: 0 16px !important;
+  border: 1px solid rgba(51, 65, 85, 0.6) !important; /* slate-700/60 */
+  border-radius: 12px !important;
+  background: rgba(51, 65, 85, 0.5) !important; /* slate-700/50 */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  color: white !important;
+  font-size: 15px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  transition: all 0.3s ease !important;
+  outline: none !important;
+}
+
+.cl-formFieldInput:focus {
+  border-color: rgba(16, 185, 129, 0.8) !important; /* emerald-500/80 */
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+  background: rgba(51, 65, 85, 0.7) !important; /* slate-700/70 */
+}
+
+.cl-formFieldInput::placeholder {
+  color: rgba(148, 163, 184, 0.7) !important; /* slate-400/70 */
+  font-weight: 400 !important;
+}
+
+/* Password field styling */
+.cl-formFieldInputGroup {
+  position: relative !important;
+  width: 100% !important;
+}
+
+.cl-formFieldInputShowPasswordButton {
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: none !important;
+  border: none !important;
+  color: rgba(148, 163, 184, 0.8) !important; /* slate-400/80 */
+  padding: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  border-radius: 6px !important;
+}
+
+.cl-formFieldInputShowPasswordButton:hover {
+  color: rgba(16, 185, 129, 0.9) !important; /* emerald-500/90 */
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+
+.cl-formFieldInputShowPasswordIcon {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Primary button styling - emerald gradient */
+.cl-formButtonPrimary {
+  width: 100% !important;
+  height: 48px !important;
+  background: linear-gradient(
+    135deg,
+    #10b981 0%,
+    #14b8a6 50%,
+    #06b6d4 100%
+  ) !important; /* emerald to teal to cyan */
+  border: none !important;
+  border-radius: 12px !important;
+  color: white !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  margin-top: 24px !important;
+  outline: none !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3) !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background: linear-gradient(
+    135deg,
+    #14b8a6 0%,
+    #06b6d4 50%,
+    #0ea5e9 100%
+  ) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4) !important;
+}
+
+.cl-formButtonPrimary:active {
+  transform: translateY(0) !important;
+}
+
+.cl-buttonArrowIcon {
+  width: 16px !important;
+  height: 16px !important;
+  fill: currentColor !important;
+}
+
+/* Footer styling */
+.cl-footer {
+  margin-top: 32px !important;
+  padding-top: 24px !important;
+  border-top: 1px solid rgba(51, 65, 85, 0.4) !important; /* slate-700/40 */
+  text-align: center !important;
+}
+
+.cl-footerAction {
+  margin-bottom: 0 !important;
+}
+
+.cl-footerActionText {
+  color: rgba(148, 163, 184, 0.8) !important; /* slate-400/80 */
+  font-size: 14px !important;
+  margin-right: 4px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.cl-footerActionLink {
+  color: rgba(52, 211, 153, 0.9) !important; /* emerald-400/90 */
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  transition: color 0.3s ease !important;
+}
+
+.cl-footerActionLink:hover {
+  color: rgba(34, 197, 94, 1) !important; /* emerald-500 */
+  text-decoration: underline !important;
+}
+
+/* Error states */
+.cl-formFieldInput[data-feedback="error"] {
+  border-color: rgba(239, 68, 68, 0.8) !important; /* red-500/80 */
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.cl-formFieldErrorText {
+  color: rgba(248, 113, 113, 0.9) !important; /* red-400/90 */
+  font-size: 13px !important;
+  margin-top: 6px !important;
+}
+
+/* Success states */
+.cl-formFieldInput[data-feedback="success"] {
+  border-color: rgba(34, 197, 94, 0.8) !important; /* emerald-500/80 */
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2) !important;
+}
+
+.cl-formFieldSuccessText {
+  color: rgba(52, 211, 153, 0.9) !important; /* emerald-400/90 */
+  font-size: 13px !important;
+  margin-top: 6px !important;
+}
+
+/* Loading states */
+.cl-formButtonPrimary[data-loading="true"] {
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* Verification code styling */
+.cl-formFieldInput[type="text"]:not([placeholder*="email"]):not(
+    [placeholder*="password"]
+  ) {
+  text-align: center !important;
+  letter-spacing: 8px !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+}
+
+/* OTP input styling */
+.cl-otpCodeFieldInput {
+  background: rgba(51, 65, 85, 0.5) !important; /* slate-700/50 */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(51, 65, 85, 0.6) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  text-align: center !important;
+}
+
+.cl-otpCodeFieldInput:focus {
+  border-color: rgba(16, 185, 129, 0.8) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .cl-cardBox {
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  .cl-card {
+    padding: 24px 20px !important;
+    border-radius: 20px !important;
+  }
+
+  .cl-formButtonPrimary,
+  .cl-socialButtonsBlockButton,
+  .cl-formFieldInput {
+    height: 44px !important;
+  }
+}
+
+/* Focus states for accessibility */
+.cl-socialButtonsBlockButton:focus,
+.cl-formFieldInput:focus,
+.cl-formButtonPrimary:focus,
+.cl-footerActionLink:focus {
+  outline: 2px solid rgba(16, 185, 129, 0.8) !important;
+  outline-offset: 2px !important;
+}
+
+/* Smooth entrance animation */
+.cl-card {
+  animation: slideInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Additional glassmorphic polish */
+.cl-main {
+  padding: 0 !important;
+}
+
+.cl-internal-1pnppin,
+.cl-internal-742eeh {
+  margin-top: 0 !important;
+}
+
+/* Loading spinner customization */
+.cl-spinner {
+  border-color: rgba(51, 65, 85, 0.3) !important;
+  border-top-color: rgba(16, 185, 129, 0.8) !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Alert styling - glassmorphic */
+.cl-alertRoot {
+  background: rgba(220, 38, 38, 0.1) !important; /* red-600/10 */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(248, 113, 113, 0.3) !important; /* red-400/30 */
+  border-radius: 12px !important;
+  color: rgba(248, 113, 113, 0.9) !important; /* red-400/90 */
+  padding: 12px 16px !important;
+  margin-bottom: 16px !important;
+  font-size: 14px !important;
+}
+
+.cl-alertIcon {
+  color: rgba(248, 113, 113, 0.9) !important; /* red-400/90 */
+}
+
+/* Additional form field styling */
+.cl-formFieldAction {
+  color: rgba(52, 211, 153, 0.9) !important; /* emerald-400/90 */
+  text-decoration: none !important;
+  font-size: 14px !important;
+  transition: color 0.3s ease !important;
+}
+
+.cl-formFieldAction:hover {
+  color: rgba(34, 197, 94, 1) !important; /* emerald-500 */
+}
+
+.cl-formFieldHintText {
+  color: rgba(148, 163, 184, 0.7) !important; /* slate-400/70 */
+  font-size: 13px !important;
+  margin-top: 4px !important;
+}
+
+.cl-formResendCodeLink {
+  color: rgba(52, 211, 153, 0.9) !important; /* emerald-400/90 */
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  transition: color 0.3s ease !important;
+}
+
+.cl-formResendCodeLink:hover {
+  color: rgba(34, 197, 94, 1) !important; /* emerald-500 */
+  text-decoration: underline !important;
+}
+
+/* Identity preview styling */
+.cl-identityPreviewText {
+  color: rgba(226, 232, 240, 0.8) !important; /* slate-200/80 */
+}
+
+.cl-identityPreviewEditButton {
+  color: rgba(52, 211, 153, 0.9) !important; /* emerald-400/90 */
+  text-decoration: none !important;
+  transition: color 0.3s ease !important;
+}
+
+.cl-identityPreviewEditButton:hover {
+  color: rgba(34, 197, 94, 1) !important; /* emerald-500 */
+}
+
+/* Membership role styling */
+.cl-membershipRole {
+  color: rgba(226, 232, 240, 0.8) !important; /* slate-200/80 */
+}
+
+/* Warning text styling */
+.cl-formFieldWarningText {
+  color: rgba(251, 191, 36, 0.9) !important; /* amber-400/90 */
+  font-size: 13px !important;
+  margin-top: 6px !important;
+}
+
+/* Add subtle glow effect to the card */
+.cl-card::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-radius: 24px !important;
+  padding: 1px !important;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.2),
+    rgba(6, 182, 212, 0.2),
+    rgba(14, 165, 233, 0.2)
+  ) !important;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0) !important;
+  mask-composite: exclude !important;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}

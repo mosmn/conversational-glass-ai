@@ -97,47 +97,7 @@ export default function SignUpPage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <SignUp
-              appearance={{
-                elements: {
-                  formButtonPrimary:
-                    "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg border-0",
-                  card: "bg-transparent shadow-none",
-                  headerTitle: "text-white text-2xl font-bold",
-                  headerSubtitle: "text-slate-300",
-                  socialButtonsBlockButton:
-                    "bg-slate-700/50 border border-slate-600 text-white hover:bg-slate-600/50 hover:border-slate-500 transition-all duration-300 rounded-xl backdrop-blur-sm",
-                  socialButtonsBlockButtonText: "text-white font-medium",
-                  formFieldInput:
-                    "bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20 backdrop-blur-sm",
-                  formFieldLabel: "text-slate-200 font-medium",
-                  dividerLine: "bg-slate-600",
-                  dividerText: "text-slate-400",
-                  footerActionLink:
-                    "text-emerald-400 hover:text-emerald-300 transition-colors",
-                  identityPreviewText: "text-slate-300",
-                  identityPreviewEditButton:
-                    "text-emerald-400 hover:text-emerald-300",
-                  formFieldSuccessText: "text-emerald-400",
-                  formFieldErrorText: "text-red-400",
-                  formFieldWarningText: "text-amber-400",
-                  alertClerkError:
-                    "bg-red-600/20 border border-red-500/30 text-red-400 rounded-xl",
-                  formResendCodeLink: "text-emerald-400 hover:text-emerald-300",
-                  otpCodeFieldInput:
-                    "bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:border-emerald-500",
-                  membershipRole: "text-slate-300",
-                  formFieldAction: "text-emerald-400 hover:text-emerald-300",
-                  formFieldHintText: "text-slate-400",
-                  formFieldInputShowPasswordButton:
-                    "text-slate-400 hover:text-emerald-400",
-                },
-                layout: {
-                  socialButtonsPlacement: "top",
-                  socialButtonsVariant: "blockButton",
-                },
-              }}
-            />
+            <SignUp />
           </motion.div>
 
           {/* Additional glassmorphic decoration */}
