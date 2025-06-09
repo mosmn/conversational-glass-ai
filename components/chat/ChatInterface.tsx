@@ -716,7 +716,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               <ModelSelector
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
-                models={models}
               />
 
               {/* Sync Status Indicator */}
@@ -829,6 +828,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   attachments={attachments}
                   onAttachmentsChange={setAttachments}
                   conversationId={chatId}
+                  selectedModel={selectedModel}
+                  onModelRecommendation={(recommendedModels) => {
+                    // Auto-switch to the best recommended model if there's a clear winner
+                    if (recommendedModels.length > 0) {
+                      setSelectedModel(recommendedModels[0].id);
+                    }
+                  }}
                 />
               )}
 

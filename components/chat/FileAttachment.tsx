@@ -1,10 +1,17 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  useEffect,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Paperclip,
   Upload,
@@ -16,6 +23,10 @@ import {
   AlertCircle,
   Download,
   Eye,
+  AlertTriangle,
+  Info,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import {
   Tooltip,
@@ -23,6 +34,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { FilePreview } from "./FilePreview";
+import { useModelAwareFileValidation } from "@/hooks/useModelAwareFileValidation";
+import { useModels } from "@/hooks/useModels";
+import { categorizeFile, getFileFormat } from "@/lib/ai/file-capabilities";
+import type { Model } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 
 interface AttachedFile {
   id: string;
@@ -31,11 +47,11 @@ interface AttachedFile {
   type: string;
   url?: string;
   uploadProgress?: number;
-  status: "uploading" | "uploaded" | "error";
+  status: "uploading" | "uploaded" | "error" | "invalid";
   preview?: string;
   extractedText?: string;
   thumbnailUrl?: string;
-  category?: string;
+  category?: "image" | "document" | "text" | "audio" | "video";
   metadata?: {
     width?: number;
     height?: number;
@@ -43,29 +59,170 @@ interface AttachedFile {
     wordCount?: number;
     hasImages?: boolean;
   };
+  // Validation results
+  validationErrors?: string[];
+  validationWarnings?: string[];
+  processingInfo?: {
+    method: string;
+    description: string;
+    icon: string;
+    limitations?: string[];
+  };
 }
 
 interface FileAttachmentProps {
   attachments: AttachedFile[];
   onAttachmentsChange: (attachments: AttachedFile[]) => void;
   conversationId: string;
+  selectedModel?: string | null;
+  onModelRecommendation?: (recommendedModels: Model[]) => void;
   maxFiles?: number;
   maxSizePerFile?: number; // in MB
-  acceptedTypes?: string[];
 }
 
 export function FileAttachment({
   attachments,
   onAttachmentsChange,
   conversationId,
+  selectedModel,
+  onModelRecommendation,
   maxFiles = 5,
   maxSizePerFile = 10,
-  acceptedTypes = ["image/*", "application/pdf", ".txt", ".md"],
 }: FileAttachmentProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewFileIndex, setPreviewFileIndex] = useState(0);
+  const [validationResults, setValidationResults] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { models } = useModels();
+  const currentModel = models.find((m) => m.id === selectedModel) || null;
+
+  // Convert frontend Model to backend AIModel format for validation
+  const aiModel = useMemo(() => {
+    if (!currentModel?.capabilities?.fileSupport) return null;
+    return {
+      ...currentModel,
+      capabilities: {
+        ...currentModel.capabilities,
+        fileSupport: currentModel.capabilities.fileSupport,
+      },
+    } as any;
+  }, [currentModel]);
+
+  const {
+    validateFilesForModel,
+    validateSingleFileForModel,
+    checkModelCompatibility,
+    getAllowedFileTypes,
+    getFileConstraints,
+    isModelSelected,
+  } = useModelAwareFileValidation(
+    aiModel,
+    (models || []).map((m) => ({
+      ...m,
+      capabilities: {
+        ...m.capabilities,
+        fileSupport: m.capabilities?.fileSupport || {
+          images: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "textExtraction" as const,
+            requiresUrl: false,
+            maxImagesPerMessage: 0,
+          },
+          documents: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "textExtraction" as const,
+            maxDocumentsPerMessage: 0,
+            preserveFormatting: false,
+          },
+          textFiles: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            encodingSupport: [],
+            maxFilesPerMessage: 0,
+          },
+          audio: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "transcription" as const,
+            maxFilesPerMessage: 0,
+          },
+          video: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "frameExtraction" as const,
+            maxFilesPerMessage: 0,
+          },
+          overall: {
+            maxTotalFileSize: 0,
+            maxFilesPerMessage: 0,
+            requiresPreprocessing: false,
+          },
+        },
+      },
+    })) as any[]
+  );
+
+  // Get dynamic file constraints and allowed types
+  const fileConstraints = getFileConstraints;
+  const allowedFileTypes = getAllowedFileTypes();
+
+  // Validate files whenever model or attachments change
+  useEffect(() => {
+    if (attachments.length > 0 && isModelSelected) {
+      const fileAttachments = attachments.map((att) => ({
+        id: att.id,
+        name: att.name,
+        size: att.size,
+        type: att.type,
+        url: att.url || "",
+        category: att.category || categorizeFile(att.type),
+        metadata: att.metadata,
+        extractedText: att.extractedText,
+        thumbnailUrl: att.thumbnailUrl,
+      }));
+
+      const results = validateFilesForModel(fileAttachments);
+      setValidationResults(results);
+
+      // Update attachment validation status
+      const updatedAttachments = attachments.map((att) => {
+        const fileAttachment = fileAttachments.find((f) => f.id === att.id);
+        if (!fileAttachment) return att;
+
+        const singleValidation = validateSingleFileForModel(fileAttachment);
+
+        return {
+          ...att,
+          status: singleValidation.valid ? att.status : ("invalid" as const),
+          validationErrors: singleValidation.errors,
+          validationWarnings: singleValidation.warnings,
+          processingInfo: singleValidation.processingInfo,
+        };
+      });
+
+      if (JSON.stringify(updatedAttachments) !== JSON.stringify(attachments)) {
+        onAttachmentsChange(updatedAttachments);
+      }
+
+      // Suggest model switch if needed
+      if (results.recommendations.shouldSwitchModel && onModelRecommendation) {
+        // Convert AIModel back to Model format for the callback
+        const recommendedModels = results.recommendations.suggestedModels
+          .map((aiModel) => models.find((m) => m.id === aiModel.id))
+          .filter(Boolean) as Model[];
+        onModelRecommendation(recommendedModels);
+      }
+    }
+  }, [attachments, selectedModel, isModelSelected]);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith("image/")) return Image;
@@ -88,24 +245,34 @@ export function FileAttachment({
   };
 
   const validateFile = (file: File): string | null => {
-    // Check file size
-    if (file.size > maxSizePerFile * 1024 * 1024) {
-      return `File size must be less than ${maxSizePerFile}MB`;
+    // Check if model is selected
+    if (!isModelSelected) {
+      return "Please select an AI model first";
     }
 
-    // Check file type
-    const isAccepted = acceptedTypes.some((type) => {
-      if (type.startsWith(".")) {
-        return file.name.toLowerCase().endsWith(type.toLowerCase());
-      }
-      if (type.includes("*")) {
-        return file.type.startsWith(type.replace("*", ""));
-      }
-      return file.type === type;
-    });
+    // Check file size against model constraints
+    const maxSize = Math.min(
+      maxSizePerFile * 1024 * 1024,
+      fileConstraints.maxFileSize * 1024 * 1024
+    );
+    if (file.size > maxSize) {
+      return `File size must be less than ${Math.min(
+        maxSizePerFile,
+        fileConstraints.maxFileSize
+      )}MB for ${currentModel?.name}`;
+    }
 
-    if (!isAccepted) {
-      return "File type not supported";
+    // Check file type against model constraints
+    if (allowedFileTypes.length > 0 && !allowedFileTypes.includes(file.type)) {
+      return `${file.type} files are not supported by ${currentModel?.name}`;
+    }
+
+    // Check total file count
+    if (attachments.length >= Math.min(maxFiles, fileConstraints.maxFiles)) {
+      return `Maximum ${Math.min(
+        maxFiles,
+        fileConstraints.maxFiles
+      )} files allowed for ${currentModel?.name}`;
     }
 
     return null;
@@ -122,30 +289,19 @@ export function FileAttachment({
       const file = files[i];
       const validationError = validateFile(file);
 
-      if (validationError) {
-        // Show error for this file
-        const errorAttachment: AttachedFile = {
-          id: Date.now().toString() + i,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          status: "error",
-        };
-        newAttachments.push(errorAttachment);
-        continue;
-      }
-
       const attachment: AttachedFile = {
         id: Date.now().toString() + i,
         name: file.name,
         size: file.size,
         type: file.type,
-        status: "uploading",
+        status: validationError ? "invalid" : "uploading",
         uploadProgress: 0,
+        category: categorizeFile(file.type),
+        validationErrors: validationError ? [validationError] : undefined,
       };
 
       // Generate preview for images
-      if (file.type.startsWith("image/")) {
+      if (file.type.startsWith("image/") && !validationError) {
         const reader = new FileReader();
         reader.onload = (e) => {
           attachment.preview = e.target?.result as string;
@@ -156,8 +312,10 @@ export function FileAttachment({
 
       newAttachments.push(attachment);
 
-      // Start real file upload
-      uploadFile(attachment, file);
+      // Start real file upload only if validation passed
+      if (!validationError) {
+        uploadFile(attachment, file);
+      }
     }
 
     onAttachmentsChange([...attachments, ...newAttachments]);
@@ -208,6 +366,9 @@ export function FileAttachment({
       console.error("Upload error:", error);
       attachment.status = "error";
       attachment.uploadProgress = 0;
+      attachment.validationErrors = [
+        error instanceof Error ? error.message : "Upload failed",
+      ];
       onAttachmentsChange([...attachments]);
     }
   };
@@ -250,18 +411,115 @@ export function FileAttachment({
     onAttachmentsChange(attachments.filter((att) => att.id !== id));
   };
 
-  const canAddMore = attachments.length < maxFiles;
+  const canAddMore =
+    attachments.length < Math.min(maxFiles, fileConstraints.maxFiles);
+
+  // Generate helpful description based on current model
+  const getModelFileDescription = () => {
+    if (!isModelSelected) {
+      return "Select an AI model to enable file attachments";
+    }
+
+    const parts = [];
+    if (currentModel?.capabilities?.fileSupport?.images?.supported) {
+      parts.push("images");
+    }
+    if (currentModel?.capabilities?.fileSupport?.documents?.supported) {
+      parts.push("PDFs");
+    }
+    if (currentModel?.capabilities?.fileSupport?.textFiles?.supported) {
+      parts.push("text files");
+    }
+    if (currentModel?.capabilities?.fileSupport?.audio?.supported) {
+      parts.push("audio");
+    }
+    if (currentModel?.capabilities?.fileSupport?.video?.supported) {
+      parts.push("video");
+    }
+
+    if (parts.length === 0) {
+      return `${currentModel?.name} doesn't support file attachments`;
+    }
+
+    const maxSize = Math.min(maxSizePerFile, fileConstraints.maxFileSize);
+    const maxCount = Math.min(maxFiles, fileConstraints.maxFiles);
+
+    return `${currentModel?.name} supports ${parts.join(
+      ", "
+    )} up to ${maxSize}MB (max ${maxCount} files)`;
+  };
 
   return (
     <div className="space-y-4">
+      {/* Model Validation Alerts */}
+      {!isModelSelected && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-200">
+            Please select an AI model to enable file attachments.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {validationResults && validationResults.validation.errors.length > 0 && (
+        <Alert className="border-red-500/50 bg-red-500/10">
+          <AlertCircle className="h-4 w-4 text-red-500" />
+          <AlertDescription className="text-red-200">
+            <div className="space-y-1">
+              {validationResults.validation.errors.map(
+                (error: string, idx: number) => (
+                  <div key={idx}>{error}</div>
+                )
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {validationResults &&
+        validationResults.recommendations.shouldSwitchModel && (
+          <Alert className="border-blue-500/50 bg-blue-500/10">
+            <Sparkles className="h-4 w-4 text-blue-500" />
+            <AlertDescription className="text-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  Consider switching to{" "}
+                  {validationResults.recommendations.suggestedModels[0]?.name}{" "}
+                  for better file support.
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-blue-500 text-blue-400 hover:bg-blue-500/20"
+                  onClick={() => {
+                    if (onModelRecommendation) {
+                      const recommendedModels =
+                        validationResults.recommendations.suggestedModels
+                          .map((aiModel: any) =>
+                            models.find((m) => m.id === aiModel.id)
+                          )
+                          .filter(Boolean) as Model[];
+                      onModelRecommendation(recommendedModels);
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Switch
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
       {/* File Upload Area */}
-      {canAddMore && (
+      {canAddMore && isModelSelected && (
         <Card
-          className={`border-dashed transition-all duration-200 cursor-pointer ${
+          className={cn(
+            "border-dashed transition-all duration-200 cursor-pointer",
             isDragOver
               ? "border-emerald-500 bg-emerald-600/10"
               : "border-slate-600 hover:border-slate-500 bg-slate-800/30"
-          }`}
+          )}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -269,9 +527,10 @@ export function FileAttachment({
         >
           <CardContent className="p-6 text-center">
             <Upload
-              className={`h-8 w-8 mx-auto mb-3 ${
+              className={cn(
+                "h-8 w-8 mx-auto mb-3",
                 isDragOver ? "text-emerald-400" : "text-slate-400"
-              }`}
+              )}
             />
             <p className="text-sm font-medium mb-1">
               {isDragOver
@@ -279,10 +538,11 @@ export function FileAttachment({
                 : "Drag files here or click to browse"}
             </p>
             <p className="text-xs text-slate-500">
-              Supports images, PDFs, and text files up to {maxSizePerFile}MB
+              {getModelFileDescription()}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              {attachments.length}/{maxFiles} files attached
+              {attachments.length}/
+              {Math.min(maxFiles, fileConstraints.maxFiles)} files attached
             </p>
           </CardContent>
         </Card>
@@ -292,7 +552,7 @@ export function FileAttachment({
         ref={fileInputRef}
         type="file"
         multiple
-        accept={acceptedTypes.join(",")}
+        accept={allowedFileTypes.join(",")}
         onChange={handleFileSelect}
         className="hidden"
       />
@@ -304,17 +564,37 @@ export function FileAttachment({
           {attachments.map((attachment) => {
             const FileIcon = getFileIcon(attachment.type);
             const colorClass = getFileTypeColor(attachment.type);
+            const hasErrors =
+              attachment.validationErrors &&
+              attachment.validationErrors.length > 0;
+            const hasWarnings =
+              attachment.validationWarnings &&
+              attachment.validationWarnings.length > 0;
 
             return (
               <Card
                 key={attachment.id}
-                className="bg-slate-800/50 border-slate-700"
+                className={cn(
+                  "border transition-all duration-200",
+                  hasErrors
+                    ? "bg-red-900/20 border-red-500/50"
+                    : hasWarnings
+                    ? "bg-yellow-900/20 border-yellow-500/50"
+                    : "bg-slate-800/50 border-slate-700"
+                )}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-3">
                     {/* File Preview/Icon */}
                     <div
-                      className={`w-12 h-12 bg-${colorClass}-600/20 rounded-lg flex items-center justify-center flex-shrink-0`}
+                      className={cn(
+                        "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
+                        hasErrors
+                          ? "bg-red-600/20 border border-red-500/30"
+                          : hasWarnings
+                          ? "bg-yellow-600/20 border border-yellow-500/30"
+                          : `bg-${colorClass}-600/20 border border-${colorClass}-500/30`
+                      )}
                     >
                       {attachment.preview ? (
                         <img
@@ -324,7 +604,14 @@ export function FileAttachment({
                         />
                       ) : (
                         <FileIcon
-                          className={`h-5 w-5 text-${colorClass}-400`}
+                          className={cn(
+                            "h-5 w-5",
+                            hasErrors
+                              ? "text-red-400"
+                              : hasWarnings
+                              ? "text-yellow-400"
+                              : `text-${colorClass}-400`
+                          )}
                         />
                       )}
                     </div>
@@ -336,6 +623,37 @@ export function FileAttachment({
                           {attachment.name}
                         </p>
                         <div className="flex items-center space-x-2">
+                          {/* Processing Info */}
+                          {attachment.processingInfo &&
+                            attachment.status !== "invalid" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs border-emerald-500 text-emerald-400"
+                                  >
+                                    {attachment.processingInfo.icon}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <div className="space-y-1">
+                                    <p className="font-medium">
+                                      {attachment.processingInfo.description}
+                                    </p>
+                                    {attachment.processingInfo.limitations && (
+                                      <ul className="text-xs space-y-0.5">
+                                        {attachment.processingInfo.limitations.map(
+                                          (limitation, idx) => (
+                                            <li key={idx}>• {limitation}</li>
+                                          )
+                                        )}
+                                      </ul>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+
                           {attachment.status === "uploaded" && (
                             <>
                               <Tooltip>
@@ -401,7 +719,14 @@ export function FileAttachment({
                           </span>
                           <Badge
                             variant="outline"
-                            className={`text-xs border-${colorClass}-500 text-${colorClass}-400`}
+                            className={cn(
+                              "text-xs",
+                              hasErrors
+                                ? "border-red-500 text-red-400"
+                                : hasWarnings
+                                ? "border-yellow-500 text-yellow-400"
+                                : `border-${colorClass}-500 text-${colorClass}-400`
+                            )}
                           >
                             {attachment.type.split("/")[1]?.toUpperCase() ||
                               "FILE"}
@@ -434,6 +759,14 @@ export function FileAttachment({
                               </span>
                             </>
                           )}
+                          {attachment.status === "invalid" && (
+                            <>
+                              <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                              <span className="text-xs text-yellow-400">
+                                Invalid
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -445,6 +778,32 @@ export function FileAttachment({
                             className="h-1 mt-2"
                           />
                         )}
+
+                      {/* Validation Messages */}
+                      {(hasErrors || hasWarnings) && (
+                        <div className="mt-2 space-y-1">
+                          {attachment.validationErrors?.map((error, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs text-red-400 flex items-center space-x-1"
+                            >
+                              <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                              <span>{error}</span>
+                            </div>
+                          ))}
+                          {attachment.validationWarnings?.map(
+                            (warning, idx) => (
+                              <div
+                                key={idx}
+                                className="text-xs text-yellow-400 flex items-center space-x-1"
+                              >
+                                <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                                <span>{warning}</span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
