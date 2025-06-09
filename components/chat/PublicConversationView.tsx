@@ -36,6 +36,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { MessageContent } from "./MessageContent";
+import ConversationalGlassLogo from "@/components/ConversationalGlassLogo";
 import Link from "next/link";
 
 interface PublicConversationData {
@@ -185,6 +186,12 @@ export function PublicConversationView({
                 <Separator
                   orientation="vertical"
                   className="h-6 bg-slate-600"
+                />
+                <ConversationalGlassLogo
+                  size="sm"
+                  animated={false}
+                  showText={true}
+                  className="mr-4"
                 />
                 <div>
                   <h1 className="text-xl font-semibold text-white">

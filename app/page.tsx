@@ -21,6 +21,7 @@ import {
   Github,
   Twitter,
 } from "lucide-react";
+import ConversationalGlassLogo from "@/components/ConversationalGlassLogo";
 
 export default function LandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -119,19 +120,12 @@ export default function LandingPage() {
       <nav className="relative z-10 border-b border-slate-700/50 bg-slate-800/30 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                  Glass AI
-                </h1>
-                <p className="text-xs text-slate-400">
-                  Conversational Intelligence
-                </p>
-              </div>
-            </div>
+            <ConversationalGlassLogo
+              size="md"
+              animated={true}
+              showText={true}
+              className=""
+            />
 
             <div className="flex items-center space-x-6">
               <Link

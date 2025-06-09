@@ -2,6 +2,7 @@
 
 import { SignUp } from "@clerk/nextjs";
 import { motion } from "framer-motion";
+import ConversationalGlassLogo from "@/components/ConversationalGlassLogo";
 
 export default function SignUpPage() {
   return (
@@ -45,6 +46,14 @@ export default function SignUpPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-center mb-8"
           >
+            <div className="flex justify-center mb-6">
+              <ConversationalGlassLogo
+                size="lg"
+                animated={true}
+                showText={true}
+                className=""
+              />
+            </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent mb-2">
               Join the Conversation
             </h1>

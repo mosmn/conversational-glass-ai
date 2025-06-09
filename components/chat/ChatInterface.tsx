@@ -43,7 +43,6 @@ import {
   Clock,
   Zap,
   User,
-  Bot,
   Sun,
   Moon,
   Download,
@@ -69,6 +68,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import ConversationalGlassLogo, {
+  ConversationalGlassLogoMini,
+} from "@/components/ConversationalGlassLogo";
 
 interface Message {
   id: string;
@@ -246,10 +248,15 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             {/* Sidebar Header */}
             <div className="p-4 border-b border-slate-700/50">
               <div className="flex items-center justify-between">
-                {!sidebarCollapsed && (
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                    Glass AI
-                  </h1>
+                {!sidebarCollapsed ? (
+                  <ConversationalGlassLogo
+                    size="md"
+                    animated={true}
+                    showText={true}
+                    className="flex-shrink-0"
+                  />
+                ) : (
+                  <ConversationalGlassLogoMini className="flex-shrink-0" />
                 )}
                 <Button
                   variant="ghost"
@@ -728,7 +735,15 @@ function WelcomeInterface({
 }) {
   return (
     <div className="max-w-4xl mx-auto text-center space-y-8">
-      <div className="space-y-4">
+      <div className="space-y-6">
+        <div className="flex justify-center">
+          <ConversationalGlassLogo
+            size="xl"
+            animated={true}
+            showText={true}
+            className="mb-4"
+          />
+        </div>
         <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 bg-clip-text text-transparent">
           How can I help you today?
         </h1>
@@ -803,7 +818,7 @@ function MessageBubble({ message }: { message: Message }) {
               {isUser ? (
                 <User className="h-4 w-4" />
               ) : (
-                <Bot className="h-4 w-4" />
+                <ConversationalGlassLogoMini className="scale-50" />
               )}
             </AvatarFallback>
           </Avatar>
@@ -924,7 +939,7 @@ function TypingIndicator() {
       <div className="flex items-start space-x-3">
         <Avatar className="h-8 w-8">
           <AvatarFallback className="bg-blue-600">
-            <Bot className="h-4 w-4" />
+            <ConversationalGlassLogoMini className="scale-50" />
           </AvatarFallback>
         </Avatar>
         <div className="bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm rounded-2xl p-4">
