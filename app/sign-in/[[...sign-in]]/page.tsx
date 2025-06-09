@@ -60,49 +60,44 @@ export default function SignInPage() {
         ))}
       </div>
 
-      {/* Main content */}
+      {/* Main content - clean, single container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="relative z-10"
+        className="relative z-10 w-full max-w-sm"
       >
-        {/* Glassmorphic container */}
-        <div className="backdrop-blur-xl bg-slate-800/50 rounded-3xl p-8 border border-slate-700/50 shadow-2xl max-w-md w-full">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-center mb-8"
-          >
-            <div className="flex justify-center mb-6">
-              <ConversationalGlassLogo
-                size="lg"
-                animated={true}
-                showText={true}
-                className=""
-              />
-            </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
-              Welcome Back
-            </h1>
-            <p className="text-slate-300 text-lg">
-              Sign in to continue your AI conversations
-            </p>
-          </motion.div>
+        {/* Logo and header above the form */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-center mb-6"
+        >
+          <div className="flex justify-center mb-4">
+            <ConversationalGlassLogo
+              size="lg"
+              animated={true}
+              showText={true}
+              className=""
+            />
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 bg-clip-text text-transparent mb-1">
+            Welcome Back
+          </h1>
+          <p className="text-slate-300 text-sm">
+            Sign in to continue your AI conversations
+          </p>
+        </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <SignIn />
-          </motion.div>
-
-          {/* Additional glassmorphic decoration */}
-          <div className="absolute -top-px left-1/2 transform -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-          <div className="absolute -bottom-px left-1/2 transform -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-        </div>
+        {/* Clerk form - no extra container needed */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
+          <SignIn />
+        </motion.div>
       </motion.div>
     </div>
   );

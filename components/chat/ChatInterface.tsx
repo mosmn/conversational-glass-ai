@@ -6,7 +6,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { useChat } from "@/hooks/useChat";
 import { useModels } from "@/hooks/useModels";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@clerk/nextjs";
+import { useUser, SignOutButton } from "@clerk/nextjs";
 import {
   usePersonalization,
   useVisualPreferences,
@@ -676,13 +676,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         <span className="text-xs text-slate-500">⌘,</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() =>
-                          (window.location.href = "/api/auth/signout")
-                        }
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Sign out
+                      <DropdownMenuItem asChild>
+                        <SignOutButton>
+                          <button className="flex items-center w-full">
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Sign out
+                          </button>
+                        </SignOutButton>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
