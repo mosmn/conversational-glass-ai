@@ -20,7 +20,7 @@ export class UserQueries {
   // Create or update user from Clerk
   static async upsertUser(
     clerkId: string,
-    userData: Partial<NewUser>
+    userData: Partial<NewUser> & { email: string }
   ): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -243,30 +243,151 @@ export class ConversationQueries {
 
 // Message queries
 export class MessageQueries {
-  // Add message to conversation
+  // Add message with immediate return and optimized insertion
   static async addMessage(data: NewMessage): Promise<Message> {
-    const [message] = await db.insert(messages).values(data).returning();
+    const [message] = await db
+      .insert(messages)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
 
-    // Update conversation's updated_at and metadata
+    // Update conversation metadata
     await db
       .update(conversations)
       .set({
         updatedAt: new Date(),
-        metadata: sql`jsonb_set(metadata, '{totalMessages}', (COALESCE(metadata->>'totalMessages', '0')::int + 1)::text::jsonb)`,
+        metadata: sql`jsonb_set(
+          metadata, 
+          '{totalMessages}', 
+          (COALESCE(metadata->>'totalMessages', '0')::int + 1)::text::jsonb
+        )`,
       })
       .where(eq(conversations.id, data.conversationId));
 
     return message;
   }
 
-  // Get messages for conversation with pagination
+  // Enhanced message fetching with cursor-based pagination
   static async getConversationMessages(
     conversationId: string,
     userId: string,
     limit = 50,
-    offset = 0
-  ) {
+    cursor?: string
+  ): Promise<{
+    messages: Message[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }> {
+    const whereConditions = [
+      eq(messages.conversationId, conversationId),
+      eq(messages.userId, userId),
+    ];
+
+    if (cursor) {
+      whereConditions.push(sql`${messages.createdAt} < ${cursor}`);
+    }
+
     const conversationMessages = await db
+      .select()
+      .from(messages)
+      .where(and(...whereConditions))
+      .orderBy(desc(messages.createdAt))
+      .limit(limit + 1); // Fetch one extra to check if there are more
+
+    const hasMore = conversationMessages.length > limit;
+    const resultMessages = hasMore
+      ? conversationMessages.slice(0, limit)
+      : conversationMessages;
+
+    const nextCursor = hasMore
+      ? resultMessages[resultMessages.length - 1].createdAt.toISOString()
+      : null;
+
+    return {
+      messages: resultMessages.reverse(), // Reverse to show oldest first
+      hasMore,
+      nextCursor,
+    };
+  }
+
+  // Get messages after a specific timestamp for real-time sync
+  static async getMessagesAfter(
+    conversationId: string,
+    userId: string,
+    afterTimestamp: Date
+  ): Promise<Message[]> {
+    const newMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.userId, userId),
+          sql`${messages.createdAt} > ${afterTimestamp}`
+        )
+      )
+      .orderBy(messages.createdAt);
+
+    return newMessages;
+  }
+
+  // Update message content (for streaming completion)
+  static async updateMessage(
+    messageId: string,
+    userId: string,
+    data: Partial<Message>
+  ): Promise<Message | null> {
+    const [updatedMessage] = await db
+      .update(messages)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+      .returning();
+
+    return updatedMessage || null;
+  }
+
+  // Mark message as streaming complete
+  static async markStreamingComplete(
+    messageId: string,
+    finalContent: string,
+    tokenCount: number
+  ): Promise<Message | null> {
+    const [updatedMessage] = await db
+      .update(messages)
+      .set({
+        content: finalContent,
+        tokenCount,
+        metadata: sql`jsonb_set(metadata, '{streamingComplete}', 'true')`,
+        updatedAt: new Date(),
+      })
+      .where(eq(messages.id, messageId))
+      .returning();
+
+    return updatedMessage || null;
+  }
+
+  // Delete message
+  static async deleteMessage(messageId: string, userId: string) {
+    const deletedMessage = await db
+      .delete(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+      .returning();
+
+    return deletedMessage.length > 0;
+  }
+
+  // Get latest message for a conversation
+  static async getLatestMessage(
+    conversationId: string,
+    userId: string
+  ): Promise<Message | null> {
+    const [latestMessage] = await db
       .select()
       .from(messages)
       .where(
@@ -276,47 +397,63 @@ export class MessageQueries {
         )
       )
       .orderBy(desc(messages.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .limit(1);
 
-    return conversationMessages.reverse(); // Return in chronological order
+    return latestMessage || null;
   }
 
-  // Update message
-  static async updateMessage(
-    messageId: string,
+  // Batch message operations for sync
+  static async syncMessages(
+    conversationId: string,
     userId: string,
-    data: Partial<Message>
-  ) {
-    const [message] = await db
-      .update(messages)
-      .set({
-        ...data,
-        isEdited: true,
-        editedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
-      .returning();
-    return message;
+    lastSyncTime: Date
+  ): Promise<{
+    newMessages: Message[];
+    updatedMessages: Message[];
+    lastSyncTimestamp: Date;
+  }> {
+    // Get messages created after last sync
+    const newMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.userId, userId),
+          sql`${messages.createdAt} > ${lastSyncTime}`
+        )
+      )
+      .orderBy(messages.createdAt);
+
+    // Get messages updated after last sync (but created before)
+    const updatedMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.userId, userId),
+          sql`${messages.createdAt} <= ${lastSyncTime}`,
+          sql`${messages.updatedAt} > ${lastSyncTime}`
+        )
+      )
+      .orderBy(messages.createdAt);
+
+    return {
+      newMessages,
+      updatedMessages,
+      lastSyncTimestamp: new Date(),
+    };
   }
 
-  // Delete message
-  static async deleteMessage(messageId: string, userId: string) {
-    await db
-      .delete(messages)
-      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)));
-  }
-
-  // Get message thread (for branching conversations)
+  // Get message thread (for branching support)
   static async getMessageThread(parentId: string) {
-    const thread = await db.query.messages.findMany({
-      where: eq(messages.parentId, parentId),
-      orderBy: [desc(messages.createdAt)],
-      with: {
-        children: true,
-      },
-    });
+    const thread = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.parentId, parentId))
+      .orderBy(messages.createdAt);
+
     return thread;
   }
 }

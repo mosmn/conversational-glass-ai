@@ -56,6 +56,11 @@ export interface Message {
       startLine: number;
       endLine: number;
     }>;
+    streamingComplete?: boolean;
+    processingTime?: number;
+    regenerated?: boolean;
+    provider?: string;
+    error?: boolean;
   };
 }
 
@@ -125,12 +130,42 @@ export interface SendMessageRequest {
 }
 
 export interface StreamChunk {
-  type: "content" | "error" | "finished";
+  type: "content" | "error" | "completed" | "finished";
   content?: string;
   finished?: boolean;
   error?: string;
   provider?: string;
   model?: string;
+  messageId?: string;
+  userMessageId?: string;
+  totalTokens?: number;
+  processingTime?: number;
+}
+
+// Enhanced message sync interfaces
+export interface MessagesSyncRequest {
+  action: "sync";
+  lastSyncTime: string;
+}
+
+export interface MessagesSyncResponse {
+  newMessages: Message[];
+  updatedMessages: Message[];
+  lastSyncTimestamp: string;
+}
+
+export interface MessagesResponse {
+  messages: Message[];
+  pagination: {
+    hasMore: boolean;
+    nextCursor: string | null;
+    limit: number;
+  };
+  conversation: Conversation;
+  sync: {
+    lastMessageTimestamp?: string;
+    currentTimestamp: string;
+  };
 }
 
 class APIClient {
@@ -202,22 +237,21 @@ class APIClient {
     });
   }
 
+  // Enhanced message retrieval with cursor-based pagination and real-time sync
   async getConversationMessages(
     conversationId: string,
-    params?: { limit?: number; offset?: number }
-  ): Promise<{
-    messages: Message[];
-    pagination: {
-      total: number;
-      limit: number;
-      offset: number;
-      hasMore: boolean;
-    };
-    conversation: Conversation;
-  }> {
+    params?: {
+      limit?: number;
+      cursor?: string;
+      after?: string; // For real-time sync
+      includeMetadata?: boolean;
+    }
+  ): Promise<MessagesResponse> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.set("limit", params.limit.toString());
-    if (params?.offset) searchParams.set("offset", params.offset.toString());
+    if (params?.cursor) searchParams.set("cursor", params.cursor);
+    if (params?.after) searchParams.set("after", params.after);
+    if (params?.includeMetadata) searchParams.set("includeMetadata", "true");
 
     const queryString = searchParams.toString();
     return this.fetchWithAuth(
@@ -225,6 +259,42 @@ class APIClient {
         queryString ? `?${queryString}` : ""
       }`
     );
+  }
+
+  // Sync messages for real-time updates
+  async syncMessages(
+    conversationId: string,
+    lastSyncTime: string
+  ): Promise<MessagesSyncResponse> {
+    return this.fetchWithAuth(`/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "sync",
+        lastSyncTime,
+      }),
+    });
+  }
+
+  // Get new messages after a timestamp (for real-time updates)
+  async getMessagesAfter(
+    conversationId: string,
+    afterTimestamp: string
+  ): Promise<MessagesResponse> {
+    return this.getConversationMessages(conversationId, {
+      after: afterTimestamp,
+    });
+  }
+
+  // Load more messages using cursor pagination
+  async loadMoreMessages(
+    conversationId: string,
+    cursor: string,
+    limit = 50
+  ): Promise<MessagesResponse> {
+    return this.getConversationMessages(conversationId, {
+      cursor,
+      limit,
+    });
   }
 
   // Models API
@@ -242,7 +312,9 @@ class APIClient {
   async *sendMessageStream(
     data: SendMessageRequest
   ): AsyncGenerator<StreamChunk, void, unknown> {
-    const response = await fetch(`${this.baseURL}/api/chat/send`, {
+    const url = `${this.baseURL}/api/chat/send`;
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -251,19 +323,18 @@ class APIClient {
     });
 
     if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ error: "Network error" }));
       throw {
-        error: errorData.error || `HTTP ${response.status}`,
-        details: errorData.details,
+        error: `HTTP ${response.status}`,
         status: response.status,
       } as APIError;
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error("No response body reader available");
+      throw {
+        error: "No response body",
+        status: 500,
+      } as APIError;
     }
 
     const decoder = new TextDecoder();
@@ -272,26 +343,30 @@ class APIClient {
     try {
       while (true) {
         const { done, value } = await reader.read();
-
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
 
-        // Keep the last potentially incomplete line in the buffer
+        // Keep the last incomplete line in the buffer
         buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
-              const data = JSON.parse(line.slice(6));
-              yield data as StreamChunk;
+              const chunk = JSON.parse(line.slice(6)) as StreamChunk;
+              yield chunk;
 
-              if (data.finished || data.type === "error") {
+              if (
+                chunk.finished ||
+                chunk.type === "error" ||
+                chunk.type === "completed"
+              ) {
                 return;
               }
-            } catch (e) {
-              console.warn("Failed to parse SSE data:", line);
+            } catch (error) {
+              console.error("Failed to parse chunk:", error);
+              // Continue processing other chunks
             }
           }
         }

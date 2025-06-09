@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { conversations, messages, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { MessageQueries } from "@/lib/db/queries";
 import {
   createStreamingCompletion,
   getModelById,
@@ -95,35 +96,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save user message to database
-    const [userMessage] = await db
-      .insert(messages)
-      .values({
-        conversationId,
-        userId: user.id,
-        role: "user",
-        content,
-        model: null, // User messages don't have a model
-        tokenCount: estimateTokens(content),
-        metadata: {
-          streamingComplete: true,
-          regenerated: false,
-        },
-      })
-      .returning();
+    // Save user message to database immediately
+    const userMessage = await MessageQueries.addMessage({
+      conversationId,
+      userId: user.id,
+      role: "user",
+      content,
+      model: null, // User messages don't have a model
+      tokenCount: estimateTokens(content),
+      metadata: {
+        streamingComplete: true,
+        regenerated: false,
+      },
+    });
+
+    // Create placeholder assistant message for streaming
+    const assistantMessage = await MessageQueries.addMessage({
+      conversationId,
+      userId: user.id,
+      role: "assistant",
+      content: "",
+      model,
+      tokenCount: 0,
+      metadata: {
+        streamingComplete: false,
+        regenerated: false,
+      },
+    });
 
     // Get conversation history for context
-    const conversationMessages = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(messages.createdAt);
+    const conversationHistory = await MessageQueries.getConversationMessages(
+      conversationId,
+      user.id,
+      50 // Last 50 messages for context
+    );
 
-    // Prepare messages for AI API
-    const chatMessages: AIMessage[] = conversationMessages.map((msg) => ({
-      role: msg.role as "system" | "user" | "assistant",
-      content: msg.content,
-    }));
+    // Prepare messages for AI API (exclude the empty assistant message we just created)
+    const chatMessages: AIMessage[] = conversationHistory.messages
+      .filter((msg) => msg.id !== assistantMessage.id)
+      .map((msg) => ({
+        role: msg.role as "system" | "user" | "assistant",
+        content: msg.content,
+      }));
 
     // Create streaming response
     const encoder = new TextEncoder();
@@ -142,6 +156,7 @@ export async function POST(request: NextRequest) {
 
           let assistantContent = "";
           let totalTokenCount = 0;
+          const startTime = Date.now();
 
           // Process streaming chunks
           for await (const chunk of aiStream) {
@@ -151,11 +166,23 @@ export async function POST(request: NextRequest) {
                 type: "error",
                 error: chunk.error,
                 finished: true,
+                messageId: assistantMessage.id,
               };
 
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
               );
+
+              // Update the assistant message with error status
+              await MessageQueries.updateMessage(assistantMessage.id, user.id, {
+                content: `Error: ${chunk.error}`,
+                metadata: {
+                  streamingComplete: false,
+                  regenerated: false,
+                  error: true,
+                },
+              });
+
               controller.close();
               return;
             }
@@ -171,11 +198,25 @@ export async function POST(request: NextRequest) {
                 finished: false,
                 provider: provider.name,
                 model: aiModel.name,
+                messageId: assistantMessage.id,
+                userMessageId: userMessage.id,
               };
 
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
               );
+
+              // Update message in database periodically (every ~1000 chars or 5 seconds)
+              if (assistantContent.length % 1000 === 0) {
+                await MessageQueries.updateMessage(
+                  assistantMessage.id,
+                  user.id,
+                  {
+                    content: assistantContent,
+                    tokenCount: totalTokenCount,
+                  }
+                );
+              }
             }
 
             // Check if stream is finished
@@ -184,91 +225,63 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Save assistant message to database
-          const [assistantMessage] = await db
-            .insert(messages)
-            .values({
-              conversationId,
-              userId: user.id,
-              role: "assistant",
-              content: assistantContent,
-              model,
-              tokenCount: totalTokenCount,
-              metadata: {
-                streamingComplete: true,
-                regenerated: false,
-                processingTime: Date.now() / 1000,
-                provider: provider.name,
-                modelConfig: {
-                  name: aiModel.name,
-                  personality: aiModel.personality,
-                  contextWindow: aiModel.contextWindow,
-                },
-              },
-            })
-            .returning();
+          // Mark streaming as complete and save final content
+          const finalMessage = await MessageQueries.markStreamingComplete(
+            assistantMessage.id,
+            assistantContent,
+            totalTokenCount
+          );
 
-          // Update conversation metadata safely
-          const currentMetadata = conversation.metadata || {
-            totalMessages: 0,
-            lastModel: model,
-            tags: [],
-            sentiment: null,
-            summary: null,
-          };
+          // Update assistant message metadata with completion info
+          await MessageQueries.updateMessage(assistantMessage.id, user.id, {
+            metadata: {
+              streamingComplete: true,
+              regenerated: false,
+              processingTime: (Date.now() - startTime) / 1000,
+              provider: provider.name,
+              model: aiModel.name,
+            },
+          });
 
-          await db
-            .update(conversations)
-            .set({
-              model,
-              metadata: {
-                totalMessages: currentMetadata.totalMessages + 2,
-                lastModel: model,
-                tags: currentMetadata.tags,
-                sentiment: currentMetadata.sentiment,
-                summary: currentMetadata.summary,
-              },
-              updatedAt: new Date(),
-            })
-            .where(eq(conversations.id, conversationId));
-
-          // Send completion signal
+          // Send final completion chunk
           const completionChunk = {
-            type: "completion",
-            content: assistantContent,
+            type: "completed",
             finished: true,
             messageId: assistantMessage.id,
-            tokenCount: totalTokenCount,
-            provider: provider.name,
-            model: aiModel.name,
+            userMessageId: userMessage.id,
+            totalTokens: totalTokenCount,
+            processingTime: (Date.now() - startTime) / 1000,
           };
 
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(completionChunk)}\n\n`)
           );
-
           controller.close();
         } catch (error) {
           console.error("Streaming error:", error);
 
-          let errorMessage = "An unexpected error occurred";
-
-          if (error instanceof AIProviderError) {
-            errorMessage = error.message;
-          } else if (error instanceof Error) {
-            errorMessage = error.message;
-          }
+          // Update message with error
+          await MessageQueries.updateMessage(assistantMessage.id, user.id, {
+            content: `Error: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+            metadata: {
+              streamingComplete: false,
+              regenerated: false,
+              error: true,
+            },
+          });
 
           const errorChunk = {
             type: "error",
-            error: errorMessage,
+            error: error instanceof Error ? error.message : "Unknown error",
             finished: true,
+            messageId: assistantMessage.id,
           };
 
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
           );
-
           controller.close();
         }
       },
@@ -280,7 +293,7 @@ export async function POST(request: NextRequest) {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
       },
     });
@@ -301,13 +314,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle preflight requests for CORS
 export async function OPTIONS() {
   return new Response(null, {
     status: 200,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
   });

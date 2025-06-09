@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { conversations, messages, users } from "@/lib/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { MessageQueries } from "@/lib/db/queries";
 
 // Query parameters validation
 const querySchema = z.object({
@@ -11,10 +12,12 @@ const querySchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? parseInt(val) : 50)),
-  offset: z
+  cursor: z.string().optional(), // For cursor-based pagination
+  after: z.string().optional(), // For real-time sync - ISO timestamp
+  includeMetadata: z
     .string()
     .optional()
-    .transform((val) => (val ? parseInt(val) : 0)),
+    .transform((val) => val === "true"),
 });
 
 export async function GET(
@@ -47,7 +50,8 @@ export async function GET(
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const queryParams = Object.fromEntries(searchParams.entries());
-    const { limit, offset } = querySchema.parse(queryParams);
+    const { limit, cursor, after, includeMetadata } =
+      querySchema.parse(queryParams);
 
     // Find user in database
     const [user] = await db
@@ -79,28 +83,34 @@ export async function GET(
       );
     }
 
-    // Fetch messages for the conversation
-    const conversationMessages = await db
-      .select({
-        id: messages.id,
-        role: messages.role,
-        content: messages.content,
-        model: messages.model,
-        tokenCount: messages.tokenCount,
-        metadata: messages.metadata,
-        isEdited: messages.isEdited,
-        editedAt: messages.editedAt,
-        createdAt: messages.createdAt,
-        updatedAt: messages.updatedAt,
-      })
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(desc(messages.createdAt))
-      .limit(limit)
-      .offset(offset);
+    let messagesResult;
+
+    if (after) {
+      // Real-time sync: get messages after a specific timestamp
+      const afterTimestamp = new Date(after);
+      const newMessages = await MessageQueries.getMessagesAfter(
+        conversationId,
+        user.id,
+        afterTimestamp
+      );
+
+      messagesResult = {
+        messages: newMessages,
+        hasMore: false,
+        nextCursor: null,
+      };
+    } else {
+      // Regular pagination: use cursor-based pagination for better performance
+      messagesResult = await MessageQueries.getConversationMessages(
+        conversationId,
+        user.id,
+        limit,
+        cursor
+      );
+    }
 
     // Transform messages to frontend format
-    const transformedMessages = conversationMessages.reverse().map((msg) => ({
+    const transformedMessages = messagesResult.messages.map((msg) => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,
@@ -109,25 +119,25 @@ export async function GET(
       tokenCount: msg.tokenCount,
       isEdited: msg.isEdited,
       editedAt: msg.editedAt?.toISOString(),
+      metadata: includeMetadata ? msg.metadata : undefined,
       error:
         msg.metadata?.streamingComplete === false
           ? "Message incomplete"
           : undefined,
     }));
 
-    // Get total message count for pagination
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId));
+    // Get latest message timestamp for sync purposes
+    const latestMessage = await MessageQueries.getLatestMessage(
+      conversationId,
+      user.id
+    );
 
-    return NextResponse.json({
+    const response = {
       messages: transformedMessages,
       pagination: {
-        total: count,
+        hasMore: messagesResult.hasMore,
+        nextCursor: messagesResult.nextCursor,
         limit,
-        offset,
-        hasMore: offset + limit < count,
       },
       conversation: {
         id: conversation.id,
@@ -136,7 +146,13 @@ export async function GET(
         createdAt: conversation.createdAt.toISOString(),
         updatedAt: conversation.updatedAt.toISOString(),
       },
-    });
+      sync: {
+        lastMessageTimestamp: latestMessage?.createdAt.toISOString(),
+        currentTimestamp: new Date().toISOString(),
+      },
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Messages API error:", error);
 
@@ -147,6 +163,106 @@ export async function GET(
       );
     }
 
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST method for batch message operations (sync support)
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Authenticate user
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const conversationId = params.id;
+
+    // Parse request body
+    const body = await request.json();
+    const { action, lastSyncTime } = body;
+
+    // Find user in database
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkUserId))
+      .limit(1);
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Verify conversation ownership
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Conversation not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    if (action === "sync" && lastSyncTime) {
+      // Sync messages since last sync time
+      const syncResult = await MessageQueries.syncMessages(
+        conversationId,
+        user.id,
+        new Date(lastSyncTime)
+      );
+
+      const transformedNewMessages = syncResult.newMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        model: msg.model,
+        timestamp: msg.createdAt.toISOString(),
+        tokenCount: msg.tokenCount,
+        isEdited: msg.isEdited,
+        editedAt: msg.editedAt?.toISOString(),
+      }));
+
+      const transformedUpdatedMessages = syncResult.updatedMessages.map(
+        (msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          model: msg.model,
+          timestamp: msg.createdAt.toISOString(),
+          tokenCount: msg.tokenCount,
+          isEdited: msg.isEdited,
+          editedAt: msg.editedAt?.toISOString(),
+        })
+      );
+
+      return NextResponse.json({
+        newMessages: transformedNewMessages,
+        updatedMessages: transformedUpdatedMessages,
+        lastSyncTimestamp: syncResult.lastSyncTimestamp.toISOString(),
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error) {
+    console.error("Messages sync API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

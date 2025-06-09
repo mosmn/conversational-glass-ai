@@ -74,6 +74,14 @@ interface Message {
   timestamp: Date | string;
   model?: string;
   isLoading?: boolean;
+  error?: string;
+  metadata?: {
+    streamingComplete?: boolean;
+    processingTime?: number;
+    regenerated?: boolean;
+    provider?: string;
+    error?: boolean;
+  };
 }
 
 interface Chat {
@@ -113,7 +121,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     loading: messagesLoading,
     error: chatError,
     isStreaming,
+    hasMore,
     sendMessage,
+    loadMoreMessages,
+    lastSyncTime,
+    syncMessages,
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
 
@@ -416,6 +428,26 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 </Badge>
               )}
 
+              {/* Sync Status Indicator */}
+              {lastSyncTime && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-600/20 text-emerald-400 border-emerald-500/30"
+                    >
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
+                      Synced
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      Last synced: {new Date(lastSyncTime).toLocaleTimeString()}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
               <Button variant="ghost" size="sm">
                 <Share className="h-4 w-4" />
               </Button>
@@ -454,6 +486,25 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               />
             ) : (
               <div className="space-y-6 max-w-4xl mx-auto">
+                {/* Load More Messages Button */}
+                {hasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreMessages}
+                      disabled={messagesLoading}
+                      className="bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600/50"
+                    >
+                      {messagesLoading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-transparent mr-2" />
+                      ) : (
+                        <Clock className="h-4 w-4 mr-2" />
+                      )}
+                      Load older messages
+                    </Button>
+                  </div>
+                )}
+
                 {messages.map((message) => (
                   <MessageBubble key={message.id} message={message} />
                 ))}
@@ -677,6 +728,8 @@ function WelcomeInterface({
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
+  const isStreaming = message.metadata?.streamingComplete === false;
+  const hasError = message.metadata?.error || message.error;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} group`}>
@@ -688,7 +741,13 @@ function MessageBubble({ message }: { message: Message }) {
         >
           <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarFallback
-              className={`${isUser ? "bg-emerald-600" : "bg-blue-600"}`}
+              className={`${
+                hasError
+                  ? "bg-red-600"
+                  : isUser
+                  ? "bg-emerald-600"
+                  : "bg-blue-600"
+              }`}
             >
               {isUser ? (
                 <User className="h-4 w-4" />
@@ -701,25 +760,75 @@ function MessageBubble({ message }: { message: Message }) {
           <div className={`flex-1 ${isUser ? "text-right" : "text-left"}`}>
             <div
               className={`inline-block p-4 rounded-2xl ${
-                isUser
+                hasError
+                  ? "bg-red-600/20 border border-red-500/30 text-red-400"
+                  : isUser
                   ? "bg-emerald-600 text-white"
                   : "bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm text-slate-100"
               }`}
             >
               <div className="prose prose-invert max-w-none text-current">
-                {message.content}
+                {hasError ? (
+                  <div className="flex items-center">
+                    <span className="mr-2">⚠️</span>
+                    {message.error || "Failed to generate response"}
+                  </div>
+                ) : (
+                  <>
+                    {message.content}
+                    {isStreaming && (
+                      <div className="inline-block ml-2">
+                        <div className="flex space-x-1">
+                          <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" />
+                          <div
+                            className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.1s" }}
+                          />
+                          <div
+                            className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.2s" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
             <div
-              className={`flex items-center space-x-2 mt-2 text-xs text-slate-400 ${
-                isUser ? "justify-end" : "justify-start"
+              className={`flex items-center justify-between mt-2 text-xs text-slate-400 ${
+                isUser ? "flex-row-reverse" : "flex-row"
               }`}
             >
-              <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
-              {message.model && <span>• {message.model}</span>}
+              <div className="flex items-center space-x-2">
+                <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
 
-              {!isUser && (
+                {/* Delivery Status */}
+                {message.id.startsWith("temp-") ? (
+                  <span className="text-amber-400" title="Sending...">
+                    ⏳
+                  </span>
+                ) : (
+                  <span className="text-emerald-400" title="Delivered">
+                    ✓
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {message.metadata?.processingTime && (
+                  <span
+                    title={`Processing time: ${message.metadata.processingTime}s`}
+                  >
+                    ⚡ {message.metadata.processingTime.toFixed(1)}s
+                  </span>
+                )}
+
+                {message.model && <span>• {message.model}</span>}
+              </div>
+
+              {!isUser && !hasError && (
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
                     <Copy className="h-3 w-3" />
