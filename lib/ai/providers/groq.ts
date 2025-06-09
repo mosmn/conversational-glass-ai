@@ -19,6 +19,7 @@ import {
   createErrorResponse,
 } from "../utils";
 import { BYOKManager } from "./byok-manager";
+import { TEXT_ONLY_FILE_SUPPORT, NO_FILE_SUPPORT } from "../file-capabilities";
 
 // Environment validation
 const envSchema = z.object({
@@ -266,6 +267,15 @@ async function fetchGroqModels(
         }
       }
 
+      // Determine file support based on model capabilities
+      // Most Groq models are text-only, but we can provide text extraction support
+      let fileSupport = TEXT_ONLY_FILE_SUPPORT;
+
+      // Special handling for models that might have no file support at all
+      if (modelData.id.includes("whisper") || modelData.id.includes("tts")) {
+        fileSupport = NO_FILE_SUPPORT;
+      }
+
       models[modelData.id] = {
         id: modelData.id,
         name: modelData.id
@@ -286,6 +296,7 @@ async function fetchGroqModels(
           streaming: true,
           functionCalling: false,
           multiModal: false,
+          fileSupport,
         },
         pricing: {
           inputCostPer1kTokens: inputCost,

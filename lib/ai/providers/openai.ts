@@ -20,6 +20,10 @@ import {
   createErrorResponse,
 } from "../utils";
 import { BYOKManager } from "./byok-manager";
+import {
+  TEXT_ONLY_FILE_SUPPORT,
+  VISION_FILE_SUPPORT,
+} from "../file-capabilities";
 
 // OpenAI client cache for different API keys
 const clientCache = new Map<string, OpenAI>();
@@ -100,6 +104,7 @@ export const OPENAI_MODELS: Record<OpenAIModelId, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.01,
@@ -124,6 +129,7 @@ export const OPENAI_MODELS: Record<OpenAIModelId, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.0015,
@@ -132,11 +138,53 @@ export const OPENAI_MODELS: Record<OpenAIModelId, AIModel> = {
   },
 };
 
+// We should also add GPT-4 Vision model
+export const GPT_4_VISION_MODEL: AIModel = {
+  id: "gpt-4-vision-preview",
+  name: "GPT-4 Vision",
+  provider: "openai",
+  maxTokens: 128000,
+  maxResponseTokens: 4096,
+  contextWindow: 128000,
+  personality: "analytical-visual",
+  description: "GPT-4 with vision capabilities for image analysis",
+  visualConfig: {
+    color: "from-purple-500 to-blue-500",
+    avatar: "👁️",
+    style: "geometric",
+  },
+  capabilities: {
+    streaming: true,
+    functionCalling: true,
+    multiModal: true,
+    fileSupport: {
+      ...VISION_FILE_SUPPORT,
+      // Override with OpenAI-specific constraints
+      images: {
+        ...VISION_FILE_SUPPORT.images,
+        maxFileSize: 20, // 20MB max for OpenAI
+        requiresUrl: true, // OpenAI Vision requires image URLs or base64
+        maxImagesPerMessage: 5, // OpenAI typical limit
+      },
+    },
+  },
+  pricing: {
+    inputCostPer1kTokens: 0.01,
+    outputCostPer1kTokens: 0.03,
+  },
+};
+
+// Add the vision model to the models record
+const EXTENDED_OPENAI_MODELS = {
+  ...OPENAI_MODELS,
+  "gpt-4-vision-preview": GPT_4_VISION_MODEL,
+};
+
 // OpenAI Provider Implementation
 export class OpenAIProvider implements AIProvider {
   name = "openai";
   displayName = "OpenAI";
-  models = OPENAI_MODELS;
+  models = EXTENDED_OPENAI_MODELS;
 
   get isConfigured(): boolean {
     // Always return true to allow BYOK - actual key checking happens at runtime

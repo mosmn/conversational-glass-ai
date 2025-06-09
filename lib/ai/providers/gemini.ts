@@ -8,6 +8,12 @@ import {
 } from "../types";
 import { z } from "zod";
 import { BYOKManager } from "./byok-manager";
+import {
+  TEXT_ONLY_FILE_SUPPORT,
+  VISION_FILE_SUPPORT,
+  ADVANCED_MULTIMODAL_SUPPORT,
+  NO_FILE_SUPPORT,
+} from "../file-capabilities";
 
 // Environment validation
 const geminiEnvSchema = z.object({
@@ -218,6 +224,42 @@ async function fetchGeminiModels(
         outputCost = 0.00015;
       }
 
+      // Determine file support capabilities based on model name and version
+      let fileSupport = TEXT_ONLY_FILE_SUPPORT; // Default to text extraction
+      let multiModal = true; // Most Gemini models support multimodal
+
+      if (modelName.includes("1.5") || modelName.includes("2.0")) {
+        // Gemini 1.5+ and 2.0+ models have advanced multimodal capabilities
+        fileSupport = {
+          ...ADVANCED_MULTIMODAL_SUPPORT,
+          // Override with Gemini-specific constraints
+          images: {
+            ...ADVANCED_MULTIMODAL_SUPPORT.images,
+            maxFileSize: 20, // Gemini supports up to 20MB images
+            requiresUrl: false, // Gemini can accept base64 data
+            processingMethod: "both", // Gemini can do both vision and OCR
+          },
+          documents: {
+            ...ADVANCED_MULTIMODAL_SUPPORT.documents,
+            maxFileSize: 20,
+            processingMethod: "nativeProcessing", // Gemini can process PDFs natively
+            preserveFormatting: true,
+          },
+          overall: {
+            ...ADVANCED_MULTIMODAL_SUPPORT.overall,
+            maxTotalFileSize: 100, // Higher total for Gemini
+            maxFilesPerMessage: 20,
+          },
+        };
+      } else if (modelName.includes("vision") || modelName.includes("pro")) {
+        // Older Pro models with vision
+        fileSupport = VISION_FILE_SUPPORT;
+      } else if (modelName.includes("nano") || modelName.includes("8b")) {
+        // Smaller models might have limited capabilities
+        fileSupport = TEXT_ONLY_FILE_SUPPORT;
+        multiModal = false;
+      }
+
       models[modelName] = {
         id: modelName,
         name:
@@ -239,7 +281,8 @@ async function fetchGeminiModels(
         capabilities: {
           streaming: true,
           functionCalling: true,
-          multiModal: true,
+          multiModal,
+          fileSupport,
         },
         pricing: {
           inputCostPer1kTokens: inputCost,

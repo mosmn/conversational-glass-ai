@@ -8,6 +8,12 @@ import {
 } from "../types";
 import { z } from "zod";
 import { BYOKManager } from "./byok-manager";
+import {
+  TEXT_ONLY_FILE_SUPPORT,
+  VISION_FILE_SUPPORT,
+  ADVANCED_MULTIMODAL_SUPPORT,
+  NO_FILE_SUPPORT,
+} from "../file-capabilities";
 
 // Environment validation
 const openrouterEnvSchema = z.object({
@@ -57,6 +63,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: ADVANCED_MULTIMODAL_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.005,
@@ -81,6 +88,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.01,
@@ -105,6 +113,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.0015,
@@ -131,6 +140,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: VISION_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.003,
@@ -155,6 +165,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: false,
       multiModal: true,
+      fileSupport: VISION_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.00025,
@@ -181,6 +192,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: ADVANCED_MULTIMODAL_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.00125,
@@ -205,6 +217,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: ADVANCED_MULTIMODAL_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.000075,
@@ -231,6 +244,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.0008,
@@ -255,6 +269,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: VISION_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.0002,
@@ -281,6 +296,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.0008,
@@ -305,6 +321,7 @@ const openrouterModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: false,
+      fileSupport: TEXT_ONLY_FILE_SUPPORT,
     },
     pricing: {
       inputCostPer1kTokens: 0.003,

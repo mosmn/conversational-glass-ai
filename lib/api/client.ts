@@ -76,6 +76,62 @@ export interface Model {
     functionCalling: boolean;
     multiModal: boolean;
     codeGeneration: boolean;
+    // Enhanced file support capabilities
+    vision?: boolean;
+    pdfs?: boolean;
+    search?: boolean;
+    streaming?: boolean;
+    fileSupport?: {
+      images: {
+        supported: boolean;
+        maxFileSize: number;
+        maxDimensions?: { width: number; height: number };
+        supportedFormats: string[];
+        processingMethod: "vision" | "textExtraction" | "both";
+        requiresUrl: boolean;
+        maxImagesPerMessage: number;
+      };
+      documents: {
+        supported: boolean;
+        maxFileSize: number;
+        maxPages?: number;
+        supportedFormats: string[];
+        processingMethod: "textExtraction" | "nativeProcessing";
+        maxDocumentsPerMessage: number;
+        preserveFormatting: boolean;
+      };
+      textFiles: {
+        supported: boolean;
+        maxFileSize: number;
+        supportedFormats: string[];
+        encodingSupport: string[];
+        maxFilesPerMessage: number;
+      };
+      audio: {
+        supported: boolean;
+        maxFileSize: number;
+        maxDuration?: number;
+        supportedFormats: string[];
+        processingMethod: "transcription" | "nativeProcessing";
+        maxFilesPerMessage: number;
+      };
+      video: {
+        supported: boolean;
+        maxFileSize: number;
+        maxDuration?: number;
+        supportedFormats: string[];
+        processingMethod:
+          | "frameExtraction"
+          | "transcription"
+          | "nativeProcessing";
+        maxFilesPerMessage: number;
+      };
+      overall: {
+        maxTotalFileSize: number;
+        maxFilesPerMessage: number;
+        requiresPreprocessing: boolean;
+      };
+    };
   };
   pricing: {
     inputCostPer1kTokens: number;

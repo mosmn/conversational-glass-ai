@@ -5,9 +5,14 @@ import {
   StreamingChunk,
   StreamingOptions,
   AIProviderError,
+  ClaudeModelId,
 } from "../types";
 import { z } from "zod";
 import { BYOKManager } from "./byok-manager";
+import {
+  VISION_FILE_SUPPORT,
+  TEXT_ONLY_FILE_SUPPORT,
+} from "../file-capabilities";
 
 // Claude-specific configuration
 const CLAUDE_CONFIG = {
@@ -18,7 +23,7 @@ const CLAUDE_CONFIG = {
 };
 
 // Claude model definitions with personality and visual styling
-const claudeModels: Record<string, AIModel> = {
+export const claudeModels: Record<ClaudeModelId, AIModel> = {
   "claude-3-5-sonnet-20241022": {
     id: "claude-3-5-sonnet-20241022",
     name: "Claude 3.5 Sonnet",
@@ -39,6 +44,27 @@ const claudeModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: true,
       multiModal: true,
+      fileSupport: {
+        ...VISION_FILE_SUPPORT,
+        // Claude 3.5 Sonnet specific constraints
+        images: {
+          ...VISION_FILE_SUPPORT.images,
+          maxFileSize: 100, // Claude supports large images
+          maxImagesPerMessage: 20, // High limit for Claude
+          requiresUrl: false, // Claude accepts base64
+          processingMethod: "vision", // Native vision processing
+        },
+        documents: {
+          ...VISION_FILE_SUPPORT.documents,
+          maxFileSize: 100, // Large document support
+          processingMethod: "textExtraction", // Claude uses text extraction for PDFs
+        },
+        overall: {
+          ...VISION_FILE_SUPPORT.overall,
+          maxTotalFileSize: 200, // Very high total
+          maxFilesPerMessage: 25,
+        },
+      },
     },
     pricing: {
       inputCostPer1kTokens: 0.003,
@@ -65,6 +91,27 @@ const claudeModels: Record<string, AIModel> = {
       streaming: true,
       functionCalling: false,
       multiModal: true,
+      fileSupport: {
+        ...VISION_FILE_SUPPORT,
+        // Claude 3 Haiku has more limited capabilities
+        images: {
+          ...VISION_FILE_SUPPORT.images,
+          maxFileSize: 25, // Smaller limit for Haiku
+          maxImagesPerMessage: 5, // Lower limit
+          requiresUrl: false,
+          processingMethod: "vision",
+        },
+        documents: {
+          ...VISION_FILE_SUPPORT.documents,
+          maxFileSize: 25,
+          processingMethod: "textExtraction",
+        },
+        overall: {
+          ...VISION_FILE_SUPPORT.overall,
+          maxTotalFileSize: 50, // Lower total for efficiency
+          maxFilesPerMessage: 10,
+        },
+      },
     },
     pricing: {
       inputCostPer1kTokens: 0.00025,
@@ -115,7 +162,7 @@ async function* createClaudeStreamingCompletion(
     );
   }
 
-  const model = claudeModels[modelId];
+  const model = claudeModels[modelId as ClaudeModelId];
   if (!model) {
     throw new AIProviderError(
       `Model ${modelId} not found in Claude provider`,

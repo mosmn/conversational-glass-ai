@@ -38,6 +38,15 @@ export async function GET(request: NextRequest) {
           functionCalling: aiModel.capabilities.functionCalling || false,
           multiModal: aiModel.capabilities.multiModal || false,
           codeGeneration: aiModel.capabilities.functionCalling || false, // Use function calling as proxy for code generation
+          // Enhanced file support capabilities
+          vision:
+            aiModel.capabilities.multiModal &&
+            aiModel.capabilities.fileSupport?.images?.processingMethod ===
+              "vision",
+          pdfs: aiModel.capabilities.fileSupport?.documents?.supported || false,
+          search: false, // TODO: Implement search capability detection
+          streaming: aiModel.capabilities.streaming || false,
+          fileSupport: aiModel.capabilities.fileSupport || undefined,
         },
         pricing: aiModel.pricing || {
           inputCostPer1kTokens: 0,
@@ -235,6 +244,36 @@ function getModelTags(model: any): string[] {
   if (model.capabilities.vision) tags.push("Vision");
   if (model.capabilities.search) tags.push("Search");
 
+  // File support tags
+  if (model.capabilities.fileSupport) {
+    if (model.capabilities.fileSupport.images?.supported) {
+      if (model.capabilities.fileSupport.images.processingMethod === "vision") {
+        tags.push("Image Analysis");
+      } else {
+        tags.push("Image OCR");
+      }
+    }
+    if (model.capabilities.fileSupport.documents?.supported) {
+      if (
+        model.capabilities.fileSupport.documents.processingMethod ===
+        "nativeProcessing"
+      ) {
+        tags.push("PDF Native");
+      } else {
+        tags.push("PDF Text");
+      }
+    }
+    if (model.capabilities.fileSupport.audio?.supported) {
+      tags.push("Audio");
+    }
+    if (model.capabilities.fileSupport.video?.supported) {
+      tags.push("Video");
+    }
+    if (model.capabilities.fileSupport.textFiles?.supported) {
+      tags.push("Text Files");
+    }
+  }
+
   // Context tags
   if (model.contextWindow >= 100000) tags.push("Long Context");
 
@@ -248,7 +287,8 @@ function getModelTags(model: any): string[] {
   if (model.pricing) {
     const totalCost =
       model.pricing.inputCostPer1kTokens + model.pricing.outputCostPer1kTokens;
-    if (totalCost < 0.001) tags.push("Low Cost");
+    if (totalCost < 0.001) tags.push("Budget");
+    if (totalCost > 0.01) tags.push("Premium");
   }
 
   return tags;

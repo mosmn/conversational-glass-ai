@@ -22,6 +22,70 @@ export interface StreamingOptions {
   conversationId?: string;
 }
 
+// Enhanced file support capabilities
+export interface FileCapabilities {
+  // Image support
+  images: {
+    supported: boolean;
+    maxFileSize: number; // in MB
+    maxDimensions?: {
+      width: number;
+      height: number;
+    };
+    supportedFormats: string[]; // ['jpeg', 'png', 'gif', 'webp']
+    processingMethod: "vision" | "textExtraction" | "both";
+    requiresUrl: boolean; // true for models that need image URLs vs base64
+    maxImagesPerMessage: number;
+  };
+
+  // Document support (PDFs, DOCs, etc.)
+  documents: {
+    supported: boolean;
+    maxFileSize: number; // in MB
+    maxPages?: number;
+    supportedFormats: string[]; // ['pdf', 'docx', 'txt', 'md']
+    processingMethod: "textExtraction" | "nativeProcessing";
+    maxDocumentsPerMessage: number;
+    preserveFormatting: boolean; // Whether the model can understand document structure
+  };
+
+  // Text files support
+  textFiles: {
+    supported: boolean;
+    maxFileSize: number; // in MB
+    supportedFormats: string[]; // ['txt', 'md', 'csv', 'json', 'yaml', 'xml']
+    encodingSupport: string[]; // ['utf-8', 'ascii', 'utf-16']
+    maxFilesPerMessage: number;
+  };
+
+  // Audio support (for future)
+  audio: {
+    supported: boolean;
+    maxFileSize: number;
+    maxDuration?: number; // in seconds
+    supportedFormats: string[];
+    processingMethod: "transcription" | "nativeProcessing";
+    maxFilesPerMessage: number;
+  };
+
+  // Video support (for future)
+  video: {
+    supported: boolean;
+    maxFileSize: number;
+    maxDuration?: number; // in seconds
+    supportedFormats: string[];
+    processingMethod: "frameExtraction" | "transcription" | "nativeProcessing";
+    maxFilesPerMessage: number;
+  };
+
+  // Overall file constraints
+  overall: {
+    maxTotalFileSize: number; // Total MB across all files in one message
+    maxFilesPerMessage: number; // Total number of files
+    requiresPreprocessing: boolean; // Whether files need to be processed before sending
+  };
+}
+
 export interface AIModel {
   id: string;
   name: string;
@@ -40,6 +104,8 @@ export interface AIModel {
     streaming: boolean;
     functionCalling?: boolean;
     multiModal?: boolean;
+    // Enhanced file support capabilities
+    fileSupport: FileCapabilities;
   };
   pricing?: {
     inputCostPer1kTokens: number;
@@ -118,6 +184,19 @@ export class TokenLimitExceededError extends AIProviderError {
   }
 }
 
+// New error type for file capability validation
+export class FileCapabilityError extends AIProviderError {
+  constructor(
+    message: string,
+    public fileType: string,
+    public modelId: string,
+    provider: string
+  ) {
+    super(message, provider);
+    this.name = "FileCapabilityError";
+  }
+}
+
 // Response types for API routes
 export interface ChatCompletionResponse {
   success: boolean;
@@ -128,4 +207,40 @@ export interface ChatCompletionResponse {
   provider?: string;
   messageId?: string;
   finished?: boolean;
+}
+
+// File validation types
+export interface FileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string; // MIME type
+  url: string;
+  extractedText?: string;
+  thumbnailUrl?: string;
+  category: "image" | "document" | "text" | "audio" | "video";
+  metadata?: {
+    width?: number;
+    height?: number;
+    pages?: number;
+    wordCount?: number;
+    duration?: number;
+    hasImages?: boolean;
+  };
+}
+
+export interface FileValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  supportedFiles: FileAttachment[];
+  unsupportedFiles: FileAttachment[];
+  processingMethod: {
+    [fileId: string]:
+      | "vision"
+      | "textExtraction"
+      | "nativeProcessing"
+      | "transcription"
+      | "frameExtraction";
+  };
 }
