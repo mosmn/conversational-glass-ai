@@ -405,4 +405,68 @@ button:disabled {
       transform: translate(0px, 0px) scale(1);
     }
   }
+
+  /* Font customization CSS variables */
+  :root {
+    --font-main: "Inter", system-ui, -apple-system, sans-serif;
+    --font-code: "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono",
+      Consolas, "Courier New", monospace;
+  }
+
+  /* Visual customization classes */
+
+  /* Boring theme - reduce animations and transparency */
+  .boring-theme * {
+    animation-duration: 0.1s !important;
+    transition-duration: 0.1s !important;
+  }
+
+  .boring-theme .backdrop-blur-xl {
+    backdrop-filter: blur(4px) !important;
+  }
+
+  .boring-theme .backdrop-blur-lg {
+    backdrop-filter: blur(2px) !important;
+  }
+
+  .boring-theme [class*="bg-gradient"] {
+    background: rgba(30, 41, 59, 0.8) !important;
+  }
+
+  /* Hide personal info */
+  .hide-personal-info [data-personal-info] {
+    filter: blur(4px);
+    pointer-events: none;
+  }
+
+  .hide-personal-info [data-personal-info]:hover {
+    filter: blur(0px);
+    transition: filter 0.3s ease;
+  }
+
+  /* Disable thematic breaks */
+  .disable-thematic-breaks [data-thematic-break] {
+    display: none !important;
+  }
+
+  /* Stats for nerds - show technical details */
+  .stats-for-nerds [data-stats-hidden] {
+    display: block !important;
+    opacity: 0.7;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Apply custom fonts */
+  body,
+  .font-main {
+    font-family: var(--font-main);
+  }
+
+  code,
+  pre,
+  .font-code,
+  [class*="language-"] {
+    font-family: var(--font-code) !important;
+  }
 }

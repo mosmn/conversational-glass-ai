@@ -7,6 +7,10 @@ import { useChat } from "@/hooks/useChat";
 import { useModels } from "@/hooks/useModels";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@clerk/nextjs";
+import {
+  usePersonalization,
+  useVisualPreferences,
+} from "@/hooks/useUserPreferences";
 import type {
   Conversation as APIConversation,
   Message as APIMessage,
@@ -138,6 +142,8 @@ interface ChatPreferences {
 export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const router = useRouter();
   const { user } = useUser();
+  const personalization = usePersonalization();
+  const visualPrefs = useVisualPreferences();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [selectedModel, setSelectedModel] = useState("llama-3.3-70b-versatile");
@@ -642,8 +648,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                           </AvatarFallback>
                         </Avatar>
                         <div className="text-left">
-                          <div className="text-sm font-medium">
-                            {user?.fullName ||
+                          <div
+                            className="text-sm font-medium"
+                            data-personal-info={visualPrefs.hidePersonalInfo}
+                          >
+                            {personalization.displayName ||
+                              user?.fullName ||
                               user?.emailAddresses?.[0]?.emailAddress ||
                               "User"}
                           </div>
@@ -659,10 +669,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         Profile
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => setShowSettingsDialog(true)}
+                        onClick={() => router.push("/settings")}
                       >
                         <Settings className="mr-2 h-4 w-4" />
-                        Settings
+                        <span className="flex-1">Settings</span>
+                        <span className="text-xs text-slate-500">⌘,</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -736,13 +747,20 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               >
                 <Share className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSettingsDialog(true)}
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push("/settings")}
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Settings & Customization</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 

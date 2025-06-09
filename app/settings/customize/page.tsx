@@ -5,6 +5,8 @@ import { UserProfileSection } from "@/components/settings/customize/UserProfileS
 import { PlanUsageSection } from "@/components/settings/customize/PlanUsageSection";
 import { AIPersonalizationSection } from "@/components/settings/customize/AIPersonalizationSection";
 import { VisualCustomizationSection } from "@/components/settings/customize/VisualCustomizationSection";
+import { FontCustomizationSection } from "@/components/settings/customize/FontCustomizationSection";
+import { KeyboardShortcutsSection } from "@/components/settings/customize/KeyboardShortcutsSection";
 
 export default function CustomizePage() {
   return (
@@ -39,37 +41,10 @@ export default function CustomizePage() {
         <VisualCustomizationSection />
       </div>
 
-      {/* Font Customization - Coming Soon */}
-      <div className="p-8 bg-gradient-to-r from-slate-900/40 to-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm font-medium mb-4">
-            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-            Coming Soon
-          </div>
-          <h3 className="text-xl font-bold text-white mb-2">
-            Font Customization & Keyboard Shortcuts
-          </h3>
-          <p className="text-slate-400 mb-4 max-w-2xl mx-auto">
-            We're working on font preferences with live preview, keyboard
-            shortcut configuration, and additional customization options.
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {[
-              "Font Selection",
-              "Live Font Preview",
-              "Keyboard Shortcuts",
-              "Code Font Options",
-              "Typography Settings",
-            ].map((feature) => (
-              <span
-                key={feature}
-                className="px-3 py-1 bg-slate-800/50 border border-slate-600/50 rounded-lg text-xs text-slate-400"
-              >
-                {feature}
-              </span>
-            ))}
-          </div>
-        </div>
+      {/* Font & Shortcuts Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <FontCustomizationSection />
+        <KeyboardShortcutsSection />
       </div>
     </div>
   );
