@@ -384,7 +384,8 @@ class APIClient {
 
   // Chat API - Streaming
   async *sendMessageStream(
-    data: SendMessageRequest
+    data: SendMessageRequest,
+    signal?: AbortSignal
   ): AsyncGenerator<StreamChunk, void, unknown> {
     const url = `${this.baseURL}/api/chat/send`;
 
@@ -394,6 +395,7 @@ class APIClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
+      signal, // Add abort signal support
     });
 
     if (!response.ok) {

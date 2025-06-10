@@ -59,6 +59,10 @@ import {
   LogOut,
   DollarSign,
   Globe,
+  Play,
+  RefreshCw,
+  X,
+  Square,
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
@@ -67,6 +71,8 @@ import { MessageAttachments } from "./MessageAttachments";
 import { ShareModal } from "./ShareModal";
 import { ChatSidebar } from "./ChatSidebar";
 import { InlineImageGeneration } from "./InlineImageGeneration";
+import { RecoveryBanner } from "@/components/streaming/RecoveryBanner";
+import { useStreamRecovery } from "@/hooks/useStreamRecovery";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,8 +205,27 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     loadMoreMessages,
     lastSyncTime,
     syncMessages,
+    currentStreamId,
+    streamProgress,
+    canPauseStream,
+    pauseStream,
+    resumeStream,
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
+
+  // Stream recovery hook
+  const {
+    recoverableStreams,
+    isLoading: isRecoveryLoading,
+    resumeStream: handleResumeStream,
+    discardStream,
+    discardAllStreams,
+    triggerDetection,
+  } = useStreamRecovery({
+    conversationId: chatId,
+    autoDetect: true,
+    showNotifications: true,
+  });
 
   // Track if we've already refreshed for this title change
   const lastRefreshedTitleRef = useRef<string | null>(null);
@@ -243,6 +268,57 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
     if (conversation) {
       router.push(`/chat/${conversation.id}`);
+    }
+  };
+
+  // Handle pause/stop stream
+  const handlePauseStream = () => {
+    console.log("🛑 Pause button clicked", {
+      isStreaming,
+      canPauseStream,
+      isSearching,
+      currentStreamId,
+    });
+
+    if (isStreaming && canPauseStream) {
+      // Use the pause functionality from useChat hook
+      pauseStream();
+
+      // Trigger immediate detection of the new recoverable stream
+      triggerDetection();
+
+      toast({
+        title: "🛑 Stream Stopped",
+        description:
+          "AI response generation has been stopped. Check the message for resume options.",
+        duration: 4000,
+      });
+    } else if (isSearching) {
+      // For search, we can't easily pause but we can stop the entire operation
+      // This will cancel the current message sending
+      setIsSearching(false);
+
+      toast({
+        title: "🔍 Search Cancelled",
+        description: "Web search has been cancelled",
+      });
+    } else if (isStreaming) {
+      // Fallback: if canPauseStream is false but we're still streaming
+      console.log("⚠️ Cannot pause stream - forced abort attempt");
+      pauseStream(); // Try anyway
+
+      toast({
+        title: "🛑 Stream Stopped",
+        description: "Attempted to stop the stream",
+        variant: "destructive",
+      });
+    } else {
+      console.log("⚠️ No active stream to stop");
+      toast({
+        title: "No Active Stream",
+        description: "There's no active AI response to stop",
+        variant: "destructive",
+      });
     }
   };
 
@@ -571,6 +647,8 @@ Please synthesize the information from the search results to provide an accurate
             <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
 
             <ScrollArea className="h-full px-6 py-8 relative z-10">
+              {/* Note: Recovery logic is now handled inline within message bubbles */}
+
               {messagesLoading ? (
                 <div className="space-y-6 max-w-4xl mx-auto">
                   {[...Array(2)].map((_, i) => (
@@ -625,8 +703,14 @@ Please synthesize the information from the search results to provide an accurate
                       conversationId={chatId}
                       onImageGenerated={handleImageGenerated}
                       showInlineImageGeneration={showInlineImageGeneration}
+                      // Pass resume functionality to individual messages
+                      recoverableStreams={recoverableStreams}
+                      onResumeStream={handleResumeStream}
+                      onDiscardStream={discardStream}
+                      isRecoveryLoading={isRecoveryLoading}
                     />
                   ))}
+
                   {isStreaming && <TypingIndicator />}
                 </div>
               )}
@@ -767,25 +851,41 @@ Please synthesize the information from the search results to provide an accurate
                     </TooltipContent>
                   </Tooltip>
 
-                  <Button
-                    size="sm"
-                    onClick={handleSendMessage}
-                    disabled={
-                      (!inputValue.trim() && attachments.length === 0) ||
-                      isStreaming ||
-                      isSearching
-                    }
-                    className="relative group h-10 w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden"
-                  >
-                    {/* Shimmer effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/30 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                  {isStreaming || isSearching ? (
+                    // Pause/Stop button when streaming
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          onClick={handlePauseStream}
+                          className="relative group h-10 w-10 p-0 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 border border-red-500/30 overflow-hidden"
+                        >
+                          {/* Shimmer effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-red-400/0 via-red-400/30 to-red-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
 
-                    {isStreaming || isSearching ? (
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                    ) : (
+                          <Square className="h-4 w-4 fill-current transition-transform duration-300 group-hover:scale-110" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          {isStreaming ? "Stop AI response" : "Stop search"}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    // Regular send button
+                    <Button
+                      size="sm"
+                      onClick={handleSendMessage}
+                      disabled={!inputValue.trim() && attachments.length === 0}
+                      className="relative group h-10 w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden"
+                    >
+                      {/* Shimmer effect */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/30 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+
                       <Send className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-0.5" />
-                    )}
-                  </Button>
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -812,7 +912,13 @@ Please synthesize the information from the search results to provide an accurate
                   {isSearching && (
                     <span className="text-blue-400 flex items-center gap-1">
                       <div className="animate-spin rounded-full h-3 w-3 border border-blue-400 border-t-transparent" />
-                      Searching web...
+                      Searching web... (click stop to cancel)
+                    </span>
+                  )}
+                  {isStreaming && (
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <div className="animate-pulse w-2 h-2 bg-emerald-400 rounded-full" />
+                      AI responding... (click stop to pause)
                     </span>
                   )}
                 </div>
@@ -914,20 +1020,61 @@ function MessageBubble({
   conversationId,
   onImageGenerated,
   showInlineImageGeneration = true,
+  recoverableStreams = [],
+  onResumeStream,
+  onDiscardStream,
+  isRecoveryLoading = false,
 }: {
   message: Message;
   user: any;
   conversationId: string;
   onImageGenerated?: (result: any) => void;
   showInlineImageGeneration?: boolean;
+  recoverableStreams?: any[];
+  onResumeStream?: (streamId: string) => Promise<boolean>;
+  onDiscardStream?: (streamId: string) => void;
+  isRecoveryLoading?: boolean;
 }) {
   const [showImageWidget, setShowImageWidget] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
   const hasAttachments =
     message.metadata?.attachments && message.metadata.attachments.length > 0;
   const hasGeneratedImage = message.metadata?.generatedImage;
+
+  // Simple check: Is this an interrupted assistant message?
+  const isInterrupted =
+    !isUser &&
+    message.metadata?.streamingComplete === false &&
+    !isStreaming &&
+    !hasError;
+
+  // Find matching recoverable stream for this message
+  const recoverableStream = isInterrupted
+    ? recoverableStreams.find(
+        (stream) =>
+          stream.messageId === message.id ||
+          (stream.lastContent &&
+            message.content &&
+            stream.lastContent.includes(message.content.substring(0, 100)))
+      )
+    : null;
+
+  const canResume = isInterrupted && recoverableStream && onResumeStream;
+
+  // Handle inline resume
+  const handleInlineResume = async () => {
+    if (!recoverableStream || !onResumeStream) return;
+
+    setIsResuming(true);
+    try {
+      await onResumeStream(recoverableStream.streamId);
+    } finally {
+      setIsResuming(false);
+    }
+  };
 
   // Debug logging for attachment display
   if (hasAttachments) {
@@ -1129,6 +1276,59 @@ function MessageBubble({
                           : ""
                       }
                     />
+                  )}
+
+                  {/* Inline Resume UI */}
+                  {canResume && (
+                    <div className="border-t border-amber-500/20 pt-3 mt-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                          <span className="text-sm text-amber-300">
+                            Stream interrupted
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/30 text-amber-400 text-xs"
+                          >
+                            {Math.round(recoverableStream.progress)}% complete
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={handleInlineResume}
+                            disabled={isResuming || isRecoveryLoading}
+                            className="bg-amber-600/20 text-amber-400 border-amber-500/30 hover:bg-amber-600/30 text-xs"
+                          >
+                            {isResuming ? (
+                              <>
+                                <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                                Resuming...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-3 w-3 mr-1" />
+                                Resume
+                              </>
+                            )}
+                          </Button>
+                          {onDiscardStream && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                onDiscardStream(recoverableStream.streamId)
+                              }
+                              disabled={isResuming || isRecoveryLoading}
+                              className="text-red-400 hover:text-red-300 hover:bg-red-600/10 text-xs"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </>
               )}

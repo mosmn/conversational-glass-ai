@@ -384,7 +384,7 @@ export async function POST(request: NextRequest) {
               assistantContent += chunk.content;
               totalTokenCount += chunk.tokenCount || 0;
 
-              // Send chunk to client
+              // Send chunk to client (only if controller is still open)
               const responseChunk = {
                 type: "content",
                 content: chunk.content,
@@ -395,9 +395,15 @@ export async function POST(request: NextRequest) {
                 userMessageId: userMessage.id,
               };
 
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
-              );
+              try {
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
+                );
+              } catch (controllerError) {
+                // Controller is closed (likely due to client abort) - exit gracefully
+                console.log("🛑 Controller closed, stopping stream gracefully");
+                break;
+              }
 
               // Update message in database periodically (every ~1000 chars or 5 seconds)
               if (assistantContent.length % 1000 === 0) {
@@ -443,7 +449,7 @@ export async function POST(request: NextRequest) {
             assistantContent
           );
 
-          // Send final completion chunk
+          // Send final completion chunk (only if controller is still open)
           const completionChunk = {
             type: "completed",
             finished: true,
@@ -454,10 +460,17 @@ export async function POST(request: NextRequest) {
             titleGenerated: shouldGenerateTitle,
           };
 
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(completionChunk)}\n\n`)
-          );
-          controller.close();
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(completionChunk)}\n\n`)
+            );
+            controller.close();
+          } catch (controllerError) {
+            // Controller already closed - this is fine
+            console.log(
+              "🛑 Controller already closed, stream completed gracefully"
+            );
+          }
         } catch (error) {
           console.error("Streaming error:", error);
 
@@ -480,10 +493,15 @@ export async function POST(request: NextRequest) {
             messageId: assistantMessage.id,
           };
 
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
-          );
-          controller.close();
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
+            );
+            controller.close();
+          } catch (controllerError) {
+            // Controller already closed - this is fine for error handling too
+            console.log("🛑 Controller already closed during error handling");
+          }
         }
       },
     });

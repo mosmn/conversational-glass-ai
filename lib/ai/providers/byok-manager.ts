@@ -41,6 +41,16 @@ export class BYOKManager {
         internalUserId = authResult.userId!;
       }
 
+      // Validate that we have a proper UUID, not "system" or other invalid values
+      if (
+        !internalUserId ||
+        internalUserId === "system" ||
+        internalUserId.length < 10
+      ) {
+        console.warn(`Invalid user ID for BYOK: ${internalUserId}`);
+        return null;
+      }
+
       const cacheKey = `${internalUserId}:${provider}`;
 
       // Check cache first
