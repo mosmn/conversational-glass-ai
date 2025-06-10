@@ -52,7 +52,16 @@ export function MarkdownContent({
       className={cn(
         "markdown-content",
         "prose prose-invert max-w-none",
-        "text-current",
+        "prose-strong:text-white prose-em:text-slate-200",
+        "prose-code:bg-slate-700 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-emerald-300",
+        "prose-blockquote:border-l-emerald-500 prose-blockquote:text-slate-300",
+        "prose-a:text-emerald-400 prose-a:no-underline hover:prose-a:text-emerald-300",
+        "prose-headings:text-white prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg",
+        "prose-p:text-slate-100 prose-p:leading-relaxed",
+        "prose-li:text-slate-200 prose-ul:list-disc prose-ol:list-decimal",
+        "prose-table:border-slate-600 prose-th:border-slate-600 prose-td:border-slate-600",
+        "prose-hr:border-slate-600",
+        "text-current leading-relaxed",
         className
       )}
     >
@@ -72,7 +81,7 @@ function renderProcessedContent(
     const segment = processedContent.segments[0];
     return (
       <div
-        className="whitespace-pre-wrap break-words"
+        className="whitespace-pre-wrap break-words leading-relaxed"
         dangerouslySetInnerHTML={{
           __html: segment.highlightedContent || segment.content,
         }}
@@ -81,7 +90,7 @@ function renderProcessedContent(
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {processedContent.segments.map((segment) => (
         <SegmentRenderer
           key={segment.id}
@@ -101,13 +110,17 @@ function renderPlainContent(
   if (allowHtml) {
     return (
       <div
-        className="whitespace-pre-wrap break-words"
+        className="leading-relaxed"
         dangerouslySetInnerHTML={{ __html: content }}
       />
     );
   }
 
-  return <div className="whitespace-pre-wrap break-words">{content}</div>;
+  return (
+    <div className="whitespace-pre-wrap break-words leading-relaxed">
+      {content}
+    </div>
+  );
 }
 
 interface SegmentRendererProps {
@@ -125,7 +138,7 @@ function SegmentRenderer({
     case "text":
       return (
         <div
-          className="whitespace-pre-wrap break-words leading-relaxed"
+          className="leading-relaxed"
           dangerouslySetInnerHTML={{
             __html: segment.highlightedContent || segment.content,
           }}

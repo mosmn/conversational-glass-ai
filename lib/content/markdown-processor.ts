@@ -77,8 +77,9 @@ export class MarkdownProcessor {
       // Quick check for content type
       const hasCodeContent = hasCodeBlocks(content) || hasInlineCode(content);
 
+      // Always process markdown when allowHtml is true, even without code blocks
       if (!hasCodeContent) {
-        // Plain text or simple markdown
+        // Plain text or simple markdown - but still process markdown if allowed
         return this.processPlainContent(content, allowHtml);
       }
 
@@ -96,7 +97,7 @@ export class MarkdownProcessor {
         const segmentId = `segment-${i}`;
 
         if (segment.type === "text") {
-          // Process text segment (may contain basic markdown)
+          // Process text segment with full markdown support when allowHtml is true
           const processedText = allowHtml
             ? await this.processMarkdown(segment.content)
             : escapeHtml(segment.content);
@@ -202,12 +203,13 @@ export class MarkdownProcessor {
   }
 
   /**
-   * Process plain content without code
+   * Process plain content without code blocks but with full markdown support
    */
   private async processPlainContent(
     content: string,
     allowHtml: boolean
   ): Promise<ProcessedContent> {
+    // Always process as markdown when allowHtml is true, regardless of code presence
     const processedContent = allowHtml
       ? await this.processMarkdown(content)
       : escapeHtml(content);
@@ -232,12 +234,68 @@ export class MarkdownProcessor {
   }
 
   /**
-   * Process markdown content
+   * Process markdown content with full support for all markdown elements
    */
   private async processMarkdown(content: string): Promise<string> {
     try {
-      // Use marked to process basic markdown (excluding code blocks which we handle separately)
-      const processed = marked(content);
+      // Configure marked with custom renderer for better control
+      const renderer = new marked.Renderer();
+
+      // Custom renderer for better styling
+      renderer.strong = (text) =>
+        `<strong class="font-bold text-white">${text}</strong>`;
+      renderer.em = (text) => `<em class="italic text-slate-200">${text}</em>`;
+      renderer.code = (text) =>
+        `<code class="bg-slate-700 px-1.5 py-0.5 rounded text-sm font-mono text-emerald-300">${text}</code>`;
+      renderer.blockquote = (quote) =>
+        `<blockquote class="border-l-4 border-emerald-500 pl-4 my-4 text-slate-300 italic">${quote}</blockquote>`;
+      renderer.list = (body, ordered) => {
+        const tag = ordered ? "ol" : "ul";
+        const classes = ordered
+          ? "list-decimal list-inside space-y-1"
+          : "list-disc list-inside space-y-1";
+        return `<${tag} class="${classes} text-slate-200 my-2">${body}</${tag}>`;
+      };
+      renderer.listitem = (text) => `<li class="text-slate-200">${text}</li>`;
+      renderer.paragraph = (text) =>
+        `<p class="text-slate-100 leading-relaxed my-2">${text}</p>`;
+      renderer.heading = (text, level) => {
+        const classes = {
+          1: "text-2xl font-bold text-white mt-6 mb-4",
+          2: "text-xl font-semibold text-white mt-5 mb-3",
+          3: "text-lg font-medium text-white mt-4 mb-2",
+          4: "text-base font-medium text-slate-200 mt-3 mb-2",
+          5: "text-sm font-medium text-slate-300 mt-2 mb-1",
+          6: "text-xs font-medium text-slate-400 mt-2 mb-1",
+        };
+        return `<h${level} class="${
+          classes[level as keyof typeof classes]
+        }">${text}</h${level}>`;
+      };
+      renderer.link = (href, title, text) => {
+        const titleAttr = title ? ` title="${title}"` : "";
+        return `<a href="${href}"${titleAttr} class="text-emerald-400 hover:text-emerald-300 underline transition-colors" target="_blank" rel="noopener noreferrer">${text}</a>`;
+      };
+      renderer.hr = () => `<hr class="border-slate-600 my-6" />`;
+      renderer.table = (header, body) =>
+        `<table class="min-w-full border-collapse border border-slate-600 my-4"><thead class="bg-slate-700">${header}</thead><tbody>${body}</tbody></table>`;
+      renderer.tablerow = (content) =>
+        `<tr class="border border-slate-600">${content}</tr>`;
+      renderer.tablecell = (content, flags) => {
+        const tag = flags.header ? "th" : "td";
+        const classes = flags.header
+          ? "border border-slate-600 px-4 py-2 text-white font-medium"
+          : "border border-slate-600 px-4 py-2 text-slate-200";
+        return `<${tag} class="${classes}">${content}</${tag}>`;
+      };
+
+      // Use marked to process markdown with custom renderer
+      const processed = marked(content, {
+        renderer,
+        breaks: true,
+        gfm: true,
+      });
+
       return typeof processed === "string" ? processed : content;
     } catch (error) {
       console.error("Markdown processing failed:", error);

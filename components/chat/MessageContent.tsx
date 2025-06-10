@@ -38,14 +38,14 @@ export function MessageContent({
 
   // Determine if content needs processing
   const requiresProcessing = useMemo(() => {
-    // needsProcessing returns a Promise, but we can use the synchronous version
-    // by checking for common patterns directly
-    const hasCodePatterns =
-      content.includes("```") ||
-      content.includes("`") ||
-      content.includes("*") ||
-      content.includes("#");
-    return hasCodePatterns && !isUser; // Don't process user messages for performance
+    // Always process assistant messages to ensure markdown is rendered
+    if (!isUser) {
+      return true;
+    }
+
+    // For user messages, only process if there are obvious code patterns
+    const hasCodePatterns = content.includes("```") || content.includes("`");
+    return hasCodePatterns;
   }, [content, isUser]);
 
   // Process content when it changes and is not streaming

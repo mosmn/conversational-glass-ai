@@ -477,32 +477,46 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen bg-slate-900 text-white">
-        {/* Left Sidebar */}
+      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+        {/* Left Sidebar - Enhanced */}
         <div
           className={`${
             sidebarCollapsed ? "w-16" : "w-80"
-          } flex-shrink-0 bg-slate-800/50 backdrop-blur-xl border-r border-slate-700/50 transition-all duration-300`}
+          } flex-shrink-0 relative transition-all duration-500 ease-in-out`}
         >
-          <div className="flex flex-col h-full">
-            {/* Sidebar Header */}
-            <div className="p-4 border-b border-slate-700/50">
-              <div className="flex items-center justify-between">
+          {/* Glassmorphic Background */}
+          <div className="absolute inset-0 bg-slate-800/30 backdrop-blur-2xl border-r border-slate-700/30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-700/20 via-transparent to-slate-900/20" />
+
+          {/* Animated Border */}
+          <div className="absolute top-0 right-0 w-[1px] h-full bg-gradient-to-b from-transparent via-emerald-500/50 to-transparent" />
+
+          <div className="relative z-10 flex flex-col h-full">
+            {/* Sidebar Header - Enhanced (Fixed) */}
+            <div className="flex-shrink-0 p-6 border-b border-slate-700/30 relative">
+              {/* Subtle glow effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent" />
+
+              <div className="relative flex items-center justify-between">
                 {!sidebarCollapsed ? (
-                  <ConversationalGlassLogo
-                    size="md"
-                    animated={true}
-                    showText={true}
-                    className="flex-shrink-0"
-                  />
+                  <div className="transition-all duration-300 hover:scale-105">
+                    <ConversationalGlassLogo
+                      size="md"
+                      animated={true}
+                      showText={true}
+                      className="flex-shrink-0"
+                    />
+                  </div>
                 ) : (
-                  <ConversationalGlassLogoMini className="flex-shrink-0" />
+                  <div className="transition-all duration-300 hover:scale-110">
+                    <ConversationalGlassLogoMini className="flex-shrink-0" />
+                  </div>
                 )}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all duration-300 rounded-xl backdrop-blur-sm border border-slate-700/30 hover:border-emerald-500/30"
                 >
                   {sidebarCollapsed ? (
                     <ChevronRight className="h-4 w-4" />
@@ -515,26 +529,31 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
             {!sidebarCollapsed && (
               <>
-                {/* New Chat Button */}
-                <div className="p-4">
+                {/* New Chat Button - Enhanced (Fixed) */}
+                <div className="flex-shrink-0 p-6">
                   <Button
                     onClick={handleCreateNewChat}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="w-full relative group overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 h-12 rounded-xl backdrop-blur-sm border border-emerald-500/30"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Chat
+                    {/* Animated background */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/20 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+
+                    <div className="relative flex items-center justify-center space-x-2">
+                      <Plus className="h-5 w-5 transition-transform duration-300 group-hover:rotate-90" />
+                      <span className="font-semibold">✨ New Chat</span>
+                    </div>
                   </Button>
                 </div>
 
-                {/* Search */}
-                <div className="px-4 pb-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                {/* Search - Enhanced (Fixed) */}
+                <div className="flex-shrink-0 px-6 pb-4">
+                  <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors duration-300" />
                     <Input
-                      placeholder="Search chats..."
+                      placeholder="🔍 Search conversations..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:text-white"
+                      className="pl-12 pr-12 h-12 bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 focus:text-white rounded-xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10"
                     />
                     <DropdownMenu
                       open={showFilterMenu}
@@ -544,9 +563,9 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all duration-300 rounded-lg"
                         >
-                          <Filter className="h-3 w-3" />
+                          <Filter className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
@@ -585,8 +604,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   </div>
                 </div>
 
-                {/* Chat Categories */}
-                <div className="px-4 pb-2">
+                {/* Chat Categories (Fixed) */}
+                <div className="flex-shrink-0 px-6 pb-4">
                   <div className="flex flex-wrap gap-2">
                     {categories.map((category) => (
                       <Badge
@@ -605,47 +624,17 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   </div>
                 </div>
 
-                {/* Chat History */}
-                <ScrollArea className="flex-1 px-4">
-                  <div className="space-y-2">
-                    {/* Pinned Chats */}
-                    <div className="mb-4">
-                      <div className="flex items-center text-sm text-slate-400 mb-2">
-                        <Pin className="h-3 w-3 mr-1" />
-                        Pinned
-                      </div>
-                      {pinnedChats.map((chat) => (
-                        <ChatHistoryItem
-                          key={chat.id}
-                          chat={chat}
-                          isActive={chat.id === chatId}
-                          onPin={() => togglePin(chat.id)}
-                          onBookmark={() => toggleBookmark(chat.id)}
-                          onDelete={() => deleteChat(chat.id)}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Recent Chats */}
-                    <div>
-                      <div className="flex items-center text-sm text-slate-400 mb-2">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Recent
-                      </div>
-                      {conversationsLoading ? (
-                        <div className="space-y-2">
-                          {[...Array(3)].map((_, i) => (
-                            <div
-                              key={i}
-                              className="p-3 rounded-lg bg-slate-700/30 animate-pulse"
-                            >
-                              <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                              <div className="h-3 bg-slate-600 rounded w-3/4"></div>
-                            </div>
-                          ))}
+                {/* Chat History - Scrollable Area (FIXED) */}
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full px-6">
+                    <div className="space-y-2">
+                      {/* Pinned Chats */}
+                      <div className="mb-4">
+                        <div className="flex items-center text-sm text-slate-400 mb-2">
+                          <Pin className="h-3 w-3 mr-1" />
+                          Pinned
                         </div>
-                      ) : (
-                        recentChats.map((chat) => (
+                        {pinnedChats.map((chat) => (
                           <ChatHistoryItem
                             key={chat.id}
                             chat={chat}
@@ -654,14 +643,46 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                             onBookmark={() => toggleBookmark(chat.id)}
                             onDelete={() => deleteChat(chat.id)}
                           />
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </ScrollArea>
+                        ))}
+                      </div>
 
-                {/* Usage Meter */}
-                <div className="p-4 border-t border-slate-700/50">
+                      {/* Recent Chats */}
+                      <div>
+                        <div className="flex items-center text-sm text-slate-400 mb-2">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Recent
+                        </div>
+                        {conversationsLoading ? (
+                          <div className="space-y-2">
+                            {[...Array(3)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="p-3 rounded-lg bg-slate-700/30 animate-pulse"
+                              >
+                                <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                                <div className="h-3 bg-slate-600 rounded w-3/4"></div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          recentChats.map((chat) => (
+                            <ChatHistoryItem
+                              key={chat.id}
+                              chat={chat}
+                              isActive={chat.id === chatId}
+                              onPin={() => togglePin(chat.id)}
+                              onBookmark={() => toggleBookmark(chat.id)}
+                              onDelete={() => deleteChat(chat.id)}
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Usage Meter (Fixed) */}
+                <div className="flex-shrink-0 p-6 border-t border-slate-700/30">
                   <div className="mb-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Usage this month</span>
@@ -672,8 +693,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   <p className="text-xs text-slate-500">Resets in 12 days</p>
                 </div>
 
-                {/* User Profile */}
-                <div className="p-4 border-t border-slate-700/50">
+                {/* User Profile (Fixed) */}
+                <div className="flex-shrink-0 p-6 border-t border-slate-700/30">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -733,21 +754,32 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-700/50 bg-slate-800/30 backdrop-blur-xl">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-lg font-semibold">
-                {conversation?.title ||
-                  (messages.length > 0 ? "Chat Session" : "New Conversation")}
-              </h2>
+        {/* Main Content Area - Enhanced */}
+        <div className="flex-1 flex flex-col relative">
+          {/* Animated Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+
+          {/* Header - Enhanced */}
+          <div className="relative z-10 flex items-center justify-between p-6 border-b border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+            {/* Subtle header glow */}
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5" />
+            <div className="relative flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-1 h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full" />
+                <h2 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
+                  {conversation?.title ||
+                    (messages.length > 0
+                      ? "🔥 Chat Session"
+                      : "✨ New Conversation")}
+                </h2>
+              </div>
               {(conversation || messages.length > 0) && (
                 <Badge
                   variant="outline"
-                  className="border-emerald-500 text-emerald-400"
+                  className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10 backdrop-blur-sm px-3 py-1 rounded-full font-medium"
                 >
-                  {conversation?.model || selectedModel}
+                  🤖 {conversation?.model || selectedModel}
                 </Badge>
               )}
             </div>
@@ -804,64 +836,77 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             </div>
           </div>
 
-          {/* Messages Area */}
-          <ScrollArea className="flex-1 p-6">
-            {messagesLoading ? (
-              <div className="space-y-6 max-w-4xl mx-auto">
-                {[...Array(2)].map((_, i) => (
-                  <div key={i} className="space-y-4">
-                    <div className="flex justify-end">
-                      <div className="bg-slate-700/30 rounded-lg p-4 max-w-xs animate-pulse">
-                        <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                        <div className="h-4 bg-slate-600 rounded w-3/4"></div>
+          {/* Messages Area - Enhanced */}
+          <div className="flex-1 relative overflow-hidden">
+            {/* Conversation River Background */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800/10 to-transparent" />
+            <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
+
+            <ScrollArea className="h-full px-6 py-8 relative z-10">
+              {messagesLoading ? (
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="space-y-4">
+                      <div className="flex justify-end">
+                        <div className="bg-slate-700/30 rounded-lg p-4 max-w-xs animate-pulse">
+                          <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                          <div className="h-4 bg-slate-600 rounded w-3/4"></div>
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="bg-slate-800/30 rounded-lg p-4 max-w-xs animate-pulse">
+                          <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                          <div className="h-4 bg-slate-600 rounded w-2/3"></div>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex justify-start">
-                      <div className="bg-slate-800/30 rounded-lg p-4 max-w-xs animate-pulse">
-                        <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                        <div className="h-4 bg-slate-600 rounded w-2/3"></div>
-                      </div>
+                  ))}
+                </div>
+              ) : messages.length === 0 ? (
+                <WelcomeInterface
+                  quickActions={quickActions}
+                  suggestedPrompts={suggestedPrompts}
+                  onPromptSelect={setInputValue}
+                />
+              ) : (
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  {/* Load More Messages Button */}
+                  {hasMore && (
+                    <div className="flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={loadMoreMessages}
+                        disabled={messagesLoading}
+                        className="bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600/50"
+                      >
+                        {messagesLoading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-transparent mr-2" />
+                        ) : (
+                          <Clock className="h-4 w-4 mr-2" />
+                        )}
+                        Load older messages
+                      </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : messages.length === 0 ? (
-              <WelcomeInterface
-                quickActions={quickActions}
-                suggestedPrompts={suggestedPrompts}
-                onPromptSelect={setInputValue}
-              />
-            ) : (
-              <div className="space-y-6 max-w-4xl mx-auto">
-                {/* Load More Messages Button */}
-                {hasMore && (
-                  <div className="flex justify-center">
-                    <Button
-                      variant="outline"
-                      onClick={loadMoreMessages}
-                      disabled={messagesLoading}
-                      className="bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600/50"
-                    >
-                      {messagesLoading ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-transparent mr-2" />
-                      ) : (
-                        <Clock className="h-4 w-4 mr-2" />
-                      )}
-                      Load older messages
-                    </Button>
-                  </div>
-                )}
+                  )}
 
-                {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
-                ))}
-                {isStreaming && <TypingIndicator />}
-              </div>
-            )}
-          </ScrollArea>
+                  {messages.map((message) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      user={user}
+                    />
+                  ))}
+                  {isStreaming && <TypingIndicator />}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
 
-          {/* Input Area */}
-          <div className="p-6 border-t border-slate-700/50 bg-slate-800/30 backdrop-blur-xl">
+          {/* Input Area - Enhanced */}
+          <div className="relative p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+            {/* Input area glow */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
             <div className="max-w-4xl mx-auto space-y-4">
               {/* File Attachments */}
               {showAttachments && (
@@ -881,44 +926,53 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 />
               )}
 
-              <div className="relative">
+              <div className="relative group">
+                {/* Enhanced glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-transparent to-blue-500/10 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
+
                 <Textarea
                   ref={textareaRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Type your message... (⌘ + Enter to send)"
-                  className="min-h-[60px] max-h-[200px] bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 pr-24 resize-none focus:text-white"
+                  placeholder="💬 Type your message... (⌘ + Enter to send)"
+                  className="relative min-h-[70px] max-h-[200px] bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 pr-28 resize-none focus:text-white rounded-2xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10 text-base leading-relaxed p-5"
                   rows={1}
                 />
 
-                <div className="absolute bottom-3 right-3 flex items-center space-x-2">
+                <div className="absolute bottom-4 right-4 flex items-center space-x-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className={`h-8 w-8 p-0 ${
-                          showAttachments ? "text-emerald-400" : ""
+                        className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                          showAttachments
+                            ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                            : "text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10"
                         }`}
                         onClick={() => setShowAttachments(!showAttachments)}
                       >
-                        <Paperclip className="h-4 w-4" />
+                        <Paperclip className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Attach files</p>
+                      <p>📎 Attach files</p>
                     </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                        <Mic className="h-4 w-4" />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-10 w-10 p-0 rounded-xl transition-all duration-300 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 backdrop-blur-sm border border-slate-700/30 hover:border-blue-500/30"
+                      >
+                        <Mic className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Voice input</p>
+                      <p>🎤 Voice input</p>
                     </TooltipContent>
                   </Tooltip>
 
@@ -929,12 +983,15 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       (!inputValue.trim() && attachments.length === 0) ||
                       isStreaming
                     }
-                    className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
+                    className="relative group h-10 w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden"
                   >
+                    {/* Shimmer effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/30 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+
                     {isStreaming ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
                     ) : (
-                      <Send className="h-4 w-4" />
+                      <Send className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-0.5" />
                     )}
                   </Button>
                 </div>
@@ -1318,7 +1375,7 @@ function WelcomeInterface({
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, user }: { message: Message; user: any }) {
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
@@ -1350,7 +1407,18 @@ function MessageBubble({ message }: { message: Message }) {
             isUser ? "flex-row-reverse space-x-reverse" : ""
           }`}
         >
-          <Avatar className="h-8 w-8 flex-shrink-0">
+          <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-slate-700/50 transition-all duration-300 hover:ring-emerald-500/50">
+            {isUser && user?.imageUrl ? (
+              <AvatarImage
+                src={user.imageUrl}
+                alt={
+                  user.fullName ||
+                  user.emailAddresses?.[0]?.emailAddress ||
+                  "User"
+                }
+                className="object-cover"
+              />
+            ) : null}
             <AvatarFallback
               className={`${
                 hasError
@@ -1358,10 +1426,18 @@ function MessageBubble({ message }: { message: Message }) {
                   : isUser
                   ? "bg-emerald-600"
                   : "bg-blue-600"
-              }`}
+              } transition-colors duration-300`}
             >
               {isUser ? (
-                <User className="h-4 w-4" />
+                user?.imageUrl ? (
+                  <span className="text-xs font-semibold">
+                    {user?.firstName?.[0] ||
+                      user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ||
+                      "U"}
+                  </span>
+                ) : (
+                  <User className="h-4 w-4" />
+                )
               ) : (
                 <ConversationalGlassLogoMini className="scale-50" />
               )}
@@ -1391,7 +1467,7 @@ function MessageBubble({ message }: { message: Message }) {
                     isUser={isUser}
                     showLineNumbers={false}
                     maxCodeBlockHeight="300px"
-                    allowHtml={false}
+                    allowHtml={true}
                   />
 
                   {/* Display attachments within the message bubble */}
