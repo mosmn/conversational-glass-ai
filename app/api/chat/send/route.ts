@@ -156,6 +156,8 @@ export async function POST(request: NextRequest) {
           url: att.url,
           filename: att.name,
           size: att.size,
+          extractedText: att.extractedText, // Store extracted text for historical access
+          metadata: att.metadata, // Store metadata like pages, dimensions, etc.
         })),
       },
     });
@@ -181,9 +183,38 @@ export async function POST(request: NextRequest) {
       50 // Last 50 messages for context
     );
 
+    console.log(
+      "📚 Conversation history:",
+      conversationHistory.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content.substring(0, 50) + "...",
+        hasAttachments: !!m.metadata?.attachments?.length,
+        attachmentCount: m.metadata?.attachments?.length || 0,
+        attachments: m.metadata?.attachments?.map((att: any) => ({
+          filename: att.filename,
+          type: att.type,
+        })),
+      }))
+    );
+
     // Process files for the current user message
     let processedFiles: any[] = [];
     if (attachments && attachments.length > 0) {
+      console.log("🔍 Processing files for model:", aiModel.name);
+      console.log(
+        "📎 Attachments:",
+        attachments.map((att) => ({
+          name: att.name,
+          type: att.type,
+          hasText: !!att.extractedText,
+        }))
+      );
+      console.log("🤖 Model capabilities:", {
+        multiModal: aiModel.capabilities.multiModal,
+        fileSupport: aiModel.capabilities.fileSupport,
+      });
+
       const processingResult = await FileProcessor.processFilesForProvider(
         attachments,
         aiModel,
@@ -200,46 +231,106 @@ export async function POST(request: NextRequest) {
       }
 
       processedFiles = processingResult.processedFiles;
+      console.log(
+        "✅ Processed files:",
+        processedFiles.map((f) => ({
+          name: f.name,
+          category: f.category,
+          hasGeminiFormat: !!f.geminiFormat,
+          hasOpenaiFormat: !!f.openaiFormat,
+          hasClaudeFormat: !!f.claudeFormat,
+          hasTextExtraction: !!f.extractedText,
+        }))
+      );
     }
 
     // Prepare messages for AI API (exclude the empty assistant message we just created)
-    const chatMessages: AIMessage[] = conversationHistory.messages
-      .filter((msg) => msg.id !== assistantMessage.id)
-      .map((msg) => {
-        // Handle the current user message with files
-        if (msg.id === userMessage.id && processedFiles.length > 0) {
-          // Use provider-specific file formatting
-          if (
-            aiModel.capabilities.multiModal &&
-            processedFiles.some((f) => f.category === "image")
-          ) {
-            return {
-              role: msg.role as "system" | "user" | "assistant",
-              content: FileProcessor.formatMessageWithFiles(
-                msg.content,
-                processedFiles,
-                provider.name,
-                aiModel
-              ),
-            };
-          } else {
-            // Fallback to text-only with file descriptions
-            return {
-              role: msg.role as "system" | "user" | "assistant",
-              content: FileProcessor.generateTextFallback(
-                msg.content,
-                attachments || []
-              ),
-            };
+    const chatMessages: AIMessage[] = [];
+
+    for (const msg of conversationHistory.messages.filter(
+      (m) => m.id !== assistantMessage.id
+    )) {
+      // Handle the current user message with new attachments
+      if (msg.id === userMessage.id && processedFiles.length > 0) {
+        console.log("📨 Formatting current message with new files");
+        console.log(
+          "🔍 Model supports multimodal:",
+          aiModel.capabilities.multiModal
+        );
+        console.log("📁 Total files:", processedFiles.length);
+        console.log(
+          "🖼️ Image files:",
+          processedFiles.filter((f) => f.category === "image").length
+        );
+        console.log(
+          "📄 Document files:",
+          processedFiles.filter((f) => f.category !== "image").length
+        );
+
+        // Always use the improved formatMessageWithFiles method
+        // It handles both multimodal content AND text extraction properly
+        const formattedContent = FileProcessor.formatMessageWithFiles(
+          msg.content,
+          processedFiles,
+          provider.name,
+          aiModel
+        );
+        console.log("✨ Using enhanced file formatting");
+
+        chatMessages.push({
+          role: msg.role as "system" | "user" | "assistant",
+          content: formattedContent,
+        });
+      }
+      // Handle historical messages that have attachments
+      else if (
+        msg.metadata?.attachments &&
+        msg.metadata.attachments.length > 0
+      ) {
+        console.log(
+          "📎 Processing historical message with attachments:",
+          msg.metadata.attachments.length
+        );
+
+        // For historical messages, use a simpler approach to avoid reprocessing files
+        // that may no longer be accessible or cause performance issues
+        let messageWithFiles = msg.content;
+
+        if (msg.metadata.attachments.length > 0) {
+          messageWithFiles += "\n\nPreviously attached files:";
+
+          for (const att of msg.metadata.attachments) {
+            messageWithFiles += `\n📎 ${att.filename}`;
+            if (att.type) {
+              messageWithFiles += ` (${att.type})`;
+            }
+
+            // If we have stored extracted text in metadata, use it
+            if (att.extractedText) {
+              const maxLength = 1000;
+              const truncatedText =
+                att.extractedText.length > maxLength
+                  ? att.extractedText.substring(0, maxLength) + "..."
+                  : att.extractedText;
+              messageWithFiles += `\nContent: ${truncatedText}`;
+            }
           }
         }
 
-        // Regular message without files
-        return {
+        console.log("📝 Using simplified historical file format");
+        chatMessages.push({
+          role: msg.role as "system" | "user" | "assistant",
+          content: messageWithFiles,
+        });
+      }
+      // Regular message without files
+      else {
+        chatMessages.push({
           role: msg.role as "system" | "user" | "assistant",
           content: msg.content,
-        };
-      });
+        });
+      }
+    }
 
     // Create streaming response
     const encoder = new TextEncoder();

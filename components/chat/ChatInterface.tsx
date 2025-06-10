@@ -111,6 +111,14 @@ interface Message {
       url: string;
       filename: string;
       size: number;
+      extractedText?: string;
+      thumbnailUrl?: string;
+      metadata?: {
+        width?: number;
+        height?: number;
+        pages?: number;
+        wordCount?: number;
+      };
     }>;
   };
 }
@@ -411,6 +419,39 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     const content = inputValue;
     const messageAttachments = attachments.filter(
       (a) => a.status === "uploaded"
+    );
+
+    // Debug logging
+    console.log("🐛 DEBUG - handleSendMessage:");
+    console.log("  📎 Total attachments:", attachments.length);
+    console.log(
+      "  📎 Attachments:",
+      attachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        url: a.url,
+        category: a.category,
+        extractedText: a.extractedText ? "present" : "none",
+        thumbnailUrl: a.thumbnailUrl ? "present" : "none",
+      }))
+    );
+    console.log(
+      "  ✅ Filtered uploaded attachments:",
+      messageAttachments.length
+    );
+    console.log(
+      "  ✅ Message attachments:",
+      messageAttachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        url: a.url,
+        category: a.category,
+        extractedText: a.extractedText ? "present" : "none",
+        thumbnailUrl: a.thumbnailUrl ? "present" : "none",
+        metadata: a.metadata,
+      }))
     );
 
     setInputValue("");
@@ -830,10 +871,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   conversationId={chatId}
                   selectedModel={selectedModel}
                   onModelRecommendation={(recommendedModels) => {
-                    // Auto-switch to the best recommended model if there's a clear winner
-                    if (recommendedModels.length > 0) {
-                      setSelectedModel(recommendedModels[0].id);
-                    }
+                    // Note: Removed automatic switching - users must manually click "Switch" button
+                    // This prevents unwanted model changes during file uploads
+                    console.log(
+                      "Model recommendations available:",
+                      recommendedModels.map((m) => m.name)
+                    );
                   }}
                 />
               )}
@@ -1281,6 +1324,23 @@ function MessageBubble({ message }: { message: Message }) {
   const hasError = message.metadata?.error || message.error;
   const hasAttachments =
     message.metadata?.attachments && message.metadata.attachments.length > 0;
+
+  // Debug logging for attachment display
+  if (hasAttachments) {
+    console.log("🐛 MessageBubble - Displaying attachments:", {
+      messageId: message.id,
+      role: message.role,
+      attachmentCount: message.metadata?.attachments?.length,
+      attachments: message.metadata?.attachments?.map((att) => ({
+        type: att.type,
+        filename: att.filename,
+        size: att.size,
+        hasExtractedText: !!att.extractedText,
+        hasThumbnail: !!att.thumbnailUrl,
+        hasMetadata: !!att.metadata,
+      })),
+    });
+  }
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} group`}>

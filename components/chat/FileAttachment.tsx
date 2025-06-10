@@ -37,6 +37,14 @@ import { FilePreview } from "./FilePreview";
 import { useModelAwareFileValidation } from "@/hooks/useModelAwareFileValidation";
 import { useModels } from "@/hooks/useModels";
 import { categorizeFile, getFileFormat } from "@/lib/ai/file-capabilities";
+import {
+  FileRecommendationEngine,
+  FileRecommendationUtils,
+} from "@/lib/ai/file-recommendation-engine";
+import {
+  FileProcessingStatus,
+  useFileProcessingStatus,
+} from "./FileProcessingStatus";
 import type { Model } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +101,18 @@ export function FileAttachment({
   const [showPreview, setShowPreview] = useState(false);
   const [previewFileIndex, setPreviewFileIndex] = useState(0);
   const [validationResults, setValidationResults] = useState<any>(null);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [recommendations, setRecommendations] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    statusData,
+    addFile,
+    updateFileStatus,
+    updateStepStatus,
+    removeFile: removeFileStatus,
+    clearAll: clearAllStatus,
+  } = useFileProcessingStatus();
 
   const { models } = useModels();
   const currentModel = models.find((m) => m.id === selectedModel) || null;
@@ -175,9 +194,9 @@ export function FileAttachment({
   const fileConstraints = getFileConstraints;
   const allowedFileTypes = getAllowedFileTypes();
 
-  // Validate files whenever model or attachments change
+  // Validate files and generate recommendations whenever model or attachments change
   useEffect(() => {
-    if (attachments.length > 0 && isModelSelected) {
+    if (attachments.length > 0) {
       const fileAttachments = attachments.map((att) => ({
         id: att.id,
         name: att.name,
@@ -190,37 +209,120 @@ export function FileAttachment({
         thumbnailUrl: att.thumbnailUrl,
       }));
 
-      const results = validateFilesForModel(fileAttachments);
-      setValidationResults(results);
+      // Generate model recommendations
+      const availableModels = models.map((m) => ({
+        ...m,
+        capabilities: {
+          ...m.capabilities,
+          fileSupport: m.capabilities?.fileSupport || {
+            images: {
+              supported: false,
+              maxFileSize: 0,
+              supportedFormats: [],
+              processingMethod: "textExtraction" as const,
+              requiresUrl: false,
+              maxImagesPerMessage: 0,
+            },
+            documents: {
+              supported: false,
+              maxFileSize: 0,
+              supportedFormats: [],
+              processingMethod: "textExtraction" as const,
+              maxDocumentsPerMessage: 0,
+              preserveFormatting: false,
+            },
+            textFiles: {
+              supported: false,
+              maxFileSize: 0,
+              supportedFormats: [],
+              encodingSupport: [],
+              maxFilesPerMessage: 0,
+            },
+            audio: {
+              supported: false,
+              maxFileSize: 0,
+              supportedFormats: [],
+              processingMethod: "transcription" as const,
+              maxFilesPerMessage: 0,
+            },
+            video: {
+              supported: false,
+              maxFileSize: 0,
+              supportedFormats: [],
+              processingMethod: "frameExtraction" as const,
+              maxFilesPerMessage: 0,
+            },
+            overall: {
+              maxTotalFileSize: 0,
+              maxFilesPerMessage: 0,
+              requiresPreprocessing: false,
+            },
+          },
+        },
+      })) as any[];
 
-      // Update attachment validation status
-      const updatedAttachments = attachments.map((att) => {
-        const fileAttachment = fileAttachments.find((f) => f.id === att.id);
-        if (!fileAttachment) return att;
+      const recResults = FileRecommendationEngine.recommendModels(
+        fileAttachments,
+        availableModels
+      );
+      setRecommendations(recResults);
 
-        const singleValidation = validateSingleFileForModel(fileAttachment);
+      // Show recommendations if current model isn't optimal
+      if (currentModel) {
+        const currentScore =
+          recResults.primaryRecommendation?.model.id === currentModel.id
+            ? recResults.primaryRecommendation.score
+            : recResults.alternatives?.find(
+                (alt) => alt.model.id === currentModel.id
+              )?.score || 0;
 
-        return {
-          ...att,
-          status: singleValidation.valid ? att.status : ("invalid" as const),
-          validationErrors: singleValidation.errors,
-          validationWarnings: singleValidation.warnings,
-          processingInfo: singleValidation.processingInfo,
-        };
-      });
-
-      if (JSON.stringify(updatedAttachments) !== JSON.stringify(attachments)) {
-        onAttachmentsChange(updatedAttachments);
+        if (
+          currentScore < 70 &&
+          recResults.primaryRecommendation &&
+          recResults.primaryRecommendation.score > currentScore + 20
+        ) {
+          setShowRecommendations(true);
+        }
+      } else if (
+        recResults.primaryRecommendation ||
+        (recResults.alternatives && recResults.alternatives.length > 0)
+      ) {
+        setShowRecommendations(true);
       }
 
-      // Suggest model switch if needed
-      if (results.recommendations.shouldSwitchModel && onModelRecommendation) {
-        // Convert AIModel back to Model format for the callback
-        const recommendedModels = results.recommendations.suggestedModels
-          .map((aiModel) => models.find((m) => m.id === aiModel.id))
-          .filter(Boolean) as Model[];
-        onModelRecommendation(recommendedModels);
+      // Validate against current model if selected
+      if (isModelSelected) {
+        const results = validateFilesForModel(fileAttachments);
+        setValidationResults(results);
+
+        // Update attachment validation status
+        const updatedAttachments = attachments.map((att) => {
+          const fileAttachment = fileAttachments.find((f) => f.id === att.id);
+          if (!fileAttachment) return att;
+
+          const singleValidation = validateSingleFileForModel(fileAttachment);
+
+          return {
+            ...att,
+            status: singleValidation.valid ? att.status : ("invalid" as const),
+            validationErrors: singleValidation.errors,
+            validationWarnings: singleValidation.warnings,
+            processingInfo: singleValidation.processingInfo,
+          };
+        });
+
+        if (
+          JSON.stringify(updatedAttachments) !== JSON.stringify(attachments)
+        ) {
+          onAttachmentsChange(updatedAttachments);
+        }
+
+        // Note: Removed aggressive model switching - recommendations are shown in UI only
+        // Users can manually click the "Switch" button if they want to change models
       }
+    } else {
+      setRecommendations(null);
+      setShowRecommendations(false);
     }
   }, [attachments, selectedModel, isModelSelected]);
 
@@ -245,8 +347,29 @@ export function FileAttachment({
   };
 
   const validateFile = (file: File): string | null => {
+    console.log("🐛 DEBUG - validateFile:");
+    console.log("  📁 File:", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    });
+    console.log("  🤖 Model:", {
+      isModelSelected,
+      currentModelName: currentModel?.name,
+      currentModelId: selectedModel,
+    });
+    console.log("  📏 Constraints:", {
+      maxSizePerFile,
+      fileConstraintsMaxFileSize: fileConstraints.maxFileSize,
+      allowedFileTypes,
+      maxFiles,
+      fileConstraintsMaxFiles: fileConstraints.maxFiles,
+      currentAttachmentsCount: attachments.length,
+    });
+
     // Check if model is selected
     if (!isModelSelected) {
+      console.log("  ❌ Validation failed: No model selected");
       return "Please select an AI model first";
     }
 
@@ -256,6 +379,9 @@ export function FileAttachment({
       fileConstraints.maxFileSize * 1024 * 1024
     );
     if (file.size > maxSize) {
+      console.log("  ❌ Validation failed: File too large");
+      console.log("    File size:", file.size, "bytes");
+      console.log("    Max allowed:", maxSize, "bytes");
       return `File size must be less than ${Math.min(
         maxSizePerFile,
         fileConstraints.maxFileSize
@@ -264,17 +390,22 @@ export function FileAttachment({
 
     // Check file type against model constraints
     if (allowedFileTypes.length > 0 && !allowedFileTypes.includes(file.type)) {
+      console.log("  ❌ Validation failed: File type not supported");
+      console.log("    File type:", file.type);
+      console.log("    Allowed types:", allowedFileTypes);
       return `${file.type} files are not supported by ${currentModel?.name}`;
     }
 
     // Check total file count
     if (attachments.length >= Math.min(maxFiles, fileConstraints.maxFiles)) {
+      console.log("  ❌ Validation failed: Too many files");
       return `Maximum ${Math.min(
         maxFiles,
         fileConstraints.maxFiles
       )} files allowed for ${currentModel?.name}`;
     }
 
+    console.log("  ✅ Validation passed");
     return null;
   };
 
@@ -305,7 +436,8 @@ export function FileAttachment({
         const reader = new FileReader();
         reader.onload = (e) => {
           attachment.preview = e.target?.result as string;
-          onAttachmentsChange([...attachments, ...newAttachments]);
+          // Note: Preview will be updated when the attachment is uploaded
+          // For now, we'll handle preview updates in the upload completion
         };
         reader.readAsDataURL(file);
       }
@@ -314,64 +446,233 @@ export function FileAttachment({
 
       // Start real file upload only if validation passed
       if (!validationError) {
-        uploadFile(attachment, file);
+        // Add to processing status
+        addFile({
+          fileId: attachment.id,
+          fileName: attachment.name,
+          fileSize: attachment.size,
+          fileType: attachment.type,
+          overallStatus: "uploading",
+          processingMethod:
+            currentModel?.capabilities.multiModal &&
+            attachment.category === "image"
+              ? "vision"
+              : "textExtraction",
+          modelCompatibility: {
+            compatible: !validationError,
+            modelName: currentModel?.name || "No model selected",
+            limitations: validationError ? [validationError] : undefined,
+            recommendations:
+              currentModel &&
+              FileRecommendationUtils.needsModelUpgrade(currentModel as any, [
+                attachment,
+              ])
+                ? ["Consider upgrading to a model with better file support"]
+                : undefined,
+          },
+          estimatedTime: Math.max(
+            5,
+            Math.floor(attachment.size / (1024 * 100))
+          ), // Rough estimate
+        });
+
+        // Pass the new attachments array to uploadFile to avoid stale closure
+        const newAttachmentsArray = [...attachments, ...newAttachments];
+        uploadFile(attachment, file, newAttachmentsArray);
       }
     }
+
+    console.log("🐛 DEBUG - processFiles completing:");
+    console.log("  📋 Current attachments:", attachments.length);
+    console.log("  ➕ New attachments:", newAttachments.length);
+    console.log(
+      "  📄 New attachments details:",
+      newAttachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+      }))
+    );
 
     onAttachmentsChange([...attachments, ...newAttachments]);
+
+    console.log(
+      "  ✅ Called onAttachmentsChange with total:",
+      attachments.length + newAttachments.length,
+      "attachments"
+    );
   };
 
-  const uploadFile = async (attachment: AttachedFile, file: File) => {
-    try {
-      const formData = new FormData();
-      formData.append(`file-${attachment.id}`, file);
-      formData.append("conversationId", conversationId);
-      formData.append("maxFiles", maxFiles.toString());
-      formData.append("maxSizePerFile", maxSizePerFile.toString());
+  const uploadFile = useCallback(
+    async (
+      attachment: AttachedFile,
+      file: File,
+      currentAttachments?: AttachedFile[]
+    ) => {
+      try {
+        // Update status to processing
+        updateFileStatus(attachment.id, {
+          overallStatus: "processing",
+          overallProgress: 25,
+        });
 
-      const response = await fetch("/api/files/upload", {
-        method: "POST",
-        body: formData,
-      });
+        updateStepStatus(attachment.id, "upload", {
+          status: "complete",
+          duration: 100,
+        });
 
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
-      }
+        updateStepStatus(attachment.id, "validate", {
+          status: "processing",
+          progress: 50,
+        });
 
-      const result = await response.json();
+        const formData = new FormData();
+        formData.append(`file-${attachment.id}`, file);
+        formData.append("conversationId", conversationId);
+        formData.append("maxFiles", maxFiles.toString());
+        formData.append("maxSizePerFile", maxSizePerFile.toString());
 
-      if (result.errors && result.errors.length > 0) {
-        throw new Error(result.errors[0]);
-      }
+        const response = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-      const uploadedFile = result.files[0];
-      if (uploadedFile) {
-        // Update attachment with upload results
-        attachment.status = "uploaded";
-        attachment.uploadProgress = 100;
-        attachment.url = uploadedFile.url;
-        attachment.extractedText = uploadedFile.extractedText;
-        attachment.thumbnailUrl = uploadedFile.thumbnailUrl;
-        attachment.category = uploadedFile.category;
-        attachment.metadata = uploadedFile.metadata;
-
-        // Use thumbnail URL as preview if available
-        if (uploadedFile.thumbnailUrl && !attachment.preview) {
-          attachment.preview = uploadedFile.thumbnailUrl;
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.statusText}`);
         }
 
-        onAttachmentsChange([...attachments]);
+        updateStepStatus(attachment.id, "validate", {
+          status: "complete",
+          progress: 100,
+          duration: 200,
+        });
+
+        updateStepStatus(attachment.id, "process", {
+          status: "processing",
+          progress: 25,
+        });
+
+        const result = await response.json();
+
+        if (result.errors && result.errors.length > 0) {
+          throw new Error(result.errors[0]);
+        }
+
+        const uploadedFile = result.files[0];
+        if (uploadedFile) {
+          // Update processing status
+          updateStepStatus(attachment.id, "process", {
+            status: "complete",
+            progress: 100,
+            duration: 500,
+            details: uploadedFile.extractedText
+              ? `Extracted ${uploadedFile.extractedText.length} characters`
+              : "File processed successfully",
+          });
+
+          updateStepStatus(attachment.id, "optimize", {
+            status: "processing",
+            progress: 75,
+          });
+
+          // Update attachment with upload results
+          attachment.status = "uploaded";
+          attachment.uploadProgress = 100;
+          attachment.url = uploadedFile.url;
+          attachment.extractedText = uploadedFile.extractedText;
+          attachment.thumbnailUrl = uploadedFile.thumbnailUrl;
+          attachment.category = uploadedFile.category;
+          attachment.metadata = uploadedFile.metadata;
+
+          // Use thumbnail URL as preview if available
+          if (uploadedFile.thumbnailUrl && !attachment.preview) {
+            attachment.preview = uploadedFile.thumbnailUrl;
+          }
+
+          // Complete optimization step
+          updateStepStatus(attachment.id, "optimize", {
+            status: "complete",
+            progress: 100,
+            duration: 150,
+            details: "Optimized for selected model",
+          });
+
+          // Mark overall processing as complete
+          updateFileStatus(attachment.id, {
+            overallStatus: "complete",
+            overallProgress: 100,
+          });
+
+          // Debug logging
+          console.log("🐛 DEBUG - File upload completed:");
+          console.log("  📁 Attachment updated:", {
+            id: attachment.id,
+            name: attachment.name,
+            status: attachment.status,
+            url: attachment.url,
+            category: attachment.category,
+          });
+          console.log(
+            "  📋 All attachments before state update:",
+            attachments.map((a) => ({
+              id: a.id,
+              name: a.name,
+              status: a.status,
+              url: a.url,
+            }))
+          );
+
+          // FIXED: Use the passed currentAttachments to avoid stale closure
+          const attachmentsToUpdate = currentAttachments || attachments;
+          console.log(
+            "  📋 Using attachments array with length:",
+            attachmentsToUpdate.length
+          );
+
+          const updatedAttachments = attachmentsToUpdate.map((a) =>
+            a.id === attachment.id ? { ...a, ...attachment } : a
+          );
+          onAttachmentsChange(updatedAttachments);
+
+          console.log(
+            "  ✅ Called onAttachmentsChange with updated attachments:",
+            updatedAttachments.map((a) => ({
+              id: a.id,
+              name: a.name,
+              status: a.status,
+              url: a.url,
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+
+        const errorMessage =
+          error instanceof Error ? error.message : "Upload failed";
+
+        // Update status with error
+        updateFileStatus(attachment.id, {
+          overallStatus: "error",
+          errors: [errorMessage],
+        });
+
+        // FIXED: Use the passed currentAttachments for error handling too
+        const attachmentsToUpdate = currentAttachments || attachments;
+        const updatedAttachments = attachmentsToUpdate.map((a) =>
+          a.id === attachment.id
+            ? {
+                ...a,
+                status: "error" as const,
+                uploadProgress: 0,
+                validationErrors: [errorMessage],
+              }
+            : a
+        );
+        onAttachmentsChange(updatedAttachments);
       }
-    } catch (error) {
-      console.error("Upload error:", error);
-      attachment.status = "error";
-      attachment.uploadProgress = 0;
-      attachment.validationErrors = [
-        error instanceof Error ? error.message : "Upload failed",
-      ];
-      onAttachmentsChange([...attachments]);
-    }
-  };
+    },
+    [attachments, conversationId, maxFiles, maxSizePerFile]
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -476,6 +777,133 @@ export function FileAttachment({
         </Alert>
       )}
 
+      {/* Enhanced Model Recommendations */}
+      {showRecommendations && recommendations && (
+        <Alert className="border-purple-500/50 bg-purple-500/10">
+          <Sparkles className="h-4 w-4 text-purple-500" />
+          <AlertDescription className="text-purple-200">
+            <div className="space-y-3">
+              {recommendations.primaryRecommendation ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">Model Recommendation</h4>
+                    <p className="text-sm text-purple-300 mt-1">
+                      {recommendations.primaryRecommendation.model.name} (
+                      {Math.round(recommendations.primaryRecommendation.score)}%
+                      match)
+                    </p>
+                    <p className="text-xs text-purple-400 mt-1">
+                      {recommendations.primaryRecommendation.reasons
+                        .slice(0, 2)
+                        .join(", ")}
+                    </p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-500 text-purple-400 hover:bg-purple-500/20"
+                      onClick={() => {
+                        if (
+                          onModelRecommendation &&
+                          recommendations.primaryRecommendation
+                        ) {
+                          const recommendedModel = models.find(
+                            (m) =>
+                              m.id ===
+                              recommendations.primaryRecommendation.model.id
+                          );
+                          if (recommendedModel) {
+                            onModelRecommendation([recommendedModel]);
+                          }
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Switch
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-purple-400 hover:bg-purple-500/20"
+                      onClick={() => setShowRecommendations(false)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-yellow-400">
+                      No Compatible Models Found
+                    </h4>
+                    <p className="text-sm text-yellow-300 mt-1">
+                      Your files may not be compatible with available models
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-purple-400 hover:bg-purple-500/20"
+                    onClick={() => setShowRecommendations(false)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Alternative Recommendations */}
+              {recommendations.alternatives &&
+                recommendations.alternatives.length > 0 && (
+                  <div className="pt-2 border-t border-purple-500/30">
+                    <p className="text-xs text-purple-400 mb-2">
+                      {recommendations.primaryRecommendation
+                        ? "Other options:"
+                        : "Available options:"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {recommendations.alternatives
+                        .slice(0, 3)
+                        .map((alt: any) => (
+                          <button
+                            key={alt.model.id}
+                            onClick={() => {
+                              if (onModelRecommendation) {
+                                const altModel = models.find(
+                                  (m) => m.id === alt.model.id
+                                );
+                                if (altModel) {
+                                  onModelRecommendation([altModel]);
+                                }
+                              }
+                            }}
+                            className="text-xs px-2 py-1 bg-purple-500/20 border border-purple-500/40 
+                                 rounded hover:bg-purple-500/30 transition-colors"
+                          >
+                            {alt.model.name} ({Math.round(alt.score)}%)
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Fallback Suggestion */}
+              {recommendations.fallbackSuggestion && (
+                <div className="pt-2 border-t border-purple-500/30">
+                  <div className="flex items-center space-x-2">
+                    <Info className="h-3 w-3 text-purple-400" />
+                    <p className="text-xs text-purple-300">
+                      {recommendations.fallbackSuggestion.message}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {validationResults &&
         validationResults.recommendations.shouldSwitchModel && (
           <Alert className="border-blue-500/50 bg-blue-500/10">
@@ -511,39 +939,90 @@ export function FileAttachment({
           </Alert>
         )}
 
-      {/* File Upload Area */}
+      {/* File Upload Area - Enhanced */}
       {canAddMore && isModelSelected && (
         <Card
           className={cn(
-            "border-dashed transition-all duration-200 cursor-pointer",
+            "relative border-2 border-dashed transition-all duration-300 cursor-pointer group overflow-hidden",
+            "backdrop-blur-xl bg-slate-800/20 hover:bg-slate-800/40",
             isDragOver
-              ? "border-emerald-500 bg-emerald-600/10"
-              : "border-slate-600 hover:border-slate-500 bg-slate-800/30"
+              ? "border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20 scale-[1.02]"
+              : "border-slate-600/50 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-slate-900/20"
           )}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
         >
-          <CardContent className="p-6 text-center">
-            <Upload
+          {/* Animated background gradient */}
+          <div
+            className={cn(
+              "absolute inset-0 opacity-0 transition-opacity duration-300",
+              isDragOver ? "opacity-100" : "group-hover:opacity-50"
+            )}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-blue-500/10" />
+          </div>
+
+          <CardContent className="relative p-8 text-center">
+            <div
               className={cn(
-                "h-8 w-8 mx-auto mb-3",
-                isDragOver ? "text-emerald-400" : "text-slate-400"
+                "transition-all duration-300",
+                isDragOver ? "scale-110" : "group-hover:scale-105"
               )}
-            />
-            <p className="text-sm font-medium mb-1">
-              {isDragOver
-                ? "Drop files here"
-                : "Drag files here or click to browse"}
-            </p>
-            <p className="text-xs text-slate-500">
-              {getModelFileDescription()}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {attachments.length}/
-              {Math.min(maxFiles, fileConstraints.maxFiles)} files attached
-            </p>
+            >
+              <Upload
+                className={cn(
+                  "h-12 w-12 mx-auto mb-4 transition-all duration-300",
+                  isDragOver
+                    ? "text-emerald-400 animate-bounce"
+                    : "text-slate-400 group-hover:text-emerald-400"
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p
+                className={cn(
+                  "text-base font-semibold transition-colors duration-300",
+                  isDragOver
+                    ? "text-emerald-300"
+                    : "text-slate-200 group-hover:text-white"
+                )}
+              >
+                {isDragOver
+                  ? "✨ Drop files here"
+                  : "📎 Drag files here or click to browse"}
+              </p>
+
+              <p className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors duration-300">
+                {getModelFileDescription()}
+              </p>
+
+              <div className="flex items-center justify-center space-x-4 mt-4">
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-colors duration-300",
+                      attachments.length > 0 ? "bg-emerald-400" : "bg-slate-500"
+                    )}
+                  />
+                  <span className="text-xs text-slate-500">
+                    {attachments.length}/
+                    {Math.min(maxFiles, fileConstraints.maxFiles)} files
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-400" />
+                  <span className="text-xs text-slate-500">
+                    Up to{" "}
+                    {Math.min(maxSizePerFile, fileConstraints.maxFileSize)}MB
+                    each
+                  </span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -557,259 +1036,399 @@ export function FileAttachment({
         className="hidden"
       />
 
-      {/* Attachment List */}
-      {attachments.length > 0 && (
+      {/* File Processing Status */}
+      {statusData.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-slate-300">Attached Files</h4>
-          {attachments.map((attachment) => {
-            const FileIcon = getFileIcon(attachment.type);
-            const colorClass = getFileTypeColor(attachment.type);
-            const hasErrors =
-              attachment.validationErrors &&
-              attachment.validationErrors.length > 0;
-            const hasWarnings =
-              attachment.validationWarnings &&
-              attachment.validationWarnings.length > 0;
+          <h4 className="text-sm font-medium text-slate-300">
+            Processing Status
+          </h4>
+          <FileProcessingStatus
+            files={statusData}
+            onRetry={(fileId) => {
+              const attachment = attachments.find((a) => a.id === fileId);
+              if (attachment) {
+                // Mark for retry - would need actual file blob for real retry
+                updateFileStatus(fileId, {
+                  overallStatus: "processing",
+                  overallProgress: 0,
+                  errors: undefined,
+                });
+              }
+            }}
+            onOptimize={(fileId) => {
+              const attachment = attachments.find((a) => a.id === fileId);
+              if (attachment && recommendations?.primaryRecommendation) {
+                // Auto-switch to recommended model
+                const recommendedModel = models.find(
+                  (m) => m.id === recommendations.primaryRecommendation.model.id
+                );
+                if (recommendedModel && onModelRecommendation) {
+                  onModelRecommendation([recommendedModel]);
+                }
+              }
+            }}
+          />
+        </div>
+      )}
 
-            return (
-              <Card
-                key={attachment.id}
-                className={cn(
-                  "border transition-all duration-200",
-                  hasErrors
-                    ? "bg-red-900/20 border-red-500/50"
-                    : hasWarnings
-                    ? "bg-yellow-900/20 border-yellow-500/50"
-                    : "bg-slate-800/50 border-slate-700"
-                )}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-3">
-                    {/* File Preview/Icon */}
-                    <div
-                      className={cn(
-                        "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
-                        hasErrors
-                          ? "bg-red-600/20 border border-red-500/30"
-                          : hasWarnings
-                          ? "bg-yellow-600/20 border border-yellow-500/30"
-                          : `bg-${colorClass}-600/20 border border-${colorClass}-500/30`
-                      )}
-                    >
-                      {attachment.preview ? (
-                        <img
-                          src={attachment.preview}
-                          alt={attachment.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <FileIcon
+      {/* Attachment List - Enhanced */}
+      {attachments.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-base font-semibold text-slate-200 flex items-center space-x-2">
+              <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full" />
+              <span>Attached Files</span>
+              <div className="bg-slate-700/50 text-slate-300 text-xs px-2 py-1 rounded-full">
+                {attachments.length}
+              </div>
+            </h4>
+          </div>
+
+          <div className="grid gap-3">
+            {attachments.map((attachment, index) => {
+              const FileIcon = getFileIcon(attachment.type);
+              const colorClass = getFileTypeColor(attachment.type);
+              const hasErrors =
+                attachment.validationErrors &&
+                attachment.validationErrors.length > 0;
+              const hasWarnings =
+                attachment.validationWarnings &&
+                attachment.validationWarnings.length > 0;
+
+              return (
+                <Card
+                  key={attachment.id}
+                  className={cn(
+                    "group border backdrop-blur-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-lg",
+                    "animate-in slide-in-from-top-2 fade-in duration-300",
+                    hasErrors
+                      ? "bg-red-900/10 border-red-500/30 hover:border-red-400/50 shadow-red-500/10"
+                      : hasWarnings
+                      ? "bg-yellow-900/10 border-yellow-500/30 hover:border-yellow-400/50 shadow-yellow-500/10"
+                      : "bg-slate-800/30 border-slate-700/50 hover:border-slate-600/50 hover:bg-slate-800/50"
+                  )}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start space-x-4">
+                      {/* File Preview/Icon - Enhanced */}
+                      <div className="relative group/icon">
+                        <div
                           className={cn(
-                            "h-5 w-5",
+                            "w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                            "backdrop-blur-sm group-hover/icon:scale-105",
                             hasErrors
-                              ? "text-red-400"
+                              ? "bg-red-600/20 border border-red-500/40 shadow-red-500/10"
                               : hasWarnings
-                              ? "text-yellow-400"
-                              : `text-${colorClass}-400`
+                              ? "bg-yellow-600/20 border border-yellow-500/40 shadow-yellow-500/10"
+                              : `bg-${colorClass}-600/20 border border-${colorClass}-500/40 shadow-${colorClass}-500/10`
                           )}
-                        />
-                      )}
-                    </div>
-
-                    {/* File Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-medium truncate">
-                          {attachment.name}
-                        </p>
-                        <div className="flex items-center space-x-2">
-                          {/* Processing Info */}
-                          {attachment.processingInfo &&
-                            attachment.status !== "invalid" && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs border-emerald-500 text-emerald-400"
-                                  >
-                                    {attachment.processingInfo.icon}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <div className="space-y-1">
-                                    <p className="font-medium">
-                                      {attachment.processingInfo.description}
-                                    </p>
-                                    {attachment.processingInfo.limitations && (
-                                      <ul className="text-xs space-y-0.5">
-                                        {attachment.processingInfo.limitations.map(
-                                          (limitation, idx) => (
-                                            <li key={idx}>• {limitation}</li>
-                                          )
-                                        )}
-                                      </ul>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-
-                          {attachment.status === "uploaded" && (
-                            <>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => {
-                                      const index = attachments.findIndex(
-                                        (a) => a.id === attachment.id
-                                      );
-                                      setPreviewFileIndex(index);
-                                      setShowPreview(true);
-                                    }}
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Preview file</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => {
-                                      const link = document.createElement("a");
-                                      link.href = attachment.url!;
-                                      link.download = attachment.name;
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    }}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Download file</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </>
+                        >
+                          {attachment.preview ? (
+                            <img
+                              src={attachment.preview}
+                              alt={attachment.name}
+                              className="w-full h-full object-cover rounded-xl transition-transform duration-300 group-hover/icon:scale-110"
+                            />
+                          ) : (
+                            <FileIcon
+                              className={cn(
+                                "h-6 w-6 transition-all duration-300 group-hover/icon:scale-110",
+                                hasErrors
+                                  ? "text-red-400"
+                                  : hasWarnings
+                                  ? "text-yellow-400"
+                                  : `text-${colorClass}-400`
+                              )}
+                            />
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeAttachment(attachment.id)}
-                            className="h-6 w-6 p-0 text-slate-400 hover:text-red-400"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                        </div>
+
+                        {/* File type indicator */}
+                        <div
+                          className={cn(
+                            "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
+                            "backdrop-blur-sm border transition-all duration-300",
+                            hasErrors
+                              ? "bg-red-500 border-red-400 text-white"
+                              : hasWarnings
+                              ? "bg-yellow-500 border-yellow-400 text-black"
+                              : `bg-${colorClass}-500 border-${colorClass}-400 text-white`
+                          )}
+                        >
+                          {attachment.type
+                            .split("/")[1]
+                            ?.charAt(0)
+                            ?.toUpperCase() || "F"}
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-slate-500">
-                            {formatFileSize(attachment.size)}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs",
-                              hasErrors
-                                ? "border-red-500 text-red-400"
-                                : hasWarnings
-                                ? "border-yellow-500 text-yellow-400"
-                                : `border-${colorClass}-500 text-${colorClass}-400`
-                            )}
-                          >
-                            {attachment.type.split("/")[1]?.toUpperCase() ||
-                              "FILE"}
-                          </Badge>
-                        </div>
-
-                        {/* Status Indicator */}
-                        <div className="flex items-center space-x-1">
-                          {attachment.status === "uploading" && (
-                            <>
-                              <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                              <span className="text-xs text-yellow-400">
-                                Uploading...
+                      {/* File Info - Enhanced */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-base font-semibold text-slate-100 truncate group-hover:text-white transition-colors duration-300">
+                              {attachment.name}
+                            </p>
+                            <div className="flex items-center space-x-3">
+                              <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors duration-300">
+                                {formatFileSize(attachment.size)}
                               </span>
-                            </>
-                          )}
-                          {attachment.status === "uploaded" && (
-                            <>
-                              <Check className="h-3 w-3 text-green-400" />
-                              <span className="text-xs text-green-400">
-                                Ready
-                              </span>
-                            </>
-                          )}
-                          {attachment.status === "error" && (
-                            <>
-                              <AlertCircle className="h-3 w-3 text-red-400" />
-                              <span className="text-xs text-red-400">
-                                Failed
-                              </span>
-                            </>
-                          )}
-                          {attachment.status === "invalid" && (
-                            <>
-                              <AlertTriangle className="h-3 w-3 text-yellow-400" />
-                              <span className="text-xs text-yellow-400">
-                                Invalid
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Upload Progress */}
-                      {attachment.status === "uploading" &&
-                        attachment.uploadProgress !== undefined && (
-                          <Progress
-                            value={attachment.uploadProgress}
-                            className="h-1 mt-2"
-                          />
-                        )}
-
-                      {/* Validation Messages */}
-                      {(hasErrors || hasWarnings) && (
-                        <div className="mt-2 space-y-1">
-                          {attachment.validationErrors?.map((error, idx) => (
-                            <div
-                              key={idx}
-                              className="text-xs text-red-400 flex items-center space-x-1"
-                            >
-                              <AlertCircle className="h-3 w-3 flex-shrink-0" />
-                              <span>{error}</span>
+                              <div className="w-1 h-1 bg-slate-500 rounded-full" />
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-xs border-0 px-2 py-0.5 font-medium",
+                                  hasErrors
+                                    ? "bg-red-500/20 text-red-300"
+                                    : hasWarnings
+                                    ? "bg-yellow-500/20 text-yellow-300"
+                                    : `bg-${colorClass}-500/20 text-${colorClass}-300`
+                                )}
+                              >
+                                {attachment.category?.toUpperCase() ||
+                                  attachment.type
+                                    .split("/")[1]
+                                    ?.toUpperCase() ||
+                                  "FILE"}
+                              </Badge>
                             </div>
-                          ))}
-                          {attachment.validationWarnings?.map(
-                            (warning, idx) => (
+                          </div>
+                          <div className="flex items-center space-x-1 ml-4">
+                            {/* Processing Info */}
+                            {attachment.processingInfo &&
+                              attachment.status !== "invalid" && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs border-emerald-500 text-emerald-400"
+                                    >
+                                      {attachment.processingInfo.icon}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <div className="space-y-1">
+                                      <p className="font-medium">
+                                        {attachment.processingInfo.description}
+                                      </p>
+                                      {attachment.processingInfo
+                                        .limitations && (
+                                        <ul className="text-xs space-y-0.5">
+                                          {attachment.processingInfo.limitations.map(
+                                            (limitation, idx) => (
+                                              <li key={idx}>• {limitation}</li>
+                                            )
+                                          )}
+                                        </ul>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+
+                            {attachment.status === "uploaded" && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 hover:bg-blue-500/20 hover:text-blue-400 transition-all duration-200 rounded-lg"
+                                      onClick={() => {
+                                        const index = attachments.findIndex(
+                                          (a) => a.id === attachment.id
+                                        );
+                                        setPreviewFileIndex(index);
+                                        setShowPreview(true);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>👁️ Preview file</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 hover:bg-emerald-500/20 hover:text-emerald-400 transition-all duration-200 rounded-lg"
+                                      onClick={() => {
+                                        const link =
+                                          document.createElement("a");
+                                        link.href = attachment.url!;
+                                        link.download = attachment.name;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>💾 Download file</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    removeAttachment(attachment.id)
+                                  }
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-all duration-200 rounded-lg"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>🗑️ Remove file</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+
+                        {/* Enhanced Status Section */}
+                        <div className="flex items-center justify-between mt-4">
+                          {/* Status Indicator - Enhanced */}
+                          <div className="flex items-center space-x-2">
+                            {attachment.status === "uploading" && (
+                              <>
+                                <div className="relative">
+                                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-ping absolute" />
+                                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
+                                </div>
+                                <span className="text-sm text-yellow-400 font-medium">
+                                  Uploading...
+                                </span>
+                              </>
+                            )}
+                            {attachment.status === "uploaded" && (
+                              <>
+                                <div className="w-3 h-3 bg-emerald-400 rounded-full flex items-center justify-center">
+                                  <Check className="h-2 w-2 text-slate-900" />
+                                </div>
+                                <span className="text-sm text-emerald-400 font-medium">
+                                  ✨ Ready
+                                </span>
+                              </>
+                            )}
+                            {attachment.status === "error" && (
+                              <>
+                                <div className="w-3 h-3 bg-red-400 rounded-full flex items-center justify-center">
+                                  <AlertCircle className="h-2 w-2 text-white" />
+                                </div>
+                                <span className="text-sm text-red-400 font-medium">
+                                  ❌ Failed
+                                </span>
+                              </>
+                            )}
+                            {attachment.status === "invalid" && (
+                              <>
+                                <div className="w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                                  <AlertTriangle className="h-2 w-2 text-slate-900" />
+                                </div>
+                                <span className="text-sm text-yellow-400 font-medium">
+                                  ⚠️ Invalid
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Enhanced metadata display */}
+                          {attachment.metadata &&
+                            attachment.status === "uploaded" && (
+                              <div className="text-xs text-slate-500 space-x-2">
+                                {attachment.metadata.pages && (
+                                  <span>
+                                    📄 {attachment.metadata.pages} pages
+                                  </span>
+                                )}
+                                {attachment.metadata.wordCount && (
+                                  <span>
+                                    📝 {attachment.metadata.wordCount} words
+                                  </span>
+                                )}
+                                {attachment.metadata.width &&
+                                  attachment.metadata.height && (
+                                    <span>
+                                      🖼️ {attachment.metadata.width}×
+                                      {attachment.metadata.height}
+                                    </span>
+                                  )}
+                              </div>
+                            )}
+                        </div>
+
+                        {/* Enhanced Upload Progress */}
+                        {attachment.status === "uploading" &&
+                          attachment.uploadProgress !== undefined && (
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-400">
+                                  Progress
+                                </span>
+                                <span className="text-xs text-yellow-400 font-medium">
+                                  {Math.round(attachment.uploadProgress)}%
+                                </span>
+                              </div>
+                              <div className="relative">
+                                <Progress
+                                  value={attachment.uploadProgress}
+                                  className="h-2 bg-slate-700/50"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-emerald-400/20 to-blue-400/20 rounded-full animate-pulse" />
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Enhanced Validation Messages */}
+                        {(hasErrors || hasWarnings) && (
+                          <div className="mt-3 space-y-2">
+                            {attachment.validationErrors?.map((error, idx) => (
                               <div
                                 key={idx}
-                                className="text-xs text-yellow-400 flex items-center space-x-1"
+                                className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 flex items-start space-x-2"
                               >
-                                <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                                <span>{warning}</span>
+                                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium">Error</p>
+                                  <p className="text-xs">{error}</p>
+                                </div>
                               </div>
-                            )
-                          )}
-                        </div>
-                      )}
+                            ))}
+                            {attachment.validationWarnings?.map(
+                              (warning, idx) => (
+                                <div
+                                  key={idx}
+                                  className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 flex items-start space-x-2"
+                                >
+                                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      Warning
+                                    </p>
+                                    <p className="text-xs">{warning}</p>
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -89,7 +89,8 @@ export function useModelAwareFileValidation(
         validation,
         recommendations: {
           shouldSwitchModel:
-            currentModelRank > 2 && recommendedModels.length > 0,
+            currentModelRank === -1 || // Current model not found in recommendations at all
+            (currentModelRank > 4 && recommendedModels.length > 0), // Much more conservative threshold
           suggestedModels: recommendedModels.slice(0, 3),
           currentModelRank,
         },
@@ -122,10 +123,23 @@ export function useModelAwareFileValidation(
 
       if (result.valid) {
         const category = file.category;
-        const capabilities =
-          currentModel.capabilities.fileSupport[
-            category as keyof typeof currentModel.capabilities.fileSupport
-          ];
+        // Map category to the correct FileCapabilities property name
+        const categoryKeyMap: Record<
+          string,
+          keyof typeof currentModel.capabilities.fileSupport
+        > = {
+          image: "images",
+          document: "documents",
+          text: "textFiles",
+          audio: "audio",
+          video: "video",
+        };
+
+        const capabilityKey = categoryKeyMap[category];
+        const capabilities = capabilityKey
+          ? currentModel.capabilities.fileSupport[capabilityKey]
+          : undefined;
+
         if (capabilities && "processingMethod" in capabilities) {
           processingInfo = getProcessingInfo(
             file,
@@ -313,6 +327,18 @@ function getProcessingInfo(
   };
 
   const info = methodDescriptions[method];
+
+  // Defensive check: if method is not found, return a fallback
+  if (!info) {
+    console.warn(`Unknown processing method: ${method}`);
+    return {
+      method,
+      description: "File will be processed according to model capabilities",
+      icon: "📄",
+      limitations: undefined,
+    };
+  }
+
   const limitations: string[] = [];
 
   // Add model-specific limitations

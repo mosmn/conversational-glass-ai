@@ -280,9 +280,25 @@ export function validateSingleFile(
   const format = getFileFormat(file.type);
   const fileSizeMB = file.size / (1024 * 1024);
 
-  // Check category support
-  const categoryCapabilities = capabilities[category as keyof FileCapabilities];
-  if (!categoryCapabilities || !categoryCapabilities.supported) {
+  // Map category to the correct FileCapabilities property name
+  const categoryKeyMap: Record<string, keyof FileCapabilities> = {
+    image: "images",
+    document: "documents",
+    text: "textFiles",
+    audio: "audio",
+    video: "video",
+  };
+
+  const capabilityKey = categoryKeyMap[category];
+  const categoryCapabilities = capabilityKey
+    ? capabilities[capabilityKey]
+    : undefined;
+
+  if (
+    !categoryCapabilities ||
+    !("supported" in categoryCapabilities) ||
+    !categoryCapabilities.supported
+  ) {
     errors.push(
       `${category} files are not supported by ${model.name}. Only text extraction may be available.`
     );
@@ -290,7 +306,10 @@ export function validateSingleFile(
   }
 
   // Check format support
-  if (!categoryCapabilities.supportedFormats.includes(format)) {
+  if (
+    "supportedFormats" in categoryCapabilities &&
+    !categoryCapabilities.supportedFormats.includes(format)
+  ) {
     errors.push(
       `${format.toUpperCase()} format is not supported by ${
         model.name
@@ -299,7 +318,10 @@ export function validateSingleFile(
   }
 
   // Check file size
-  if (fileSizeMB > categoryCapabilities.maxFileSize) {
+  if (
+    "maxFileSize" in categoryCapabilities &&
+    fileSizeMB > categoryCapabilities.maxFileSize
+  ) {
     errors.push(
       `File size (${fileSizeMB.toFixed(1)}MB) exceeds maximum allowed (${
         categoryCapabilities.maxFileSize
@@ -411,6 +433,15 @@ export function validateFiles(
     video: 0,
   };
 
+  // Map category to the correct FileCapabilities property name
+  const categoryKeyMap: Record<string, keyof FileCapabilities> = {
+    image: "images",
+    document: "documents",
+    text: "textFiles",
+    audio: "audio",
+    video: "video",
+  };
+
   // Validate each file
   files.forEach((file) => {
     const validation = validateSingleFile(file, model);
@@ -420,8 +451,10 @@ export function validateFiles(
 
       // Determine processing method
       const category = file.category;
-      const categoryCapabilities =
-        capabilities[category as keyof FileCapabilities];
+      const capabilityKey = categoryKeyMap[category];
+      const categoryCapabilities = capabilityKey
+        ? capabilities[capabilityKey]
+        : undefined;
       if (categoryCapabilities && "processingMethod" in categoryCapabilities) {
         result.processingMethod[file.id] =
           categoryCapabilities.processingMethod as any;
@@ -441,8 +474,10 @@ export function validateFiles(
   // Check category-specific file count limits
   Object.entries(fileCounts).forEach(([category, count]) => {
     if (count > 0) {
-      const categoryCapabilities =
-        capabilities[category as keyof FileCapabilities];
+      const capabilityKey = categoryKeyMap[category];
+      const categoryCapabilities = capabilityKey
+        ? capabilities[capabilityKey]
+        : undefined;
       if (
         categoryCapabilities &&
         "maxFilesPerMessage" in categoryCapabilities

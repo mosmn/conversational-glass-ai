@@ -153,31 +153,96 @@ export class FileProcessor {
     provider: string,
     model: AIModel
   ): ChatMessage["content"] {
-    // If no multimodal support, use text fallback
-    if (!model.capabilities.multiModal || processedFiles.length === 0) {
-      return content;
-    }
-
+    // Always start with text content
     const messageContent: MessageContent[] = [];
 
-    // Add text content
-    if (content.trim()) {
+    // Build comprehensive text content including file information
+    let fullTextContent = content;
+    const textOnlyFiles: ProcessedFile[] = [];
+    const multimodalFiles: ProcessedFile[] = [];
+
+    // Separate files by capability
+    for (const file of processedFiles) {
+      if (file.category === "image" && model.capabilities.multiModal) {
+        multimodalFiles.push(file);
+      } else {
+        textOnlyFiles.push(file);
+      }
+    }
+
+    // Add text content from documents and non-image files
+    if (textOnlyFiles.length > 0) {
+      fullTextContent += "\n\nAttached files:";
+
+      for (const file of textOnlyFiles) {
+        fullTextContent += `\n\n📎 **${file.name}** (${file.type})`;
+
+        if (file.extractedText) {
+          // Include the full extracted text for better context
+          const maxTextLength = 4000; // Reasonable limit to avoid token overflow
+          const truncatedText =
+            file.extractedText.length > maxTextLength
+              ? file.extractedText.substring(0, maxTextLength) +
+                "\n\n[Content truncated - file contains more text]"
+              : file.extractedText;
+
+          fullTextContent += `\nContent:\n${truncatedText}`;
+        }
+
+        // Add metadata information
+        if (file.metadata?.pages) {
+          fullTextContent += `\nPages: ${file.metadata.pages}`;
+        }
+        if (file.metadata?.wordCount) {
+          fullTextContent += `\nWord count: ${file.metadata.wordCount}`;
+        }
+        if (file.metadata?.width && file.metadata?.height) {
+          fullTextContent += `\nDimensions: ${file.metadata.width}x${file.metadata.height}`;
+        }
+      }
+    }
+
+    // For multimodal models with images, also include image descriptions
+    if (multimodalFiles.length > 0 && model.capabilities.multiModal) {
+      fullTextContent += "\n\nImages attached:";
+      for (const file of multimodalFiles) {
+        fullTextContent += `\n📷 ${file.name}`;
+        if (file.metadata?.width && file.metadata?.height) {
+          fullTextContent += ` (${file.metadata.width}x${file.metadata.height})`;
+        }
+      }
+    }
+
+    // Add the comprehensive text content
+    if (fullTextContent.trim()) {
       messageContent.push({
         type: "text",
-        text: content,
+        text: fullTextContent,
       });
     }
 
-    // Add files based on provider
+    // If no multimodal support or no multimodal files, return text-only
+    if (!model.capabilities.multiModal || multimodalFiles.length === 0) {
+      return messageContent.length === 1 && messageContent[0].type === "text"
+        ? messageContent[0].text
+        : messageContent;
+    }
+
+    // Add multimodal content based on provider
     switch (provider) {
       case "openai":
-        return this.formatForOpenAI(messageContent, processedFiles, model);
+        return this.formatForOpenAI(messageContent, multimodalFiles, model);
+      case "groq":
+        return this.formatForGroq(messageContent, multimodalFiles, model);
       case "gemini":
-        return this.formatForGemini(messageContent, processedFiles, model);
+        return this.formatForGemini(messageContent, multimodalFiles, model);
       case "claude":
-        return this.formatForClaude(messageContent, processedFiles, model);
+        return this.formatForClaude(messageContent, multimodalFiles, model);
       default:
-        return content; // Fallback to text
+        // Fallback to text-only
+        return messageContent.length === 1 && messageContent[0].type === "text"
+          ? messageContent[0].text
+          : messageContent;
     }
   }
 
@@ -189,6 +254,26 @@ export class FileProcessor {
     processedFiles: ProcessedFile[],
     model: AIModel
   ): MessageContent[] {
+    for (const file of processedFiles) {
+      if (file.category === "image" && file.openaiFormat) {
+        messageContent.push({
+          type: "image_url",
+          image_url: file.openaiFormat.image_url,
+        });
+      }
+    }
+    return messageContent;
+  }
+
+  /**
+   * Format for Groq (Llama 4 Scout/Maverick Vision)
+   */
+  private static formatForGroq(
+    messageContent: MessageContent[],
+    processedFiles: ProcessedFile[],
+    model: AIModel
+  ): MessageContent[] {
+    // Groq vision models use the same format as OpenAI (image_url)
     for (const file of processedFiles) {
       if (file.category === "image" && file.openaiFormat) {
         messageContent.push({
@@ -250,6 +335,7 @@ export class FileProcessor {
 
   /**
    * Generate text-only fallback for non-multimodal models
+   * This method is deprecated in favor of formatMessageWithFiles which provides better file handling
    */
   static generateTextFallback(
     content: string,
@@ -268,24 +354,34 @@ export class FileProcessor {
     parts.push("\n\nAttached files:");
 
     for (const file of files) {
-      parts.push(`\n📎 ${file.name} (${file.type})`);
+      parts.push(`\n\n📎 **${file.name}** (${file.type})`);
 
       if (file.extractedText) {
-        parts.push(
-          `Content: ${file.extractedText.substring(0, 2000)}${
-            file.extractedText.length > 2000 ? "..." : ""
-          }`
-        );
+        const maxLength = 3000; // Increased for better context
+        const truncatedText =
+          file.extractedText.length > maxLength
+            ? file.extractedText.substring(0, maxLength) +
+              "\n\n[Content truncated - file contains more text]"
+            : file.extractedText;
+        parts.push(`Content:\n${truncatedText}`);
       }
 
+      // Add metadata information
+      const metadataInfo = [];
       if (file.metadata?.pages) {
-        parts.push(`Pages: ${file.metadata.pages}`);
+        metadataInfo.push(`Pages: ${file.metadata.pages}`);
       }
-
+      if (file.metadata?.wordCount) {
+        metadataInfo.push(`Words: ${file.metadata.wordCount}`);
+      }
       if (file.metadata?.width && file.metadata?.height) {
-        parts.push(
+        metadataInfo.push(
           `Dimensions: ${file.metadata.width}x${file.metadata.height}`
         );
+      }
+
+      if (metadataInfo.length > 0) {
+        parts.push(metadataInfo.join(", "));
       }
     }
 

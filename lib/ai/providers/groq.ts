@@ -19,7 +19,11 @@ import {
   createErrorResponse,
 } from "../utils";
 import { BYOKManager } from "./byok-manager";
-import { TEXT_ONLY_FILE_SUPPORT, NO_FILE_SUPPORT } from "../file-capabilities";
+import {
+  TEXT_ONLY_FILE_SUPPORT,
+  NO_FILE_SUPPORT,
+  VISION_FILE_SUPPORT,
+} from "../file-capabilities";
 
 // Environment validation
 const envSchema = z.object({
@@ -96,6 +100,10 @@ function generateModelConfig(
   const isGemma = modelId.includes("gemma");
   const isDistil = modelId.includes("distil");
 
+  // Check for Llama 4 vision models (Scout and Maverick)
+  const isLlama4Vision =
+    modelId.includes("llama-4-scout") || modelId.includes("llama-4-maverick");
+
   const size = modelId.match(/(\d+)b/i)?.[1];
   const isLarge = size && parseInt(size) >= 70;
   const isSmall = size && parseInt(size) <= 8;
@@ -111,6 +119,7 @@ function generateModelConfig(
   let color: string;
   let style: "geometric" | "flowing" | "sharp" | "organic";
   let specialties: string[];
+  let isVisionCapable = false;
 
   if (isGuard) {
     personality = "safety-guardian";
@@ -119,6 +128,21 @@ function generateModelConfig(
     color = "from-red-400 to-orange-500";
     style = "sharp";
     specialties = ["Content moderation", "Safety analysis", "Risk assessment"];
+  } else if (isLlama4Vision) {
+    personality = "vision-explorer";
+    description =
+      "👁️ Vision Explorer - Advanced image understanding and analysis";
+    avatar = "👁️";
+    color = "from-purple-500 to-pink-600";
+    style = "organic";
+    specialties = [
+      "Image analysis",
+      "Visual question answering",
+      "OCR and text extraction",
+      "Multi-modal conversations",
+      "Document understanding",
+    ];
+    isVisionCapable = true;
   } else if (isLlama && isLarge) {
     personality = "wise-powerhouse";
     description =
@@ -189,6 +213,7 @@ function generateModelConfig(
     description,
     visualConfig: { color, avatar, style },
     specialties,
+    isVisionCapable,
   };
 }
 
@@ -251,6 +276,7 @@ async function fetchGroqModels(
       // Estimate pricing based on model size and type
       let inputCost = 0.0001; // Default cost
       let outputCost = 0.0001;
+      let maxResponseTokens = 1024; // Conservative default for Groq models
 
       const size = modelData.id.match(/(\d+)b/i)?.[1];
       if (size) {
@@ -258,21 +284,98 @@ async function fetchGroqModels(
         if (sizeNum >= 70) {
           inputCost = 0.00059;
           outputCost = 0.00079;
+          maxResponseTokens = Math.min(
+            2048,
+            Math.floor(modelData.context_window * 0.3)
+          );
         } else if (sizeNum >= 30) {
           inputCost = 0.0003;
           outputCost = 0.0004;
+          maxResponseTokens = Math.min(
+            1536,
+            Math.floor(modelData.context_window * 0.3)
+          );
         } else if (sizeNum <= 8) {
           inputCost = 0.00005;
           outputCost = 0.00008;
+          maxResponseTokens = Math.min(
+            1024,
+            Math.floor(modelData.context_window * 0.25)
+          );
         }
       }
 
+      // Special handling for guard models - they have very low max_tokens limits
+      if (modelData.id.includes("guard")) {
+        maxResponseTokens = 512; // Guard models typically have very low limits
+      }
+
+      // Vision models might have different limits
+      if (config.isVisionCapable) {
+        maxResponseTokens = Math.min(
+          1024,
+          Math.floor(modelData.context_window * 0.25)
+        );
+      }
+
       // Determine file support based on model capabilities
-      // Most Groq models are text-only, but we can provide text extraction support
       let fileSupport = TEXT_ONLY_FILE_SUPPORT;
 
-      // Special handling for models that might have no file support at all
-      if (modelData.id.includes("whisper") || modelData.id.includes("tts")) {
+      // Special handling for vision models
+      if (config.isVisionCapable) {
+        // Enhanced vision support for Llama 4 Scout/Maverick
+        fileSupport = {
+          images: {
+            supported: true,
+            maxFileSize: 20, // 20MB max as per API docs
+            maxDimensions: {
+              width: 2048,
+              height: 2048,
+            },
+            supportedFormats: ["jpeg", "jpg", "png", "gif", "webp"],
+            processingMethod: "vision",
+            requiresUrl: true, // Groq vision models work with URLs
+            maxImagesPerMessage: 5, // Conservative limit
+          },
+          documents: {
+            supported: true,
+            maxFileSize: 10,
+            supportedFormats: ["pdf", "txt", "md"],
+            processingMethod: "textExtraction",
+            maxDocumentsPerMessage: 3,
+            preserveFormatting: false,
+          },
+          textFiles: {
+            supported: true,
+            maxFileSize: 10,
+            supportedFormats: ["txt", "md", "csv", "json", "yaml", "xml"],
+            encodingSupport: ["utf-8", "ascii"],
+            maxFilesPerMessage: 5,
+          },
+          audio: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "transcription",
+            maxFilesPerMessage: 0,
+          },
+          video: {
+            supported: false,
+            maxFileSize: 0,
+            supportedFormats: [],
+            processingMethod: "frameExtraction",
+            maxFilesPerMessage: 0,
+          },
+          overall: {
+            maxTotalFileSize: 40, // Total across all files
+            maxFilesPerMessage: 8,
+            requiresPreprocessing: false,
+          },
+        };
+      } else if (
+        modelData.id.includes("whisper") ||
+        modelData.id.includes("tts")
+      ) {
         fileSupport = NO_FILE_SUPPORT;
       }
 
@@ -284,10 +387,7 @@ async function fetchGroqModels(
           .join(" "),
         provider: "groq",
         maxTokens: modelData.context_window,
-        maxResponseTokens: Math.min(
-          8192,
-          Math.floor(modelData.context_window * 0.5)
-        ), // Conservative estimate
+        maxResponseTokens,
         contextWindow: modelData.context_window,
         personality: config.personality,
         description: config.description,
@@ -295,7 +395,7 @@ async function fetchGroqModels(
         capabilities: {
           streaming: true,
           functionCalling: false,
-          multiModal: false,
+          multiModal: config.isVisionCapable,
           fileSupport,
         },
         pricing: {
@@ -375,6 +475,12 @@ export class GroqProvider implements AIProvider {
     // Prepare messages with system prompt
     const preparedMessages = prepareMessagesWithSystemPrompt(messages, model);
 
+    // Convert messages to Groq format
+    const groqMessages = await this.formatMessagesForGroq(
+      preparedMessages,
+      model
+    );
+
     // Validate token limits
     const tokenValidation = validateTokenLimits(
       preparedMessages,
@@ -395,7 +501,7 @@ export class GroqProvider implements AIProvider {
 
       const stream = await client.chat.completions.create({
         model: model.id,
-        messages: preparedMessages,
+        messages: groqMessages,
         stream: true,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens ?? model.maxResponseTokens,
@@ -436,6 +542,59 @@ export class GroqProvider implements AIProvider {
         finished: true,
       };
     }
+  }
+
+  // Format messages for Groq API with multimodal support
+  private async formatMessagesForGroq(
+    messages: ChatMessage[],
+    model: AIModel
+  ): Promise<any[]> {
+    const groqMessages: any[] = [];
+
+    for (const message of messages) {
+      if (typeof message.content === "string") {
+        // Simple text message
+        groqMessages.push({
+          role: message.role,
+          content: message.content,
+        });
+      } else if (Array.isArray(message.content)) {
+        // Multimodal message - convert to Groq format
+        const content: any[] = [];
+
+        for (const contentItem of message.content) {
+          if (contentItem.type === "text") {
+            content.push({
+              type: "text",
+              text: contentItem.text,
+            });
+          } else if (
+            contentItem.type === "image_url" &&
+            model.capabilities.multiModal
+          ) {
+            // Groq vision models support image_url format like OpenAI
+            content.push({
+              type: "image_url",
+              image_url: contentItem.image_url,
+            });
+          }
+          // Skip other content types that Groq doesn't support
+        }
+
+        groqMessages.push({
+          role: message.role,
+          content: content.length > 0 ? content : message.content,
+        });
+      } else {
+        // Fallback for any other format
+        groqMessages.push({
+          role: message.role,
+          content: message.content,
+        });
+      }
+    }
+
+    return groqMessages;
   }
 
   handleError(error: unknown): string {

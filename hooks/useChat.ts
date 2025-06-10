@@ -99,11 +99,11 @@ export function useChat(conversationId: string): UseChatReturn {
 
     try {
       setError(null);
-      const response = await apiClient.loadMoreMessages(
-        conversationId,
-        nextCursor,
-        50
-      );
+      const response = await apiClient.getConversationMessages(conversationId, {
+        cursor: nextCursor,
+        limit: 50,
+        includeMetadata: true, // Include metadata to get attachment info
+      });
 
       setMessages((prev) => [...response.messages, ...prev]);
       setHasMore(response.pagination.hasMore);
@@ -169,7 +169,7 @@ export function useChat(conversationId: string): UseChatReturn {
         setIsStreaming(true);
         setCurrentStreamContent("");
 
-        // Create optimistic user message with attachments
+        // Create optimistic user message with complete attachment data
         const optimisticUserMessage: Message = {
           id: `temp-user-${Date.now()}`,
           role: "user",
@@ -188,6 +188,9 @@ export function useChat(conversationId: string): UseChatReturn {
               url: att.url,
               filename: att.name,
               size: att.size,
+              extractedText: att.extractedText,
+              thumbnailUrl: att.thumbnailUrl,
+              metadata: att.metadata,
             })),
           },
         };
@@ -265,7 +268,7 @@ export function useChat(conversationId: string): UseChatReturn {
                   {
                     ...optimisticUserMessage,
                     id: realUserMessageId,
-                    // Preserve attachment metadata in final message
+                    // Preserve complete attachment metadata in final message
                     metadata: {
                       ...optimisticUserMessage.metadata,
                       streamingComplete: true,
