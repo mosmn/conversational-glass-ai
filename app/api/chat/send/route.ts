@@ -15,6 +15,7 @@ import {
   ChatMessage as AIMessage,
   AIProviderError,
 } from "@/lib/ai/types";
+import { FileProcessor } from "@/lib/ai/file-processor";
 import { estimateTokens } from "@/lib/ai/utils";
 import {
   generateConversationTitle,
@@ -180,45 +181,63 @@ export async function POST(request: NextRequest) {
       50 // Last 50 messages for context
     );
 
+    // Process files for the current user message
+    let processedFiles: any[] = [];
+    if (attachments && attachments.length > 0) {
+      const processingResult = await FileProcessor.processFilesForProvider(
+        attachments,
+        aiModel,
+        {
+          convertToBase64:
+            provider.name === "gemini" || provider.name === "claude",
+          includeTextExtraction: true,
+          optimizeImages: true,
+        }
+      );
+
+      if (!processingResult.success) {
+        console.warn("File processing errors:", processingResult.errors);
+      }
+
+      processedFiles = processingResult.processedFiles;
+    }
+
     // Prepare messages for AI API (exclude the empty assistant message we just created)
     const chatMessages: AIMessage[] = conversationHistory.messages
       .filter((msg) => msg.id !== assistantMessage.id)
       .map((msg) => {
-        let messageContent = msg.content;
-
-        // Add attachment context for the current user message
-        if (
-          msg.id === userMessage.id &&
-          attachments &&
-          attachments.length > 0
-        ) {
-          messageContent += "\n\nAttached files:\n";
-
-          for (const attachment of attachments) {
-            messageContent += `\n📎 ${attachment.name} (${attachment.type})`;
-
-            if (attachment.extractedText) {
-              messageContent += `\nContent: ${attachment.extractedText.substring(
-                0,
-                2000
-              )}${attachment.extractedText.length > 2000 ? "..." : ""}`;
-            }
-
-            if (attachment.metadata?.pages) {
-              messageContent += `\nPages: ${attachment.metadata.pages}`;
-            }
-
-            if (attachment.metadata?.width && attachment.metadata?.height) {
-              messageContent += `\nDimensions: ${attachment.metadata.width}x${attachment.metadata.height}`;
-            }
-
-            messageContent += "\n";
+        // Handle the current user message with files
+        if (msg.id === userMessage.id && processedFiles.length > 0) {
+          // Use provider-specific file formatting
+          if (
+            aiModel.capabilities.multiModal &&
+            processedFiles.some((f) => f.category === "image")
+          ) {
+            return {
+              role: msg.role as "system" | "user" | "assistant",
+              content: FileProcessor.formatMessageWithFiles(
+                msg.content,
+                processedFiles,
+                provider.name,
+                aiModel
+              ),
+            };
+          } else {
+            // Fallback to text-only with file descriptions
+            return {
+              role: msg.role as "system" | "user" | "assistant",
+              content: FileProcessor.generateTextFallback(
+                msg.content,
+                attachments || []
+              ),
+            };
           }
         }
 
+        // Regular message without files
         return {
           role: msg.role as "system" | "user" | "assistant",
-          content: messageContent,
+          content: msg.content,
         };
       });
 
@@ -234,7 +253,6 @@ export async function POST(request: NextRequest) {
             {
               userId: user.id, // Pass database user ID for BYOK lookup
               conversationId,
-              clerkUserId, // Also pass Clerk ID for backwards compatibility
             }
           );
 

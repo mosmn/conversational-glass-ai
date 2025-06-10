@@ -323,12 +323,43 @@ function formatMessagesForGemini(messages: ChatMessage[]): {
 
   for (const message of messages) {
     if (message.role === "system") {
-      systemInstruction += (systemInstruction ? "\n\n" : "") + message.content;
+      // System messages are always text
+      const systemText =
+        typeof message.content === "string"
+          ? message.content
+          : message.content.find((c) => c.type === "text")?.text || "";
+      systemInstruction += (systemInstruction ? "\n\n" : "") + systemText;
     } else {
-      contents.push({
-        role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
-      });
+      const parts: any[] = [];
+
+      if (typeof message.content === "string") {
+        // Simple text message
+        parts.push({ text: message.content });
+      } else if (Array.isArray(message.content)) {
+        // Multimodal message
+        for (const contentItem of message.content) {
+          if (contentItem.type === "text") {
+            parts.push({ text: contentItem.text });
+          } else if (contentItem.type === "image" && contentItem.image) {
+            // Gemini native format
+            parts.push({
+              inlineData: {
+                data: contentItem.image.data,
+                mimeType: contentItem.image.mimeType,
+              },
+            });
+          }
+          // Skip content types that Gemini doesn't support
+        }
+      }
+
+      // Only add if we have parts
+      if (parts.length > 0) {
+        contents.push({
+          role: message.role === "assistant" ? "model" : "user",
+          parts,
+        });
+      }
     }
   }
 
@@ -573,10 +604,27 @@ function estimateTokens(text: string): number {
 
 // Calculate total conversation tokens
 function calculateConversationTokens(messages: ChatMessage[]): number {
-  return messages.reduce(
-    (total, msg) => total + estimateTokens(msg.content),
-    0
-  );
+  return messages.reduce((total, msg) => {
+    if (typeof msg.content === "string") {
+      return total + estimateTokens(msg.content);
+    } else if (Array.isArray(msg.content)) {
+      // Sum tokens for all text content items
+      return (
+        total +
+        msg.content.reduce((contentTotal, item) => {
+          if (item.type === "text") {
+            return contentTotal + estimateTokens(item.text);
+          }
+          // For images and other content, add approximate token cost
+          if (item.type === "image" || item.type === "image_url") {
+            return contentTotal + 1275; // Approximate image token cost
+          }
+          return contentTotal;
+        }, 0)
+      );
+    }
+    return total;
+  }, 0);
 }
 
 // Test connection

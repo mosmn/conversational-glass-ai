@@ -130,12 +130,47 @@ function formatMessagesForClaude(messages: ChatMessage[]): {
 
   for (const message of messages) {
     if (message.role === "system") {
-      systemMessage += (systemMessage ? "\n\n" : "") + message.content;
+      // System messages are always text
+      const systemText =
+        typeof message.content === "string"
+          ? message.content
+          : message.content.find((c) => c.type === "text")?.text || "";
+      systemMessage += (systemMessage ? "\n\n" : "") + systemText;
     } else {
-      claudeMessages.push({
-        role: message.role,
-        content: message.content,
-      });
+      if (typeof message.content === "string") {
+        // Simple text message
+        claudeMessages.push({
+          role: message.role,
+          content: message.content,
+        });
+      } else if (Array.isArray(message.content)) {
+        // Multimodal message
+        const content: any[] = [];
+
+        for (const contentItem of message.content) {
+          if (contentItem.type === "text") {
+            content.push({
+              type: "text",
+              text: contentItem.text,
+            });
+          } else if (contentItem.type === "image" && contentItem.source) {
+            // Claude format
+            content.push({
+              type: "image",
+              source: contentItem.source,
+            });
+          }
+          // Skip content types that Claude doesn't support
+        }
+
+        claudeMessages.push({
+          role: message.role,
+          content:
+            content.length === 1 && content[0].type === "text"
+              ? content[0].text
+              : content,
+        });
+      }
     }
   }
 
@@ -318,10 +353,27 @@ function estimateTokens(text: string): number {
 
 // Calculate total conversation tokens
 function calculateConversationTokens(messages: ChatMessage[]): number {
-  return messages.reduce(
-    (total, msg) => total + estimateTokens(msg.content),
-    0
-  );
+  return messages.reduce((total, msg) => {
+    if (typeof msg.content === "string") {
+      return total + estimateTokens(msg.content);
+    } else if (Array.isArray(msg.content)) {
+      // Sum tokens for all text content items
+      return (
+        total +
+        msg.content.reduce((contentTotal, item) => {
+          if (item.type === "text") {
+            return contentTotal + estimateTokens(item.text);
+          }
+          // For images and other content, add approximate token cost
+          if (item.type === "image" || item.type === "image_url") {
+            return contentTotal + 1275; // Approximate image token cost
+          }
+          return contentTotal;
+        }, 0)
+      );
+    }
+    return total;
+  }, 0);
 }
 
 // Test connection

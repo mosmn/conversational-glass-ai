@@ -10,9 +10,25 @@ export function estimateTokens(text: string): number {
 // Calculate total tokens for a conversation
 export function calculateConversationTokens(messages: ChatMessage[]): number {
   return messages.reduce((total, message) => {
-    return (
-      total + estimateTokens(message.content) + estimateTokens(message.role)
-    );
+    let contentTokens = 0;
+
+    if (typeof message.content === "string") {
+      contentTokens = estimateTokens(message.content);
+    } else if (Array.isArray(message.content)) {
+      // Sum tokens for all text content items
+      contentTokens = message.content.reduce((contentTotal, item) => {
+        if (item.type === "text") {
+          return contentTotal + estimateTokens(item.text);
+        }
+        // For images and other content, add approximate token cost
+        if (item.type === "image" || item.type === "image_url") {
+          return contentTotal + 1275; // Approximate image token cost
+        }
+        return contentTotal;
+      }, 0);
+    }
+
+    return total + contentTokens + estimateTokens(message.role);
   }, 0);
 }
 

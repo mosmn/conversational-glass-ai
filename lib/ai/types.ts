@@ -2,7 +2,10 @@
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | MessageContent[];
+  name?: string;
+  function_call?: any;
+  tool_calls?: any;
 }
 
 export interface StreamingChunk {
@@ -243,4 +246,112 @@ export interface FileValidationResult {
       | "transcription"
       | "frameExtraction";
   };
+}
+
+// Enhanced multimodal content types
+export interface TextContent {
+  type: "text";
+  text: string;
+}
+
+export interface ImageContent {
+  type: "image_url" | "image";
+  image_url?: {
+    url: string;
+    detail?: "low" | "high" | "auto";
+  };
+  // For Gemini format
+  image?: {
+    data: string; // base64
+    mimeType: string;
+  };
+  // For Claude format
+  source?: {
+    type: "base64";
+    media_type: string;
+    data: string;
+  };
+}
+
+export interface FileContent {
+  type: "file";
+  file: {
+    id: string;
+    name: string;
+    size: number;
+    mimeType: string;
+    url: string;
+    extractedText?: string;
+    category: "image" | "document" | "text" | "audio" | "video";
+    metadata?: {
+      width?: number;
+      height?: number;
+      pages?: number;
+      wordCount?: number;
+    };
+  };
+}
+
+export type MessageContent = TextContent | ImageContent | FileContent;
+
+// File processing types for provider-specific handling
+export interface ProcessedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  category: "image" | "document" | "text" | "audio" | "video";
+  url: string;
+  extractedText?: string;
+  metadata?: {
+    width?: number;
+    height?: number;
+    pages?: number;
+    wordCount?: number;
+  };
+  // Provider-specific processed data
+  openaiFormat?: {
+    type: "image_url";
+    image_url: {
+      url: string;
+      detail?: "low" | "high" | "auto";
+    };
+  };
+  geminiFormat?: {
+    inlineData: {
+      data: string; // base64
+      mimeType: string;
+    };
+  };
+  claudeFormat?: {
+    type: "image";
+    source: {
+      type: "base64";
+      media_type: string;
+      data: string;
+    };
+  };
+}
+
+export interface FileProcessingOptions {
+  convertToBase64?: boolean;
+  includeTextExtraction?: boolean;
+  optimizeImages?: boolean;
+  maxImageSize?: number; // in bytes
+}
+
+export interface FileProcessingResult {
+  success: boolean;
+  processedFiles: ProcessedFile[];
+  errors: string[];
+  warnings: string[];
+  textFallback?: string; // Combined text for non-multimodal models
+}
+
+// Provider-specific message formatting types
+export interface ProviderMessageFormat {
+  openai: any; // OpenAI message format
+  gemini: any; // Gemini content format
+  claude: any; // Claude message format
+  fallback: string; // Text-only fallback
 }

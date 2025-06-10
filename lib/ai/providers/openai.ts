@@ -205,19 +205,19 @@ export class OpenAIProvider implements AIProvider {
       throw new AIProviderError(`Model '${modelId}' not found`, this.name);
     }
 
-    // Prepare messages with system prompt
-    const preparedMessages = prepareMessagesWithSystemPrompt(messages, model);
+    // Convert multimodal messages to OpenAI format
+    const openaiMessages = await this.formatMessagesForOpenAI(messages, model);
 
     // Validate token limits
     const tokenValidation = validateTokenLimits(
-      preparedMessages,
+      openaiMessages,
       model,
       options.maxTokens
     );
 
     if (!tokenValidation.valid) {
       throw new TokenLimitExceededError(
-        calculateConversationTokens(preparedMessages),
+        calculateConversationTokens(openaiMessages),
         model.contextWindow,
         this.name
       );
@@ -228,7 +228,7 @@ export class OpenAIProvider implements AIProvider {
 
       const stream = await client.chat.completions.create({
         model: model.id,
-        messages: preparedMessages,
+        messages: openaiMessages,
         stream: true,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens ?? model.maxResponseTokens,
@@ -306,6 +306,56 @@ export class OpenAIProvider implements AIProvider {
   // Helper method to list available models
   listModels(): AIModel[] {
     return Object.values(this.models);
+  }
+
+  // Format messages for OpenAI API with multimodal support
+  private async formatMessagesForOpenAI(
+    messages: ChatMessage[],
+    model: AIModel
+  ): Promise<any[]> {
+    const openaiMessages: any[] = [];
+
+    for (const message of messages) {
+      if (typeof message.content === "string") {
+        // Simple text message
+        openaiMessages.push({
+          role: message.role,
+          content: message.content,
+        });
+      } else if (Array.isArray(message.content)) {
+        // Multimodal message
+        const content: any[] = [];
+
+        for (const contentItem of message.content) {
+          if (contentItem.type === "text") {
+            content.push({
+              type: "text",
+              text: contentItem.text,
+            });
+          } else if (
+            contentItem.type === "image_url" &&
+            model.capabilities.multiModal
+          ) {
+            content.push({
+              type: "image_url",
+              image_url: contentItem.image_url,
+            });
+          }
+          // Skip other content types that OpenAI doesn't support
+        }
+
+        openaiMessages.push({
+          role: message.role,
+          content:
+            content.length === 1 && content[0].type === "text"
+              ? content[0].text
+              : content,
+        });
+      }
+    }
+
+    // Apply system prompt handling
+    return prepareMessagesWithSystemPrompt(openaiMessages, model);
   }
 
   // Test connection to OpenAI
