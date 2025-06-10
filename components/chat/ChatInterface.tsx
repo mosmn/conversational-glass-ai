@@ -58,6 +58,7 @@ import {
   Archive,
   LogOut,
   DollarSign,
+  Globe,
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
@@ -170,6 +171,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showInlineImageGeneration, setShowInlineImageGeneration] =
     useState(true);
+  const [searchEnabled, setSearchEnabled] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -318,17 +321,114 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         metadata: a.metadata,
       }))
     );
+    console.log("  🔍 Search enabled:", searchEnabled);
 
     setInputValue("");
     // Don't clear attachments immediately - let them see in the sent message
 
     try {
-      // Send message with attachment data
-      await sendMessage(content, selectedModel, messageAttachments);
+      let searchResults = null;
+      let enhancedContent = content;
+
+      // Perform web search if enabled
+      if (searchEnabled) {
+        setIsSearching(true);
+
+        try {
+          console.log("🔍 Performing web search for:", content);
+
+          const searchResponse = await fetch("/api/search", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: content,
+              maxResults: 5,
+              searchType: "general",
+              language: "en",
+            }),
+          });
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+
+            console.log("🔍 Full search response:", searchData);
+
+            // Extract results from the nested data structure
+            searchResults = searchData.success
+              ? searchData.data?.results
+              : null;
+
+            console.log("🔍 Extracted search results:", searchResults);
+
+            if (searchResults && searchResults.length > 0) {
+              // Create enhanced context with search results
+              const searchContext = searchResults
+                .map(
+                  (result: any, index: number) =>
+                    `[${index + 1}] ${result.title}\nURL: ${
+                      result.url
+                    }\nContent: ${result.snippet}\nPublished: ${
+                      result.publishedDate || "N/A"
+                    }\n`
+                )
+                .join("\n");
+
+              enhancedContent = `Based on the following web search results, please provide a comprehensive answer to my question.
+
+WEB SEARCH RESULTS:
+${searchContext}
+
+USER QUESTION: ${content}
+
+Please synthesize the information from the search results to provide an accurate, up-to-date response. Include relevant citations and sources where appropriate.`;
+
+              toast({
+                title: "🔍 Web Search Complete",
+                description: `Found ${searchResults.length} relevant results`,
+              });
+            } else {
+              toast({
+                title: "🔍 No Search Results",
+                description: "No relevant results found for your query",
+                variant: "destructive",
+              });
+            }
+          } else {
+            console.error("Search API error:", searchResponse.statusText);
+            toast({
+              title: "🔍 Search Failed",
+              description:
+                "Unable to perform web search. Continuing without search.",
+              variant: "destructive",
+            });
+          }
+        } catch (searchError) {
+          console.error("Search error:", searchError);
+          toast({
+            title: "🔍 Search Error",
+            description: "Search failed. Continuing without search.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsSearching(false);
+        }
+      }
+
+      // Send enhanced content to AI, but display original content in user bubble
+      await sendMessage(
+        enhancedContent,
+        selectedModel,
+        messageAttachments,
+        searchEnabled && searchResults ? content : undefined // Only use different display content if search was used
+      );
+
       // Clear attachments only after successful send
       setAttachments([]);
     } catch (error) {
       console.error("Failed to send message:", error);
+      setIsSearching(false);
       // Don't clear attachments on error so user can retry
     }
   };
@@ -628,6 +728,35 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                          searchEnabled
+                            ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
+                            : "text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
+                        }`}
+                        onClick={() => setSearchEnabled(!searchEnabled)}
+                        disabled={isSearching}
+                      >
+                        {isSearching ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent" />
+                        ) : (
+                          <Globe className="h-5 w-5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        {searchEnabled
+                          ? "🔍 Web search enabled - will search before responding"
+                          : "🌐 Enable web search for real-time information"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         className="h-10 w-10 p-0 rounded-xl transition-all duration-300 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 backdrop-blur-sm border border-slate-700/30 hover:border-blue-500/30"
                       >
                         <Mic className="h-5 w-5" />
@@ -643,14 +772,15 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                     onClick={handleSendMessage}
                     disabled={
                       (!inputValue.trim() && attachments.length === 0) ||
-                      isStreaming
+                      isStreaming ||
+                      isSearching
                     }
                     className="relative group h-10 w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden"
                   >
                     {/* Shimmer effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/30 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
 
-                    {isStreaming ? (
+                    {isStreaming || isSearching ? (
                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
                     ) : (
                       <Send className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -671,6 +801,18 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   {attachments.length > 0 && (
                     <span className="text-emerald-400">
                       {attachments.length} file(s) attached
+                    </span>
+                  )}
+                  {searchEnabled && (
+                    <span className="text-blue-400 flex items-center gap-1">
+                      <Globe className="h-3 w-3" />
+                      Web search enabled
+                    </span>
+                  )}
+                  {isSearching && (
+                    <span className="text-blue-400 flex items-center gap-1">
+                      <div className="animate-spin rounded-full h-3 w-3 border border-blue-400 border-t-transparent" />
+                      Searching web...
                     </span>
                   )}
                 </div>

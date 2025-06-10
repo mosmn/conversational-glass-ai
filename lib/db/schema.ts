@@ -416,6 +416,47 @@ export const generatedImages = pgTable(
   })
 );
 
+// Search History table - Store user search queries and results
+export const searchHistory = pgTable(
+  "search_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "cascade",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "cascade",
+    }),
+    query: text("query").notNull(), // Original search query
+    provider: varchar("provider", { length: 50 }).notNull(), // 'tavily', 'serper', 'brave'
+    results: jsonb("results").$type<any[]>().notNull().default([]), // Search results array
+    timestamp: varchar("timestamp", { length: 50 }).notNull(), // ISO timestamp string
+    metadata: jsonb("metadata")
+      .$type<{
+        cached?: boolean;
+        processingTime?: number;
+        totalResults?: number;
+        cost?: number;
+        searchId?: string;
+      }>()
+      .default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("search_history_user_id_idx").on(table.userId),
+    conversationIdIdx: index("search_history_conversation_id_idx").on(
+      table.conversationId
+    ),
+    messageIdIdx: index("search_history_message_id_idx").on(table.messageId),
+    providerIdx: index("search_history_provider_idx").on(table.provider),
+    timestampIdx: index("search_history_timestamp_idx").on(table.timestamp),
+    createdAtIdx: index("search_history_created_at_idx").on(table.createdAt),
+  })
+);
+
 // Define relationships for type safety and joins
 export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
@@ -423,6 +464,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(userApiKeys),
   files: many(files),
   generatedImages: many(generatedImages),
+  searchHistory: many(searchHistory),
 }));
 
 export const conversationsRelations = relations(
@@ -507,6 +549,21 @@ export const conversationArtifactsRelations = relations(
   })
 );
 
+export const searchHistoryRelations = relations(searchHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [searchHistory.userId],
+    references: [users.id],
+  }),
+  conversation: one(conversations, {
+    fields: [searchHistory.conversationId],
+    references: [conversations.id],
+  }),
+  message: one(messages, {
+    fields: [searchHistory.messageId],
+    references: [messages.id],
+  }),
+}));
+
 // Export types for use throughout the application
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -522,3 +579,5 @@ export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type NewUserApiKey = typeof userApiKeys.$inferInsert;
 export type GeneratedImage = typeof generatedImages.$inferSelect;
 export type NewGeneratedImage = typeof generatedImages.$inferInsert;
+export type SearchHistory = typeof searchHistory.$inferSelect;
+export type NewSearchHistory = typeof searchHistory.$inferInsert;

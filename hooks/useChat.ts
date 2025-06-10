@@ -25,7 +25,8 @@ interface UseChatReturn {
   sendMessage: (
     content: string,
     model: string,
-    attachments?: any[]
+    attachments?: any[],
+    displayContent?: string
   ) => Promise<void>;
   refetchMessages: () => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -157,7 +158,12 @@ export function useChat(conversationId: string): UseChatReturn {
   }, [conversationId, lastSyncTime]);
 
   const sendMessage = useCallback(
-    async (content: string, model: string, attachments?: any[]) => {
+    async (
+      content: string,
+      model: string,
+      attachments?: any[],
+      displayContent?: string
+    ) => {
       if (
         (!content.trim() && (!attachments || attachments.length === 0)) ||
         !conversationId
@@ -173,7 +179,7 @@ export function useChat(conversationId: string): UseChatReturn {
         const optimisticUserMessage: Message = {
           id: `temp-user-${Date.now()}`,
           role: "user",
-          content,
+          content: displayContent || content, // Use displayContent if provided, otherwise use content
           timestamp: new Date().toISOString(),
           metadata: {
             streamingComplete: true,
