@@ -25,6 +25,25 @@ import {
   VISION_FILE_SUPPORT,
 } from "../file-capabilities";
 
+// OpenAI API model response interface
+interface OpenAIModelResponse {
+  object: "list";
+  data: Array<{
+    id: string;
+    object: "model";
+    created: number;
+    owned_by: string;
+    permission?: any[];
+    root?: string;
+    parent?: string;
+  }>;
+}
+
+// Cache for dynamic models
+let cachedModels: Record<string, AIModel> = {};
+let modelsLastFetched: number = 0;
+const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 // OpenAI client cache for different API keys
 const clientCache = new Map<string, OpenAI>();
 
@@ -184,12 +203,25 @@ const EXTENDED_OPENAI_MODELS = {
 export class OpenAIProvider implements AIProvider {
   name = "openai";
   displayName = "OpenAI";
-  models = EXTENDED_OPENAI_MODELS;
+  private _models: Record<string, AIModel> = EXTENDED_OPENAI_MODELS;
+  private _modelsLoaded = false;
+
+  get models(): Record<string, AIModel> {
+    return this._models;
+  }
 
   get isConfigured(): boolean {
     // Always return true to allow BYOK - actual key checking happens at runtime
     // This allows users to add their own keys even if no environment key is set
     return true;
+  }
+
+  // Load models dynamically
+  async ensureModelsLoaded(userId?: string): Promise<void> {
+    if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
+      this._models = await fetchOpenAIModels(userId);
+      this._modelsLoaded = true;
+    }
   }
 
   estimateTokens = estimateTokens;
@@ -298,12 +330,11 @@ export class OpenAIProvider implements AIProvider {
     );
   }
 
-  // Helper method to get model by ID
+  // Legacy sync methods - deprecated, use async versions instead
   getModel(modelId: string): AIModel | undefined {
     return this.models[modelId as OpenAIModelId];
   }
 
-  // Helper method to list available models
   listModels(): AIModel[] {
     return Object.values(this.models);
   }
@@ -362,7 +393,21 @@ export class OpenAIProvider implements AIProvider {
   async testConnection(userId?: string): Promise<boolean> {
     try {
       const client = await getOpenAIClient(userId);
-      await client.models.list();
+      await this.ensureModelsLoaded(userId);
+
+      // Get the first available model for testing
+      const availableModels = Object.keys(this.models);
+      if (availableModels.length === 0) {
+        return false;
+      }
+
+      // Test with a simple chat completion
+      await client.chat.completions.create({
+        model: availableModels[0],
+        messages: [{ role: "user", content: "Hello" }],
+        max_tokens: 1,
+        stream: false,
+      });
       return true;
     } catch (error) {
       console.error("OpenAI connection test failed:", error);
@@ -373,3 +418,184 @@ export class OpenAIProvider implements AIProvider {
 
 // Export singleton instance
 export const openaiProvider = new OpenAIProvider();
+
+// Fetch models from OpenAI API
+async function fetchOpenAIModels(
+  userId?: string
+): Promise<Record<string, AIModel>> {
+  const now = Date.now();
+
+  // Return cached models if they're still fresh
+  if (
+    cachedModels &&
+    Object.keys(cachedModels).length > 0 &&
+    now - modelsLastFetched < MODELS_CACHE_DURATION
+  ) {
+    return cachedModels;
+  }
+
+  try {
+    const client = await getOpenAIClient(userId);
+
+    // Fetch models from OpenAI API
+    const response = await client.models.list();
+    const models: Record<string, AIModel> = {};
+
+    for (const modelData of response.data) {
+      // Only include chat models (skip embeddings, audio, etc.)
+      if (
+        !modelData.id.includes("gpt-") ||
+        modelData.id.includes("embedding") ||
+        modelData.id.includes("whisper") ||
+        modelData.id.includes("tts") ||
+        modelData.id.includes("davinci") ||
+        modelData.id.includes("ada") ||
+        modelData.id.includes("babbage") ||
+        modelData.id.includes("curie")
+      ) {
+        continue;
+      }
+
+      const config = generateOpenAIModelConfig(modelData.id);
+      if (!config) continue; // Skip unsupported models
+
+      models[modelData.id] = {
+        id: modelData.id,
+        name: config.name,
+        provider: "openai",
+        maxTokens: config.contextWindow,
+        maxResponseTokens: config.maxResponseTokens,
+        contextWindow: config.contextWindow,
+        personality: config.personality,
+        description: config.description,
+        visualConfig: config.visualConfig,
+        capabilities: config.capabilities,
+        pricing: config.pricing,
+      };
+    }
+
+    // Cache the results
+    cachedModels = models;
+    modelsLastFetched = now;
+
+    console.log(
+      `🚀 OpenAI: Fetched ${Object.keys(models).length} models dynamically`
+    );
+    return models;
+  } catch (error) {
+    console.error("Failed to fetch OpenAI models:", error);
+
+    // Fall back to static models if available
+    if (Object.keys(EXTENDED_OPENAI_MODELS).length > 0) {
+      console.log("🔄 OpenAI: Using static models due to fetch error");
+      return EXTENDED_OPENAI_MODELS;
+    }
+
+    // Return empty object if no fallback and fetch failed
+    return {};
+  }
+}
+
+// Generate model configuration based on model ID
+function generateOpenAIModelConfig(modelId: string): AIModel | null {
+  // GPT-4 variants
+  if (modelId.includes("gpt-4")) {
+    const isVision = modelId.includes("vision");
+    const isO1 = modelId.includes("o1");
+    const isTurbo = modelId.includes("turbo");
+    const isOmni = modelId.includes("omni") || modelId.includes("4o");
+
+    let contextWindow = 128000;
+    let maxResponseTokens = 4096;
+    let pricing = { inputCostPer1kTokens: 0.01, outputCostPer1kTokens: 0.03 };
+
+    // O1 models have different pricing and limits
+    if (isO1) {
+      contextWindow = 128000;
+      maxResponseTokens = 32768;
+      pricing = { inputCostPer1kTokens: 0.015, outputCostPer1kTokens: 0.06 };
+    }
+
+    // 4o models are multimodal
+    if (isOmni) {
+      contextWindow = 128000;
+      maxResponseTokens = 4096;
+      pricing = { inputCostPer1kTokens: 0.0025, outputCostPer1kTokens: 0.01 };
+    }
+
+    return {
+      id: modelId,
+      name: formatModelName(modelId),
+      provider: "openai",
+      maxTokens: contextWindow,
+      maxResponseTokens,
+      contextWindow,
+      personality: isO1 ? "reasoning" : "analytical",
+      description: isO1
+        ? "Advanced reasoning and problem-solving capabilities"
+        : isVision
+        ? "GPT-4 with vision capabilities for image analysis"
+        : "Most capable OpenAI model for complex tasks",
+      visualConfig: {
+        color: isO1
+          ? "from-purple-600 to-indigo-600"
+          : isVision
+          ? "from-purple-500 to-blue-500"
+          : isOmni
+          ? "from-blue-600 to-cyan-600"
+          : "from-blue-500 to-cyan-500",
+        avatar: isO1 ? "🧩" : isVision ? "👁️" : isOmni ? "🌐" : "🧠",
+        style: "geometric",
+      },
+      capabilities: {
+        streaming: !isO1, // O1 models don't support streaming
+        functionCalling: !isO1, // O1 models don't support function calling
+        multiModal: isVision || isOmni,
+        fileSupport:
+          isVision || isOmni ? VISION_FILE_SUPPORT : TEXT_ONLY_FILE_SUPPORT,
+      },
+      pricing,
+    };
+  }
+
+  // GPT-3.5 variants
+  if (modelId.includes("gpt-3.5")) {
+    return {
+      id: modelId,
+      name: formatModelName(modelId),
+      provider: "openai",
+      maxTokens: 16385,
+      maxResponseTokens: 4096,
+      contextWindow: 16385,
+      personality: "balanced",
+      description: "Fast and efficient for most tasks",
+      visualConfig: {
+        color: "from-emerald-500 to-teal-500",
+        avatar: "💚",
+        style: "flowing",
+      },
+      capabilities: {
+        streaming: true,
+        functionCalling: true,
+        multiModal: false,
+        fileSupport: TEXT_ONLY_FILE_SUPPORT,
+      },
+      pricing: {
+        inputCostPer1kTokens: 0.0015,
+        outputCostPer1kTokens: 0.002,
+      },
+    };
+  }
+
+  return null;
+}
+
+// Helper function to format model names
+function formatModelName(modelId: string): string {
+  return modelId
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (l) => l.toUpperCase())
+    .replace(/Gpt/g, "GPT")
+    .replace(/Turbo/g, "Turbo")
+    .replace(/Preview/g, "Preview");
+}

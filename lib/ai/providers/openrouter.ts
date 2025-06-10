@@ -340,7 +340,25 @@ function estimateTokens(text: string): number {
 // Calculate total tokens for conversation
 function calculateConversationTokens(messages: ChatMessage[]): number {
   return messages.reduce((total, message) => {
-    return total + estimateTokens(message.content);
+    if (typeof message.content === "string") {
+      return total + estimateTokens(message.content);
+    } else if (Array.isArray(message.content)) {
+      // Sum tokens for all text content items
+      return (
+        total +
+        message.content.reduce((contentTotal, item) => {
+          if (item.type === "text") {
+            return contentTotal + estimateTokens(item.text);
+          }
+          // For images and other content, add approximate token cost
+          if (item.type === "image" || item.type === "image_url") {
+            return contentTotal + 85; // Approximate image token cost
+          }
+          return contentTotal;
+        }, 0)
+      );
+    }
+    return total;
   }, 0);
 }
 
@@ -575,12 +593,31 @@ async function testOpenRouterConnection(apiKey?: string): Promise<{
   }
 }
 
-// Get available models (for dynamic discovery)
-async function getAvailableModels(apiKey?: string): Promise<string[]> {
+// Cache for dynamic models
+let cachedModels: Record<string, AIModel> = {};
+let modelsLastFetched: number = 0;
+const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Get available models with full details (upgraded for dynamic discovery)
+async function fetchOpenRouterModels(
+  apiKey?: string
+): Promise<Record<string, AIModel>> {
+  const now = Date.now();
+
+  // Return cached models if they're still fresh
+  if (
+    cachedModels &&
+    Object.keys(cachedModels).length > 0 &&
+    now - modelsLastFetched < MODELS_CACHE_DURATION
+  ) {
+    return cachedModels;
+  }
+
   const testKey = apiKey || env?.OPENROUTER_API_KEY;
 
   if (!testKey) {
-    return Object.keys(openrouterModels);
+    console.log("🔄 OpenRouter: No API key available, using static models");
+    return openrouterModels;
   }
 
   try {
@@ -594,26 +631,116 @@ async function getAvailableModels(apiKey?: string): Promise<string[]> {
 
     if (response.ok) {
       const data = await response.json();
-      return (
-        data.data?.map((model: any) => model.id) ||
-        Object.keys(openrouterModels)
+      const models: Record<string, AIModel> = {};
+
+      for (const modelData of data.data || []) {
+        // Check if we have a static model configuration
+        if (openrouterModels[modelData.id]) {
+          models[modelData.id] = openrouterModels[modelData.id];
+        } else if (modelData.id && typeof modelData.id === "string") {
+          // Generate configuration for unknown models
+          const config = generateOpenRouterModelConfig(modelData);
+          if (config) {
+            models[modelData.id] = config;
+          }
+        }
+      }
+
+      // If we didn't get any models from the API, fall back to static
+      if (Object.keys(models).length === 0) {
+        console.log(
+          "🔄 OpenRouter: No valid models from API, using static models"
+        );
+        return openrouterModels;
+      }
+
+      // Cache the results
+      cachedModels = models;
+      modelsLastFetched = now;
+
+      console.log(
+        `🚀 OpenRouter: Fetched ${
+          Object.keys(models).length
+        } models dynamically`
       );
+      return models;
     }
   } catch (error) {
     console.warn("Failed to fetch OpenRouter models:", error);
   }
 
   // Fallback to static list
-  return Object.keys(openrouterModels);
+  console.log("🔄 OpenRouter: Using static models due to fetch error");
+  return openrouterModels;
 }
 
-// OpenRouter provider implementation with BYOK support
-export const openrouterProvider: AIProvider = {
-  name: "openrouter",
-  displayName: "OpenRouter",
-  models: openrouterModels,
-  isConfigured: true, // Always configured with BYOK support
-  createStreamingCompletion: async function* (
+// Generate model configuration for unknown models
+function generateOpenRouterModelConfig(modelData: any): AIModel | null {
+  if (!modelData.id || typeof modelData.id !== "string") {
+    return null;
+  }
+
+  // Basic configuration for unknown models
+  const name = modelData.name || modelData.id.split("/").pop() || modelData.id;
+  const provider = modelData.id.split("/")[0] || "unknown";
+
+  return {
+    id: modelData.id,
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    provider: "openrouter",
+    maxTokens: modelData.context_length || 4096,
+    maxResponseTokens: Math.min(modelData.context_length || 4096, 2048),
+    contextWindow: modelData.context_length || 4096,
+    personality: "versatile",
+    description: `${provider} model via OpenRouter`,
+    visualConfig: {
+      color: "from-blue-500 to-purple-600",
+      avatar: "🌐",
+      style: "geometric",
+    },
+    capabilities: {
+      streaming: true,
+      functionCalling: false,
+      multiModal: false,
+      fileSupport: NO_FILE_SUPPORT,
+    },
+    pricing: {
+      inputCostPer1kTokens: (modelData.pricing?.prompt || 0) * 1000000, // Convert from per-token to per-1k
+      outputCostPer1kTokens: (modelData.pricing?.completion || 0) * 1000000,
+    },
+  };
+}
+
+// Get available models (for dynamic discovery) - legacy function for compatibility
+async function getAvailableModels(apiKey?: string): Promise<string[]> {
+  const models = await fetchOpenRouterModels(apiKey);
+  return Object.keys(models);
+}
+
+// OpenRouter Provider Class Implementation
+class OpenRouterProvider implements AIProvider {
+  name = "openrouter";
+  displayName = "OpenRouter";
+  private _models: Record<string, AIModel> = openrouterModels;
+  private _modelsLoaded = false;
+
+  get models(): Record<string, AIModel> {
+    return this._models;
+  }
+
+  get isConfigured(): boolean {
+    return true; // Always true to allow BYOK
+  }
+
+  // Load models dynamically
+  async ensureModelsLoaded(apiKey?: string): Promise<void> {
+    if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
+      this._models = await fetchOpenRouterModels(apiKey);
+      this._modelsLoaded = true;
+    }
+  }
+
+  async *createStreamingCompletion(
     messages: ChatMessage[],
     modelId: string,
     options: StreamingOptions = {}
@@ -631,15 +758,30 @@ export const openrouterProvider: AIProvider = {
       options,
       userApiKey
     );
-  },
-  handleError: handleOpenRouterError,
-  estimateTokens,
-  calculateConversationTokens,
-  testConnection: async (userApiKey?: string) => {
+  }
+
+  handleError = handleOpenRouterError;
+  estimateTokens = estimateTokens;
+  calculateConversationTokens = calculateConversationTokens;
+
+  async testConnection(userApiKey?: string): Promise<boolean> {
+    await this.ensureModelsLoaded(userApiKey);
     const result = await testOpenRouterConnection(userApiKey);
     return result.success;
-  },
-};
+  }
+
+  // Helper methods
+  getModel(modelId: string): AIModel | undefined {
+    return this.models[modelId];
+  }
+
+  listModels(): AIModel[] {
+    return Object.values(this.models);
+  }
+}
+
+// OpenRouter provider implementation with BYOK support
+export const openrouterProvider = new OpenRouterProvider();
 
 // Extended provider with BYOK support
 export interface OpenRouterProviderWithBYOK extends AIProvider {
@@ -658,7 +800,16 @@ export interface OpenRouterProviderWithBYOK extends AIProvider {
 }
 
 export const openrouterProviderWithBYOK: OpenRouterProviderWithBYOK = {
-  ...openrouterProvider,
+  name: openrouterProvider.name,
+  displayName: openrouterProvider.displayName,
+  models: openrouterProvider.models,
+  isConfigured: openrouterProvider.isConfigured,
+  createStreamingCompletion:
+    openrouterProvider.createStreamingCompletion.bind(openrouterProvider),
+  handleError: openrouterProvider.handleError,
+  estimateTokens: openrouterProvider.estimateTokens,
+  calculateConversationTokens: openrouterProvider.calculateConversationTokens,
+  testConnection: openrouterProvider.testConnection.bind(openrouterProvider),
   createStreamingCompletionWithKey: (messages, modelId, apiKey, options) =>
     createOpenRouterStreamingCompletion(messages, modelId, options, apiKey),
   testConnectionWithKey: testOpenRouterConnection,

@@ -22,6 +22,24 @@ const CLAUDE_CONFIG = {
   defaultTemperature: 0.7,
 };
 
+// Anthropic API model response interface
+interface AnthropicModelResponse {
+  object: "list";
+  data: Array<{
+    id: string;
+    object: "model";
+    created: number;
+    owned_by: string;
+    type: string;
+    display_name: string;
+  }>;
+}
+
+// Cache for dynamic models
+let cachedModels: Record<string, AIModel> = {};
+let modelsLastFetched: number = 0;
+const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 // Claude model definitions with personality and visual styling
 export const claudeModels: Record<ClaudeModelId, AIModel> = {
   "claude-3-5-sonnet-20241022": {
@@ -407,17 +425,220 @@ async function testClaudeConnection(userId?: string): Promise<boolean> {
   }
 }
 
-// Claude provider implementation
-export const claudeProvider: AIProvider = {
-  name: "claude",
-  displayName: "Anthropic Claude",
-  models: claudeModels,
-  isConfigured: true, // Always true to allow BYOK - actual key checking happens at runtime
-  createStreamingCompletion: createClaudeStreamingCompletion,
-  handleError: handleClaudeError,
-  estimateTokens,
-  calculateConversationTokens,
-  testConnection: testClaudeConnection,
-};
+// Fetch models from Anthropic API
+async function fetchAnthropicModels(
+  userId?: string
+): Promise<Record<string, AIModel>> {
+  const now = Date.now();
+
+  // Return cached models if they're still fresh
+  if (
+    cachedModels &&
+    Object.keys(cachedModels).length > 0 &&
+    now - modelsLastFetched < MODELS_CACHE_DURATION
+  ) {
+    return cachedModels;
+  }
+
+  try {
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "claude",
+      "ANTHROPIC_API_KEY",
+      userId
+    );
+
+    if (!keyConfig) {
+      console.log("🔄 Claude: No API key available, using static models");
+      return claudeModels;
+    }
+
+    const response = await fetch(`${CLAUDE_CONFIG.baseUrl}/models`, {
+      headers: {
+        "x-api-key": keyConfig.apiKey,
+        "anthropic-version": CLAUDE_CONFIG.apiVersion,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.warn("Failed to fetch Claude models, using static fallback");
+      return claudeModels;
+    }
+
+    const data: AnthropicModelResponse = await response.json();
+    const models: Record<string, AIModel> = {};
+
+    for (const modelData of data.data) {
+      // Only include text/chat models
+      if (modelData.type !== "text" && modelData.type !== "chat") {
+        continue;
+      }
+
+      const config = generateClaudeModelConfig(
+        modelData.id,
+        modelData.display_name
+      );
+      if (!config) continue;
+
+      models[modelData.id] = config;
+    }
+
+    // If we didn't get any models from the API, fall back to static
+    if (Object.keys(models).length === 0) {
+      console.log("🔄 Claude: No valid models from API, using static models");
+      return claudeModels;
+    }
+
+    // Cache the results
+    cachedModels = models;
+    modelsLastFetched = now;
+
+    console.log(
+      `🚀 Claude: Fetched ${Object.keys(models).length} models dynamically`
+    );
+    return models;
+  } catch (error) {
+    console.error("Failed to fetch Claude models:", error);
+    console.log("🔄 Claude: Using static models due to fetch error");
+    return claudeModels;
+  }
+}
+
+// Generate model configuration based on model ID
+function generateClaudeModelConfig(
+  modelId: string,
+  displayName?: string
+): AIModel | null {
+  // Check if we have a static model configuration
+  if (claudeModels[modelId as ClaudeModelId]) {
+    return claudeModels[modelId as ClaudeModelId];
+  }
+
+  // Generate configuration for unknown models
+  if (modelId.includes("claude")) {
+    const isHaiku = modelId.includes("haiku");
+    const isSonnet = modelId.includes("sonnet");
+    const isOpus = modelId.includes("opus");
+
+    let personality = "Helpful AI assistant";
+    let description = "Claude AI model";
+    let contextWindow = 200000;
+    let maxResponseTokens = 4096;
+    let pricing = { inputCostPer1kTokens: 0.003, outputCostPer1kTokens: 0.015 };
+    let visualConfig: {
+      color: string;
+      avatar: string;
+      style: "flowing" | "sharp" | "geometric";
+    } = {
+      color: "from-orange-400 to-red-500",
+      avatar: "🎭",
+      style: "flowing",
+    };
+
+    if (isHaiku) {
+      personality = "Fast and efficient, great for quick tasks";
+      description = "Fast Claude model optimized for speed";
+      pricing = {
+        inputCostPer1kTokens: 0.00025,
+        outputCostPer1kTokens: 0.00125,
+      };
+      visualConfig = {
+        color: "from-pink-400 to-rose-500",
+        avatar: "🌸",
+        style: "sharp",
+      };
+    } else if (isSonnet) {
+      personality = "Thoughtful and analytical, excellent for reasoning";
+      description = "Balanced Claude model with strong capabilities";
+      maxResponseTokens = 8192;
+    } else if (isOpus) {
+      personality = "Most capable, excellent for complex reasoning";
+      description = "Most powerful Claude model";
+      maxResponseTokens = 8192;
+      pricing = { inputCostPer1kTokens: 0.015, outputCostPer1kTokens: 0.075 };
+      visualConfig = {
+        color: "from-purple-500 to-indigo-600",
+        avatar: "👑",
+        style: "geometric",
+      };
+    }
+
+    return {
+      id: modelId,
+      name: displayName || formatModelName(modelId),
+      provider: "claude",
+      maxTokens: contextWindow,
+      maxResponseTokens,
+      contextWindow,
+      personality,
+      description,
+      visualConfig,
+      capabilities: {
+        streaming: true,
+        functionCalling: !isHaiku, // Haiku doesn't support tools
+        multiModal: true,
+        fileSupport: VISION_FILE_SUPPORT,
+      },
+      pricing,
+    };
+  }
+
+  return null;
+}
+
+// Helper function to format model names
+function formatModelName(modelId: string): string {
+  return modelId
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (l) => l.toUpperCase())
+    .replace(/Claude/g, "Claude")
+    .replace(/Anthropic/g, "Anthropic");
+}
+
+// Claude Provider Implementation
+class ClaudeProvider implements AIProvider {
+  name = "claude";
+  displayName = "Anthropic Claude";
+  private _models: Record<string, AIModel> = claudeModels;
+  private _modelsLoaded = false;
+
+  get models(): Record<string, AIModel> {
+    return this._models;
+  }
+
+  get isConfigured(): boolean {
+    return true; // Always true to allow BYOK
+  }
+
+  // Load models dynamically
+  async ensureModelsLoaded(userId?: string): Promise<void> {
+    if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
+      this._models = await fetchAnthropicModels(userId);
+      this._modelsLoaded = true;
+    }
+  }
+
+  createStreamingCompletion = createClaudeStreamingCompletion;
+  handleError = handleClaudeError;
+  estimateTokens = estimateTokens;
+  calculateConversationTokens = calculateConversationTokens;
+
+  async testConnection(userId?: string): Promise<boolean> {
+    await this.ensureModelsLoaded(userId);
+    return testClaudeConnection(userId);
+  }
+
+  // Helper methods
+  getModel(modelId: string): AIModel | undefined {
+    return this.models[modelId as ClaudeModelId];
+  }
+
+  listModels(): AIModel[] {
+    return Object.values(this.models);
+  }
+}
+
+// Export singleton instance
+export const claudeProvider = new ClaudeProvider();
 
 export default claudeProvider;

@@ -34,9 +34,13 @@ export async function getAllModels(): Promise<AIModel[]> {
   const allModels: AIModel[] = [];
 
   for (const provider of getConfiguredProviders()) {
-    // Ensure dynamic models are loaded (for Groq and Gemini)
+    // Ensure dynamic models are loaded (for all providers with dynamic loading)
     if (
-      (provider.name === "groq" || provider.name === "gemini") &&
+      (provider.name === "groq" ||
+        provider.name === "gemini" ||
+        provider.name === "openai" ||
+        provider.name === "claude" ||
+        provider.name === "openrouter") &&
       "ensureModelsLoaded" in provider
     ) {
       await (provider as any).ensureModelsLoaded();
@@ -79,9 +83,13 @@ export async function getModelById(modelId: ModelId): Promise<AIModel | null> {
     return null;
   }
 
-  // Ensure dynamic models are loaded (for Groq and Gemini)
+  // Ensure dynamic models are loaded (for all providers with dynamic loading)
   if (
-    (provider.name === "groq" || provider.name === "gemini") &&
+    (provider.name === "groq" ||
+      provider.name === "gemini" ||
+      provider.name === "openai" ||
+      provider.name === "claude" ||
+      provider.name === "openrouter") &&
     "ensureModelsLoaded" in provider
   ) {
     await (provider as any).ensureModelsLoaded();
@@ -178,10 +186,14 @@ export async function getProviderStatus() {
   for (const [name, provider] of Object.entries(providers)) {
     const isConfigured = provider.isConfigured;
 
-    // Ensure dynamic models are loaded for Groq and Gemini
+    // Ensure dynamic models are loaded for all providers with dynamic loading
     if (
       isConfigured &&
-      (provider.name === "groq" || provider.name === "gemini") &&
+      (provider.name === "groq" ||
+        provider.name === "gemini" ||
+        provider.name === "openai" ||
+        provider.name === "claude" ||
+        provider.name === "openrouter") &&
       "ensureModelsLoaded" in provider
     ) {
       try {
