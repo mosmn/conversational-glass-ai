@@ -128,6 +128,9 @@ export const conversations = pgTable(
     model: varchar("model", { length: 50 }).notNull().default("gpt-4"), // Current AI model
     isShared: boolean("is_shared").default(false),
     shareId: varchar("share_id", { length: 100 }).unique(), // For public sharing
+    // Branching fields
+    activeBranchId: uuid("active_branch_id"), // Reference to active branch root message
+    defaultBranchId: uuid("default_branch_id"), // Reference to default branch root message
     metadata: jsonb("metadata")
       .$type<{
         totalMessages: number;
@@ -135,6 +138,13 @@ export const conversations = pgTable(
         tags: string[];
         sentiment: "positive" | "neutral" | "negative" | null;
         summary: string | null;
+        // Branching metadata
+        branchingMetadata?: {
+          totalBranches: number;
+          activeBranchName: string;
+          branchNames: string[];
+          lastBranchedAt?: string;
+        };
       }>()
       .default({
         totalMessages: 0,
@@ -150,6 +160,9 @@ export const conversations = pgTable(
     userIdIdx: index("conversations_user_id_idx").on(table.userId),
     shareIdIdx: index("conversations_share_id_idx").on(table.shareId),
     updatedAtIdx: index("conversations_updated_at_idx").on(table.updatedAt),
+    activeBranchIdx: index("conversations_active_branch_idx").on(
+      table.activeBranchId
+    ),
   })
 );
 
@@ -186,12 +199,24 @@ export const messages = pgTable(
         processingTime?: number;
         regenerated?: boolean;
         parentMessageId?: string;
+        // Branching metadata
+        branchingMetadata?: {
+          branchId?: string;
+          branchName?: string;
+          hasChildren?: boolean;
+          childrenCount?: number;
+          isAlternative?: boolean;
+        };
       }>()
       .default({
         streamingComplete: true,
         regenerated: false,
       }),
     parentId: uuid("parent_id").references(() => messages.id), // For message branching
+    // Branching fields
+    branchName: varchar("branch_name", { length: 100 }).default("main"),
+    branchDepth: integer("branch_depth").default(0),
+    branchOrder: integer("branch_order").default(0),
     isEdited: boolean("is_edited").default(false),
     editedAt: timestamp("edited_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -204,6 +229,12 @@ export const messages = pgTable(
     userIdIdx: index("messages_user_id_idx").on(table.userId),
     createdAtIdx: index("messages_created_at_idx").on(table.createdAt),
     parentIdIdx: index("messages_parent_id_idx").on(table.parentId),
+    branchDepthIdx: index("messages_branch_depth_idx").on(table.branchDepth),
+    branchOrderIdx: index("messages_branch_order_idx").on(table.branchOrder),
+    parentConversationIdx: index("messages_parent_conversation_idx").on(
+      table.parentId,
+      table.conversationId
+    ),
   })
 );
 
@@ -571,6 +602,42 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+
+// Branching-specific types
+export interface MessageBranch {
+  id: string;
+  name: string;
+  parentMessageId: string | null;
+  depth: number;
+  order: number;
+  createdAt: string;
+  messageCount: number;
+  isActive: boolean;
+  isDefault: boolean;
+}
+
+export interface BranchingMetadata {
+  branchId?: string;
+  branchName?: string;
+  branchDepth?: number;
+  branchOrder?: number;
+  hasChildren?: boolean;
+  childrenCount?: number;
+  alternatives?: MessageBranch[];
+}
+
+export interface BranchTree {
+  id: string;
+  name: string;
+  depth: number;
+  parentId: string | null;
+  children: BranchTree[];
+  messageId: string;
+  isActive: boolean;
+  isDefault: boolean;
+  messageCount: number;
+  lastActivity: string;
+}
 export type File = typeof files.$inferSelect;
 export type NewFile = typeof files.$inferInsert;
 export type ConversationArtifact = typeof conversationArtifacts.$inferSelect;

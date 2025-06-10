@@ -365,6 +365,82 @@ class APIClient {
     });
   }
 
+  // Branching API methods
+  async getConversationBranches(conversationId: string) {
+    return this.fetchWithAuth(`/conversations/${conversationId}/branches`);
+  }
+
+  async createBranch(
+    conversationId: string,
+    parentMessageId: string,
+    branchName: string,
+    description?: string
+  ) {
+    return this.fetchWithAuth(`/conversations/${conversationId}/branches`, {
+      method: "POST",
+      body: JSON.stringify({
+        parentMessageId,
+        branchName,
+        description,
+      }),
+    });
+  }
+
+  async updateBranch(
+    conversationId: string,
+    branchId: string,
+    updates: {
+      branchName?: string;
+      setAsActive?: boolean;
+      setAsDefault?: boolean;
+    }
+  ) {
+    return this.fetchWithAuth(
+      `/conversations/${conversationId}/branches/${branchId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(updates),
+      }
+    );
+  }
+
+  async deleteBranch(conversationId: string, branchId: string) {
+    return this.fetchWithAuth(
+      `/conversations/${conversationId}/branches/${branchId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  async getMessageBranches(conversationId: string, messageId: string) {
+    return this.fetchWithAuth(
+      `/conversations/${conversationId}/messages/${messageId}/branch`
+    );
+  }
+
+  async branchFromMessage(
+    conversationId: string,
+    messageId: string,
+    branchName: string,
+    content: string,
+    model: string,
+    description?: string
+  ) {
+    return this.fetchWithAuth(
+      `/conversations/${conversationId}/messages/${messageId}/branch`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          branchName,
+          content,
+          model,
+          description,
+        }),
+      }
+    );
+  }
+
   // Load more messages using cursor pagination
   async loadMoreMessages(
     conversationId: string,

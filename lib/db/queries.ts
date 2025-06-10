@@ -908,6 +908,284 @@ export class MessageQueries {
 
     return thread;
   }
+
+  // Get message alternatives (siblings in the same branch)
+  static async getMessageAlternatives(messageId: string) {
+    // First get the parent of the given message
+    const [message] = await db
+      .select({ parentId: messages.parentId })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      return [];
+    }
+
+    // Get all messages with the same parent (siblings)
+    const alternatives = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.parentId, message.parentId || ""))
+      .orderBy(messages.branchOrder, messages.createdAt);
+
+    return alternatives;
+  }
+
+  // Get message children (direct descendants)
+  static async getMessageChildren(messageId: string) {
+    const children = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.parentId, messageId))
+      .orderBy(messages.branchOrder, messages.createdAt);
+
+    return children;
+  }
+
+  // Get full branch tree for a conversation
+  static async getBranchTree(conversationId: string) {
+    const allMessages = await db
+      .select({
+        id: messages.id,
+        parentId: messages.parentId,
+        branchName: messages.branchName,
+        branchDepth: messages.branchDepth,
+        branchOrder: messages.branchOrder,
+        role: messages.role,
+        content: messages.content,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.branchDepth, messages.branchOrder, messages.createdAt);
+
+    // Build tree structure
+    const messageMap = new Map();
+    const rootMessages: any[] = [];
+
+    // First pass: create nodes
+    allMessages.forEach((msg) => {
+      messageMap.set(msg.id, {
+        ...msg,
+        children: [],
+        messageCount: 0,
+      });
+    });
+
+    // Second pass: build tree relationships
+    allMessages.forEach((msg) => {
+      if (msg.parentId) {
+        const parent = messageMap.get(msg.parentId);
+        if (parent) {
+          parent.children.push(messageMap.get(msg.id));
+        }
+      } else {
+        rootMessages.push(messageMap.get(msg.id));
+      }
+    });
+
+    // Third pass: calculate message counts
+    const calculateMessageCount = (node: any): number => {
+      let count = 1; // Count self
+      node.children.forEach((child: any) => {
+        count += calculateMessageCount(child);
+      });
+      node.messageCount = count;
+      return count;
+    };
+
+    rootMessages.forEach(calculateMessageCount);
+
+    return rootMessages;
+  }
+
+  // Update message branch properties
+  static async updateMessageBranch(
+    messageId: string,
+    userId: string,
+    updates: {
+      branchName?: string;
+      branchOrder?: number;
+    }
+  ) {
+    const [updated] = await db
+      .update(messages)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+      .returning();
+
+    return updated;
+  }
+}
+
+// New BranchQueries class for advanced branching operations
+export class BranchQueries {
+  // Create a new branch from a message
+  static async createBranchFromMessage(
+    parentMessageId: string,
+    userId: string,
+    branchName: string,
+    conversationId: string
+  ) {
+    // Get the parent message to determine branch properties
+    const [parentMessage] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, parentMessageId))
+      .limit(1);
+
+    if (!parentMessage) {
+      throw new Error("Parent message not found");
+    }
+
+    // Calculate new branch properties
+    const branchDepth = (parentMessage.branchDepth || 0) + 1;
+    const nextOrder = await this.getNextBranchOrder(parentMessageId);
+
+    // Return the branch information for the caller to create the actual message
+    return {
+      parentMessageId,
+      branchName,
+      branchDepth,
+      branchOrder: nextOrder,
+      conversationId,
+      userId,
+    };
+  }
+
+  // Get next branch order for a parent message
+  static async getNextBranchOrder(parentMessageId: string): Promise<number> {
+    const result = await db
+      .select({
+        maxOrder: sql<number>`COALESCE(MAX(${messages.branchOrder}), 0)`,
+      })
+      .from(messages)
+      .where(eq(messages.parentId, parentMessageId));
+
+    return (result[0]?.maxOrder || 0) + 1;
+  }
+
+  // Switch conversation to a specific branch
+  static async switchConversationBranch(
+    conversationId: string,
+    userId: string,
+    branchRootMessageId: string
+  ) {
+    const [updated] = await db
+      .update(conversations)
+      .set({
+        activeBranchId: branchRootMessageId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, userId)
+        )
+      )
+      .returning();
+
+    return updated;
+  }
+
+  // Get conversation branch status
+  static async getConversationBranchStatus(conversationId: string) {
+    const [conversation] = await db
+      .select({
+        activeBranchId: conversations.activeBranchId,
+        defaultBranchId: conversations.defaultBranchId,
+        metadata: conversations.metadata,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+
+    return conversation;
+  }
+
+  // Get all branches in a conversation with metadata
+  static async getConversationBranches(conversationId: string) {
+    // Get all unique branch names and their root messages
+    const branches = await db
+      .select({
+        branchName: messages.branchName,
+        rootMessageId: sql<string>`
+          (
+            SELECT m2.id 
+            FROM ${messages} m2 
+            WHERE m2.conversation_id = ${messages.conversationId}
+              AND m2.branch_name = ${messages.branchName}
+              AND m2.parent_id IS NULL
+            LIMIT 1
+          )
+        `,
+        depth: sql<number>`MIN(${messages.branchDepth})`,
+        messageCount: sql<number>`COUNT(*)`,
+        lastActivity: sql<Date>`MAX(${messages.createdAt})`,
+        firstMessageId: sql<string>`NULL`, // Temporarily simplified to avoid UUID MIN function
+      })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .groupBy(messages.branchName)
+      .orderBy(
+        sql`MIN(${messages.branchDepth})`,
+        sql`MIN(${messages.createdAt})`
+      );
+
+    return branches;
+  }
+
+  // Delete a branch and all its children
+  static async deleteBranch(
+    conversationId: string,
+    userId: string,
+    branchName: string
+  ) {
+    // Get all messages in the branch
+    const branchMessages = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.branchName, branchName),
+          eq(messages.userId, userId)
+        )
+      );
+
+    if (branchMessages.length === 0) {
+      return { deleted: 0 };
+    }
+
+    // Delete all messages in the branch
+    const deleted = await db
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.branchName, branchName),
+          eq(messages.userId, userId)
+        )
+      );
+
+    return { deleted: branchMessages.length };
+  }
+
+  // Merge two branches
+  static async mergeBranches(
+    conversationId: string,
+    userId: string,
+    sourceBranchName: string,
+    targetBranchName: string
+  ) {
+    // This is a complex operation that would need careful implementation
+    // For now, return a placeholder
+    throw new Error("Branch merging not yet implemented");
+  }
 }
 
 // Analytics and insights queries

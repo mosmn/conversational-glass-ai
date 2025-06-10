@@ -63,6 +63,7 @@ import {
   RefreshCw,
   X,
   Square,
+  GitBranch,
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
@@ -73,6 +74,10 @@ import { ChatSidebar } from "./ChatSidebar";
 import { InlineImageGeneration } from "./InlineImageGeneration";
 import { RecoveryBanner } from "@/components/streaming/RecoveryBanner";
 import { useStreamRecovery } from "@/hooks/useStreamRecovery";
+import { BranchingIndicator } from "./branching/BranchingIndicator";
+import { CreateBranchModal } from "./branching/CreateBranchModal";
+import { BranchNavigator } from "./branching/BranchNavigator";
+import { useBranching } from "@/hooks/useBranching";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -156,6 +161,19 @@ interface Message {
     };
     imageGenerationDetected?: boolean;
     suggestedImagePrompts?: string[];
+    // Branching metadata
+    branchingMetadata?: {
+      branchId?: string;
+      branchName?: string;
+      hasChildren?: boolean;
+      childrenCount?: number;
+      isAlternative?: boolean;
+      alternatives?: Array<{
+        id: string;
+        name: string;
+        messageCount: number;
+      }>;
+    };
   };
 }
 
@@ -179,6 +197,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     useState(true);
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [showBranchNavigator, setShowBranchNavigator] = useState(false);
+  const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
+  const [branchingFromMessage, setBranchingFromMessage] = useState<{
+    id: string;
+    content: string;
+    role: string;
+    model?: string | null;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -226,6 +252,18 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     autoDetect: true,
     showNotifications: true,
   });
+
+  // Branching hook
+  const {
+    branchingState,
+    createBranch,
+    updateBranch,
+    deleteBranch,
+    switchToBranch,
+    getMessageBranchInfo,
+    branchFromMessage,
+    refreshBranches,
+  } = useBranching(chatId);
 
   // Track if we've already refreshed for this title change
   const lastRefreshedTitleRef = useRef<string | null>(null);
@@ -536,6 +574,52 @@ Please synthesize the information from the search results to provide an accurate
     }
   };
 
+  // Handle branching from a message
+  const handleCreateBranch = (message: {
+    id: string;
+    content: string;
+    role: string;
+    model?: string | null;
+  }) => {
+    setBranchingFromMessage(message);
+    setShowCreateBranchModal(true);
+  };
+
+  // Handle branch creation
+  const handleBranchFromMessage = async (
+    branchName: string,
+    content: string,
+    description?: string
+  ): Promise<boolean> => {
+    if (!branchingFromMessage) return false;
+
+    try {
+      const success = await branchFromMessage(
+        branchingFromMessage.id,
+        branchName,
+        content,
+        selectedModel,
+        description
+      );
+
+      if (success) {
+        // Refresh the conversation to show the new branch
+        await refreshBranches();
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Failed to create branch:", error);
+      return false;
+    }
+  };
+
+  // Handle viewing branches
+  const handleViewBranches = () => {
+    setShowBranchNavigator(true);
+  };
+
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
@@ -600,6 +684,31 @@ Please synthesize the information from the search results to provide an accurate
                   <TooltipContent>
                     <p>
                       Last synced: {new Date(lastSyncTime).toLocaleTimeString()}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Branch Navigator Button */}
+              {branchingState.totalBranches > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowBranchNavigator(true)}
+                      className="hover:bg-slate-700/50 hover:text-purple-400 transition-colors"
+                    >
+                      <GitBranch className="h-4 w-4 mr-1" />
+                      <span className="text-xs">
+                        {branchingState.totalBranches}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      View conversation branches ({branchingState.totalBranches}
+                      )
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -708,6 +817,9 @@ Please synthesize the information from the search results to provide an accurate
                       onResumeStream={handleResumeStream}
                       onDiscardStream={discardStream}
                       isRecoveryLoading={isRecoveryLoading}
+                      // Pass branching functionality
+                      onCreateBranch={handleCreateBranch}
+                      onViewBranches={handleViewBranches}
                     />
                   ))}
 
@@ -942,6 +1054,61 @@ Please synthesize the information from the search results to provide an accurate
           conversationTitle={conversation.title}
         />
       )}
+
+      {/* Branch Navigator Modal */}
+      <Dialog open={showBranchNavigator} onOpenChange={setShowBranchNavigator}>
+        <DialogContent className="max-w-2xl bg-slate-900/95 backdrop-blur-xl border-slate-700/50">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <GitBranch className="h-5 w-5 text-emerald-400" />
+              <span>Conversation Branches</span>
+            </DialogTitle>
+            <DialogDescription>
+              Navigate between different conversation paths and alternatives
+            </DialogDescription>
+          </DialogHeader>
+
+          <BranchNavigator
+            branches={branchingState.branches}
+            activeBranchId={branchingState.activeBranchId}
+            defaultBranchId={branchingState.defaultBranchId}
+            isLoading={branchingState.loading}
+            onSwitchBranch={async (branchId) => {
+              const success = await switchToBranch(branchId);
+              if (success) {
+                setShowBranchNavigator(false);
+                // Refresh messages to show the new branch
+                window.location.reload(); // Simple reload for now
+              }
+            }}
+            onSetAsDefault={async (branchId) => {
+              await updateBranch(branchId, { setAsDefault: true });
+            }}
+            onRenameBranch={async (branchId, newName) => {
+              await updateBranch(branchId, { branchName: newName });
+            }}
+            onDeleteBranch={async (branchId) => {
+              const success = await deleteBranch(branchId);
+              if (success && branchingState.branches.length <= 1) {
+                setShowBranchNavigator(false);
+              }
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Branch Modal */}
+      <CreateBranchModal
+        isOpen={showCreateBranchModal}
+        onClose={() => {
+          setShowCreateBranchModal(false);
+          setBranchingFromMessage(null);
+        }}
+        onCreateBranch={handleBranchFromMessage}
+        parentMessage={branchingFromMessage}
+        conversationTitle={conversation?.title || "New Conversation"}
+        isLoading={branchingState.loading}
+      />
     </TooltipProvider>
   );
 }
@@ -1024,6 +1191,8 @@ function MessageBubble({
   onResumeStream,
   onDiscardStream,
   isRecoveryLoading = false,
+  onCreateBranch,
+  onViewBranches,
 }: {
   message: Message;
   user: any;
@@ -1034,6 +1203,13 @@ function MessageBubble({
   onResumeStream?: (streamId: string) => Promise<boolean>;
   onDiscardStream?: (streamId: string) => void;
   isRecoveryLoading?: boolean;
+  onCreateBranch?: (message: {
+    id: string;
+    content: string;
+    role: string;
+    model?: string | null;
+  }) => void;
+  onViewBranches?: () => void;
 }) {
   const [showImageWidget, setShowImageWidget] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
@@ -1364,6 +1540,42 @@ function MessageBubble({
                     📎 {message.metadata!.attachments!.length}
                   </span>
                 )}
+
+                {/* Branching indicator */}
+                {!isStreaming &&
+                  !hasError &&
+                  onCreateBranch &&
+                  onViewBranches && (
+                    <BranchingIndicator
+                      messageId={message.id}
+                      hasChildren={
+                        message.metadata?.branchingMetadata?.hasChildren ||
+                        false
+                      }
+                      childrenCount={
+                        message.metadata?.branchingMetadata?.childrenCount || 0
+                      }
+                      hasAlternatives={
+                        message.metadata?.branchingMetadata?.isAlternative ||
+                        false
+                      }
+                      alternativesCount={
+                        message.metadata?.branchingMetadata?.alternatives
+                          ?.length || 0
+                      }
+                      canBranch={true}
+                      onCreateBranch={() =>
+                        onCreateBranch({
+                          id: message.id,
+                          content: message.content,
+                          role: message.role,
+                          model: message.model,
+                        })
+                      }
+                      onViewBranches={onViewBranches}
+                      className="ml-2"
+                    />
+                  )}
               </div>
 
               <div className="flex items-center space-x-2">
