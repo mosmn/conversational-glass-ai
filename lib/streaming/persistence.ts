@@ -9,9 +9,9 @@ import {
 
 // Default configuration
 const DEFAULT_CONFIG: StreamStorageConfig = {
-  maxStorageSize: 50 * 1024 * 1024, // 50MB
-  maxStreamAge: 24 * 60 * 60 * 1000, // 24 hours
-  cleanupInterval: 60 * 60 * 1000, // 1 hour
+  maxStorageSize: 4 * 1024 * 1024, // 4MB (conservative limit)
+  maxStreamAge: 2 * 60 * 60 * 1000, // 2 hours (reduced from 24h)
+  cleanupInterval: 10 * 60 * 1000, // 10 minutes (more frequent cleanup)
   compressionEnabled: false, // Disable for now to keep simple
   encryptionEnabled: false, // Disable for now to keep simple
 };
@@ -30,6 +30,24 @@ class StreamPersistence {
 
   constructor(config: Partial<StreamStorageConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Perform immediate cleanup on initialization
+    setTimeout(() => {
+      this.cleanupOldStreams();
+
+      // Check storage usage and warn if high
+      const stats = this.getStorageStats();
+      if (stats.storageUsed > 2 * 1024 * 1024) {
+        // > 2MB
+        console.warn(
+          `⚠️ High storage usage detected: ${Math.round(
+            stats.storageUsed / 1024 / 1024
+          )}MB`
+        );
+        this.performEmergencyCleanup();
+      }
+    }, 1000);
+
     this.initializeCleanupTimer();
   }
 
@@ -46,8 +64,13 @@ class StreamPersistence {
         savedAt: Date.now(),
       };
 
+      const dataString = JSON.stringify(data);
+
+      // Check storage quota before saving
+      this.checkStorageQuota(dataString);
+
       // Store the state
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key, dataString);
 
       // Update the stream index
       this.updateStreamIndex(state.streamId, state.conversationId);
@@ -55,6 +78,25 @@ class StreamPersistence {
       console.log(`💾 Stream state saved: ${state.streamId}`);
     } catch (error) {
       console.error("Failed to save stream state:", error);
+
+      // Handle quota exceeded errors
+      if (error instanceof Error && error.name === "QuotaExceededError") {
+        console.log("🚨 Storage quota exceeded while saving stream state");
+        this.performEmergencyCleanup();
+
+        // Try saving again after cleanup
+        try {
+          const key = `${STORAGE_KEYS.STREAM_STATE}${state.streamId}`;
+          const data = { ...state, savedAt: Date.now() };
+          localStorage.setItem(key, JSON.stringify(data));
+          this.updateStreamIndex(state.streamId, state.conversationId);
+          console.log(`💾 Stream state saved after cleanup: ${state.streamId}`);
+          return;
+        } catch (retryError) {
+          console.error("Failed to save even after cleanup:", retryError);
+        }
+      }
+
       throw new StreamPersistenceError(
         "Failed to save stream state",
         "save",
@@ -307,16 +349,56 @@ class StreamPersistence {
   // Private methods
 
   private updateStreamIndex(streamId: string, conversationId: string): void {
-    const index = this.getStreamIndex();
+    try {
+      const index = this.getStreamIndex();
 
-    if (!index.streamIds.includes(streamId)) {
-      index.streamIds.push(streamId);
+      if (!index.streamIds.includes(streamId)) {
+        index.streamIds.push(streamId);
+      }
+
+      index.conversationMap[streamId] = conversationId;
+      index.lastUpdated = Date.now();
+
+      const indexData = JSON.stringify(index);
+
+      // Check if we're approaching storage limits
+      this.checkStorageQuota(indexData);
+
+      localStorage.setItem(STORAGE_KEYS.STREAM_INDEX, indexData);
+    } catch (error) {
+      console.error("Failed to update stream index:", error);
+
+      // If quota exceeded, perform emergency cleanup
+      if (error instanceof Error && error.name === "QuotaExceededError") {
+        console.log(
+          "🚨 Storage quota exceeded, performing emergency cleanup..."
+        );
+        this.performEmergencyCleanup();
+
+        // Try again after cleanup
+        try {
+          const index = this.getStreamIndex();
+          if (!index.streamIds.includes(streamId)) {
+            index.streamIds.push(streamId);
+          }
+          index.conversationMap[streamId] = conversationId;
+          index.lastUpdated = Date.now();
+          localStorage.setItem(
+            STORAGE_KEYS.STREAM_INDEX,
+            JSON.stringify(index)
+          );
+        } catch (retryError) {
+          console.error("Failed to save after emergency cleanup:", retryError);
+          throw new StreamPersistenceError(
+            "Storage quota exceeded even after cleanup",
+            "save",
+            retryError
+          );
+        }
+      } else {
+        throw error;
+      }
     }
-
-    index.conversationMap[streamId] = conversationId;
-    index.lastUpdated = Date.now();
-
-    localStorage.setItem(STORAGE_KEYS.STREAM_INDEX, JSON.stringify(index));
   }
 
   private removeFromStreamIndex(streamId: string): void {
@@ -368,6 +450,114 @@ class StreamPersistence {
     this.cleanupTimer = setInterval(() => {
       this.cleanupOldStreams();
     }, this.config.cleanupInterval);
+  }
+
+  /**
+   * Check storage quota and warn if approaching limits
+   */
+  private checkStorageQuota(newData: string): void {
+    try {
+      if (typeof window === "undefined") return;
+
+      // Get current storage usage
+      let totalUsage = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("conversational-glass-ai:")) {
+          const value = localStorage.getItem(key);
+          if (value) {
+            totalUsage += value.length * 2; // UTF-16 bytes
+          }
+        }
+      }
+
+      // Add size of new data
+      totalUsage += newData.length * 2;
+
+      // Typical localStorage limit is 5-10MB, warn at 4MB
+      const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB
+
+      if (totalUsage > WARNING_THRESHOLD) {
+        console.warn(
+          `⚠️ Storage usage: ${Math.round(
+            totalUsage / 1024 / 1024
+          )}MB - approaching limits`
+        );
+
+        // Proactively cleanup if we're close to limits
+        if (totalUsage > WARNING_THRESHOLD * 1.25) {
+          this.performEmergencyCleanup();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check storage quota:", error);
+    }
+  }
+
+  /**
+   * Perform emergency cleanup when storage is full
+   */
+  private performEmergencyCleanup(): void {
+    try {
+      console.log("🚨 Performing emergency storage cleanup...");
+
+      // 1. Clean up all completed streams immediately
+      const index = this.getStreamIndex();
+      let cleanedCount = 0;
+
+      for (const streamId of [...index.streamIds]) {
+        const state = this.getStreamState(streamId);
+        if (state && (state.isComplete || state.error)) {
+          this.removeStreamState(streamId);
+          cleanedCount++;
+        }
+      }
+
+      console.log(
+        `🧹 Emergency cleanup: removed ${cleanedCount} completed streams`
+      );
+
+      // 2. If still low on space, remove old incomplete streams
+      if (cleanedCount < 10) {
+        const remainingStreams = this.getIncompleteStreams();
+        const sortedByAge = remainingStreams.sort(
+          (a, b) => a.lastUpdateTime - b.lastUpdateTime
+        );
+
+        // Remove oldest 50% of incomplete streams
+        const toRemove = sortedByAge.slice(
+          0,
+          Math.ceil(sortedByAge.length / 2)
+        );
+        for (const stream of toRemove) {
+          this.removeStreamState(stream.streamId);
+          cleanedCount++;
+        }
+
+        console.log(
+          `🧹 Emergency cleanup: removed ${toRemove.length} old incomplete streams`
+        );
+      }
+
+      // 3. Force garbage collection if available
+      if (typeof window !== "undefined" && "gc" in window) {
+        try {
+          (window as any).gc();
+        } catch (e) {
+          // Ignore if GC not available
+        }
+      }
+
+      console.log(
+        `✅ Emergency cleanup completed: ${cleanedCount} streams removed`
+      );
+    } catch (error) {
+      console.error("Failed to perform emergency cleanup:", error);
+
+      // Last resort: clear all stream data
+      console.log("🆘 Last resort: clearing all stream data");
+      this.clearAllStreams();
+    }
   }
 
   /**

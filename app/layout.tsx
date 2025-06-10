@@ -4,6 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { PreferencesProvider } from "@/hooks/useUserPreferences";
 import "./globals.css";
 
+// Import storage utilities to make them available globally
+import "@/lib/streaming/storage-utils";
+
 export const metadata: Metadata = {
   title: "Conversational Glass AI - Revolutionary Chat Experience",
   description:
