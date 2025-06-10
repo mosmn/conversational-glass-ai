@@ -158,6 +158,7 @@ export interface Model {
   tags: string[];
   tier: "premium" | "standard" | "economy";
   bestUseCase: string;
+  isEnabled?: boolean; // User preference for showing this model in selector
 }
 
 export interface ModelsResponse {

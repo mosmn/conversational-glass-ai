@@ -124,7 +124,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const { user } = useUser();
   const personalization = usePersonalization();
   const visualPrefs = useVisualPreferences();
-  const [selectedModel, setSelectedModel] = useState("llama-3.3-70b-versatile");
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const { toast } = useToast();
 
   // Custom hooks for state management

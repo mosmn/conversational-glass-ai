@@ -21,6 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  getProviderIcon,
+  getProviderColor,
+  getProviderDisplayName,
+} from "@/lib/utils/provider-icons";
 
 interface ModelCardProps {
   model: {
@@ -324,9 +329,19 @@ export function ModelCard({
             {/* Provider badge */}
             <Badge
               variant="secondary"
-              className="bg-slate-800/50 text-slate-300 border-slate-600/50"
+              className="bg-slate-800/50 text-slate-300 border-slate-600/50 flex items-center gap-1"
             >
-              {model.provider}
+              {(() => {
+                const ProviderIcon = getProviderIcon(model.provider);
+                return (
+                  <ProviderIcon
+                    className="h-3 w-3"
+                    size={12}
+                    style={{ color: getProviderColor(model.provider) }}
+                  />
+                );
+              })()}
+              {getProviderDisplayName(model.provider)}
             </Badge>
           </div>
 

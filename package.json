@@ -26,6 +26,7 @@
     "@emotion/is-prop-valid": "latest",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.1",
+    "@icons-pack/react-simple-icons": "^13.1.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",

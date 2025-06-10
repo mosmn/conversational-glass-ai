@@ -19,6 +19,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ModelCard } from "./ModelCard";
 import { cn } from "@/lib/utils";
+import {
+  getProviderIcon,
+  getProviderColor,
+  getProviderDisplayName,
+} from "@/lib/utils/provider-icons";
 
 interface ProviderSectionProps {
   provider: string;
@@ -31,43 +36,61 @@ interface ProviderSectionProps {
   onConfigureModel: (model: any) => void;
 }
 
-const providerConfig = {
-  openai: {
-    name: "OpenAI",
-    description: "Industry-leading language models",
-    icon: Brain,
-    color: "from-emerald-400 to-green-500",
-    glowColor: "from-emerald-600/20 to-green-600/20",
-    website: "https://openai.com",
-    features: ["GPT-4", "Function Calling", "Reliable", "Well-documented"],
-  },
-  claude: {
-    name: "Anthropic Claude",
-    description: "Constitutional AI with strong reasoning",
-    icon: Sparkles,
-    color: "from-orange-400 to-amber-500",
-    glowColor: "from-orange-600/20 to-amber-600/20",
-    website: "https://anthropic.com",
-    features: ["Constitutional AI", "Long Context", "Safe", "Thoughtful"],
-  },
-  gemini: {
-    name: "Google Gemini",
-    description: "Advanced multimodal capabilities",
-    icon: Globe,
-    color: "from-blue-400 to-cyan-500",
-    glowColor: "from-blue-600/20 to-cyan-600/20",
-    website: "https://ai.google.dev",
-    features: ["Multimodal", "Fast", "Versatile", "Scalable"],
-  },
-  groq: {
-    name: "Groq",
-    description: "Lightning-fast inference speed",
-    icon: Zap,
-    color: "from-yellow-400 to-orange-500",
-    glowColor: "from-yellow-600/20 to-orange-600/20",
-    website: "https://groq.com",
-    features: ["Ultra-fast", "Low Latency", "Efficient", "Open Models"],
-  },
+const getProviderConfig = (provider: string) => {
+  const providerColor = getProviderColor(provider);
+  const baseConfigs = {
+    openai: {
+      name: getProviderDisplayName(provider),
+      description: "Industry-leading language models",
+      website: "https://openai.com",
+      features: ["GPT-4", "Function Calling", "Reliable", "Well-documented"],
+    },
+    claude: {
+      name: getProviderDisplayName(provider),
+      description: "Constitutional AI with strong reasoning",
+      website: "https://anthropic.com",
+      features: ["Constitutional AI", "Long Context", "Safe", "Thoughtful"],
+    },
+    anthropic: {
+      name: getProviderDisplayName(provider),
+      description: "Constitutional AI with strong reasoning",
+      website: "https://anthropic.com",
+      features: ["Constitutional AI", "Long Context", "Safe", "Thoughtful"],
+    },
+    gemini: {
+      name: getProviderDisplayName(provider),
+      description: "Advanced multimodal capabilities",
+      website: "https://ai.google.dev",
+      features: ["Multimodal", "Fast", "Versatile", "Scalable"],
+    },
+    google: {
+      name: getProviderDisplayName(provider),
+      description: "Advanced multimodal capabilities",
+      website: "https://ai.google.dev",
+      features: ["Multimodal", "Fast", "Versatile", "Scalable"],
+    },
+    groq: {
+      name: getProviderDisplayName(provider),
+      description: "Lightning-fast inference speed",
+      website: "https://groq.com",
+      features: ["Ultra-fast", "Low Latency", "Efficient", "Open Models"],
+    },
+    openrouter: {
+      name: getProviderDisplayName(provider),
+      description: "Access to multiple AI models",
+      website: "https://openrouter.ai",
+      features: ["Multiple Models", "Competitive Pricing", "Unified API"],
+    },
+  };
+
+  return (
+    baseConfigs[provider.toLowerCase() as keyof typeof baseConfigs] || {
+      name: getProviderDisplayName(provider),
+      description: "AI language models",
+      website: "#",
+      features: [],
+    }
+  );
 };
 
 export function ProviderSection({
@@ -82,17 +105,9 @@ export function ProviderSection({
 }: ProviderSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const config = providerConfig[provider as keyof typeof providerConfig] || {
-    name: provider.charAt(0).toUpperCase() + provider.slice(1),
-    description: "AI language models",
-    icon: Brain,
-    color: "from-slate-400 to-slate-500",
-    glowColor: "from-slate-600/20 to-slate-600/20",
-    website: "#",
-    features: [],
-  };
-
-  const Icon = config.icon;
+  const config = getProviderConfig(provider);
+  const ProviderIcon = getProviderIcon(provider);
+  const providerColor = getProviderColor(provider);
 
   // Sort models by recommendation and name
   const sortedModels = [...models].sort((a, b) => {
@@ -122,10 +137,10 @@ export function ProviderSection({
       >
         {/* Glow effect */}
         <div
-          className={cn(
-            "absolute inset-0 rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500",
-            `bg-gradient-to-r ${config.glowColor}`
-          )}
+          className="absolute inset-0 rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500"
+          style={{
+            background: `linear-gradient(to right, ${providerColor}20, ${providerColor}20)`,
+          }}
         />
 
         <Card className="relative bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500">
@@ -134,12 +149,17 @@ export function ProviderSection({
               <div className="flex items-center gap-4">
                 {/* Provider Icon */}
                 <div
-                  className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
-                    config.color
-                  )}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg border border-slate-600/30"
+                  style={{
+                    backgroundColor: `${providerColor}20`,
+                    borderColor: `${providerColor}40`,
+                  }}
                 >
-                  <Icon className="h-6 w-6 text-white" />
+                  <ProviderIcon
+                    className="h-6 w-6"
+                    size={24}
+                    style={{ color: providerColor }}
+                  />
                 </div>
 
                 {/* Provider Info */}

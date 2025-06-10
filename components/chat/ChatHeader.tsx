@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Share, Settings, GitBranch } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
+import { ModelQuickGuide } from "./ModelQuickGuide";
 
 interface ChatHeaderProps {
   conversationTitle?: string;
@@ -58,11 +59,14 @@ export function ChatHeader({
       </div>
 
       <div className="relative flex items-center space-x-2 z-10">
-        {/* Model Selector */}
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-        />
+        {/* Model Selector with Quick Guide */}
+        <div className="flex items-center space-x-1">
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+          />
+          <ModelQuickGuide />
+        </div>
 
         {/* Sync Status Indicator */}
         {lastSyncTime && (

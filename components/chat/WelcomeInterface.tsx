@@ -35,9 +35,16 @@ export function WelcomeInterface({
         <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 bg-clip-text text-transparent">
           How can I help you today?
         </h1>
-        <p className="text-lg text-slate-300">
-          Choose an action below or start typing your question
-        </p>
+        <div className="space-y-2">
+          <p className="text-lg text-slate-300">
+            Choose an action below or start typing your question
+          </p>
+          <p className="text-sm text-slate-400">
+            💡 <strong>Tip:</strong> Use the model selector above to pick the
+            perfect AI for your task - Fast models for quick questions, Smart
+            models for complex problems
+          </p>
+        </div>
       </div>
 
       {/* Quick Actions */}
