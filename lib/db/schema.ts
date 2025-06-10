@@ -342,12 +342,87 @@ export const userApiKeys = pgTable(
   })
 );
 
+// Generated Images table - AI-generated images from various providers
+export const generatedImages = pgTable(
+  "generated_images",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "cascade",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "cascade",
+    }),
+    prompt: text("prompt").notNull(), // Original user prompt
+    revisedPrompt: text("revised_prompt"), // AI-revised prompt (DALL-E provides this)
+    provider: varchar("provider", { length: 50 }).notNull(), // 'openai', 'replicate', 'gemini', 'stability'
+    model: varchar("model", { length: 100 }).notNull(), // 'dall-e-3', 'dall-e-2', 'stable-diffusion-xl', etc.
+    imageUrl: text("image_url").notNull(), // URL to the generated image
+    thumbnailUrl: text("thumbnail_url"), // Smaller preview URL
+    publicId: varchar("public_id", { length: 100 }).unique(), // For public sharing
+    generationSettings: jsonb("generation_settings")
+      .$type<{
+        size?: string; // '1024x1024', '1792x1024', '1024x1792'
+        quality?: string; // 'standard', 'hd'
+        style?: string; // 'vivid', 'natural'
+        steps?: number; // For Stable Diffusion
+        guidance?: number; // Guidance scale
+        seed?: number; // Random seed for reproducibility
+        negativePrompt?: string; // What to avoid in the image
+        strength?: number; // For image-to-image generation
+      }>()
+      .default({}),
+    metadata: jsonb("metadata")
+      .$type<{
+        dimensions?: {
+          width: number;
+          height: number;
+        };
+        fileSize?: number; // In bytes
+        format?: string; // 'png', 'jpg', 'webp'
+        generationTime?: number; // Time taken to generate (seconds)
+        cost?: number; // Cost in credits/dollars
+        safety?: {
+          flagged: boolean;
+          categories: string[];
+        };
+        // Analytics data
+        downloads?: number;
+        shares?: number;
+        regenerations?: number;
+        variations?: number;
+      }>()
+      .default({}),
+    status: varchar("status", { length: 20 }).default("pending").notNull(), // 'pending', 'completed', 'failed', 'deleted'
+    errorMessage: text("error_message"), // Error details if generation failed
+    isPublic: boolean("is_public").default(false), // Whether image is publicly shareable
+    expiresAt: timestamp("expires_at"), // When the image URL expires (provider dependent)
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("generated_images_user_id_idx").on(table.userId),
+    conversationIdIdx: index("generated_images_conversation_id_idx").on(
+      table.conversationId
+    ),
+    messageIdIdx: index("generated_images_message_id_idx").on(table.messageId),
+    providerIdx: index("generated_images_provider_idx").on(table.provider),
+    statusIdx: index("generated_images_status_idx").on(table.status),
+    publicIdIdx: index("generated_images_public_id_idx").on(table.publicId),
+    createdAtIdx: index("generated_images_created_at_idx").on(table.createdAt),
+  })
+);
+
 // Define relationships for type safety and joins
 export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
   messages: many(messages),
   apiKeys: many(userApiKeys),
   files: many(files),
+  generatedImages: many(generatedImages),
 }));
 
 export const conversationsRelations = relations(
@@ -360,6 +435,7 @@ export const conversationsRelations = relations(
     messages: many(messages),
     artifacts: many(conversationArtifacts),
     files: many(files),
+    generatedImages: many(generatedImages),
   })
 );
 
@@ -378,6 +454,7 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   }),
   children: many(messages),
   files: many(files),
+  generatedImages: many(generatedImages),
 }));
 
 export const filesRelations = relations(files, ({ one }) => ({
@@ -402,6 +479,24 @@ export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
   }),
 }));
 
+export const generatedImagesRelations = relations(
+  generatedImages,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [generatedImages.userId],
+      references: [users.id],
+    }),
+    conversation: one(conversations, {
+      fields: [generatedImages.conversationId],
+      references: [conversations.id],
+    }),
+    message: one(messages, {
+      fields: [generatedImages.messageId],
+      references: [messages.id],
+    }),
+  })
+);
+
 export const conversationArtifactsRelations = relations(
   conversationArtifacts,
   ({ one }) => ({
@@ -425,3 +520,5 @@ export type ConversationArtifact = typeof conversationArtifacts.$inferSelect;
 export type NewConversationArtifact = typeof conversationArtifacts.$inferInsert;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type NewUserApiKey = typeof userApiKeys.$inferInsert;
+export type GeneratedImage = typeof generatedImages.$inferSelect;
+export type NewGeneratedImage = typeof generatedImages.$inferInsert;

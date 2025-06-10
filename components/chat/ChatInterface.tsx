@@ -57,6 +57,7 @@ import {
   Edit3,
   Archive,
   LogOut,
+  DollarSign,
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { FileAttachment } from "./FileAttachment";
@@ -64,6 +65,7 @@ import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { ShareModal } from "./ShareModal";
 import { ChatSidebar } from "./ChatSidebar";
+import { InlineImageGeneration } from "./InlineImageGeneration";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,6 +123,32 @@ interface Message {
         wordCount?: number;
       };
     }>;
+    // Enhanced for image generation integration
+    generatedImage?: {
+      id: string;
+      url: string;
+      prompt: string;
+      revisedPrompt?: string;
+      provider: string;
+      model: string;
+      generationSettings: {
+        size: string;
+        quality: string;
+        style: string;
+      };
+      dimensions: {
+        width: number;
+        height: number;
+      };
+      metadata: {
+        generationTime: number;
+        estimatedCost: number;
+        format: string;
+      };
+      createdAt: string;
+    };
+    imageGenerationDetected?: boolean;
+    suggestedImagePrompts?: string[];
   };
 }
 
@@ -140,6 +168,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showInlineImageGeneration, setShowInlineImageGeneration] =
+    useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -310,6 +340,26 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   };
 
+  // Handle image generation from inline widget
+  const handleImageGenerated = (result: any) => {
+    console.log("📸 Image generated:", result);
+
+    // Add a success toast
+    toast({
+      title: "Image Generated",
+      description: `Successfully created image using ${result.provider}`,
+    });
+
+    // Refresh messages to show the generated image
+    if (result.addedToConversation) {
+      // The image should already be linked to a message
+      // Refresh the conversation to show the updated message
+      setTimeout(() => {
+        window.location.reload(); // Simple refresh for now
+      }, 1000);
+    }
+  };
+
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
@@ -472,12 +522,46 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       key={message.id}
                       message={message}
                       user={user}
+                      conversationId={chatId}
+                      onImageGenerated={handleImageGenerated}
+                      showInlineImageGeneration={showInlineImageGeneration}
                     />
                   ))}
                   {isStreaming && <TypingIndicator />}
                 </div>
               )}
             </ScrollArea>
+          </div>
+
+          {/* Floating Action Button for Image Gallery */}
+          <div className="absolute top-4 right-4 z-10">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90"
+                  onClick={() => {
+                    // TODO: Show conversation artifacts modal
+                    toast({
+                      title: "Coming Soon",
+                      description: "Conversation artifacts view will open here",
+                    });
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Artifacts (
+                  {
+                    messages.filter((m) => (m.metadata as any)?.generatedImage)
+                      .length
+                  }
+                  )
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View conversation artifacts and generated images</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Input Area - Enhanced */}
@@ -682,12 +766,26 @@ function WelcomeInterface({
   );
 }
 
-function MessageBubble({ message, user }: { message: Message; user: any }) {
+function MessageBubble({
+  message,
+  user,
+  conversationId,
+  onImageGenerated,
+  showInlineImageGeneration = true,
+}: {
+  message: Message;
+  user: any;
+  conversationId: string;
+  onImageGenerated?: (result: any) => void;
+  showInlineImageGeneration?: boolean;
+}) {
+  const [showImageWidget, setShowImageWidget] = useState(false);
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
   const hasAttachments =
     message.metadata?.attachments && message.metadata.attachments.length > 0;
+  const hasGeneratedImage = message.metadata?.generatedImage;
 
   // Debug logging for attachment display
   if (hasAttachments) {
@@ -777,13 +875,114 @@ function MessageBubble({ message, user }: { message: Message; user: any }) {
                     allowHtml={true}
                   />
 
+                  {/* Display generated image within the message bubble */}
+                  {hasGeneratedImage && (
+                    <div className="border-t border-white/10 pt-3 mt-3">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-blue-400" />
+                            <span className="text-sm font-medium">
+                              Generated Image
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {message.metadata?.generatedImage?.provider}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-slate-400">
+                            <Clock className="h-3 w-3" />
+                            {message.metadata?.generatedImage?.metadata.generationTime.toFixed(
+                              1
+                            )}
+                            s
+                            <DollarSign className="h-3 w-3 ml-2" />$
+                            {message.metadata?.generatedImage?.metadata.estimatedCost.toFixed(
+                              3
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="relative group/image rounded-lg overflow-hidden">
+                          <img
+                            src={message.metadata?.generatedImage?.url || ""}
+                            alt={
+                              message.metadata?.generatedImage?.prompt ||
+                              "Generated image"
+                            }
+                            className="w-full rounded-lg"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              <Share className="h-3 w-3 mr-1" />
+                              Share
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                          <div>
+                            <span className="font-medium">Model:</span>{" "}
+                            {message.metadata?.generatedImage?.model}
+                          </div>
+                          <div>
+                            <span className="font-medium">Size:</span>{" "}
+                            {
+                              message.metadata?.generatedImage
+                                ?.generationSettings?.size
+                            }
+                          </div>
+                          <div>
+                            <span className="font-medium">Style:</span>{" "}
+                            {
+                              message.metadata?.generatedImage
+                                ?.generationSettings?.style
+                            }
+                          </div>
+                          <div>
+                            <span className="font-medium">Quality:</span>{" "}
+                            {
+                              message.metadata?.generatedImage
+                                ?.generationSettings?.quality
+                            }
+                          </div>
+                        </div>
+
+                        {message.metadata?.generatedImage?.revisedPrompt &&
+                          message.metadata.generatedImage.revisedPrompt !==
+                            message.metadata.generatedImage.prompt && (
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium text-slate-300">
+                                AI Revised Prompt:
+                              </div>
+                              <div className="text-xs text-slate-400 italic">
+                                "{message.metadata.generatedImage.revisedPrompt}
+                                "
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Display attachments within the message bubble */}
                   {hasAttachments && (
                     <MessageAttachments
                       attachments={message.metadata!.attachments!}
                       isUser={isUser}
                       className={
-                        message.content.trim()
+                        message.content.trim() || hasGeneratedImage
                           ? "border-t border-white/10 pt-3 mt-3"
                           : ""
                       }
@@ -854,6 +1053,24 @@ function MessageBubble({ message, user }: { message: Message; user: any }) {
                 </div>
               )}
             </div>
+
+            {/* Inline Image Generation Widget */}
+            {isUser &&
+              showInlineImageGeneration &&
+              !isStreaming &&
+              !hasError &&
+              !hasGeneratedImage && (
+                <div className="mt-3">
+                  <InlineImageGeneration
+                    prompt={message.content}
+                    conversationId={conversationId}
+                    messageId={message.id}
+                    onImageGenerated={onImageGenerated}
+                    autoDetect={true}
+                    className="max-w-md"
+                  />
+                </div>
+              )}
           </div>
         </div>
       </div>
