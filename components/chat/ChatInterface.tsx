@@ -63,6 +63,7 @@ import { FileAttachment } from "./FileAttachment";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { ShareModal } from "./ShareModal";
+import { ChatSidebar } from "./ChatSidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,28 +124,8 @@ interface Message {
   };
 }
 
-interface Chat {
-  id: string;
-  title: string;
-  preview?: string;
-  timestamp: Date;
-  model: string;
-  isPinned?: boolean;
-  isBookmarked?: boolean;
-  category?: string;
-}
-
 interface ChatInterfaceProps {
   chatId: string;
-}
-
-interface ChatPreferences {
-  pinnedChats: string[];
-  bookmarkedChats: string[];
-  chatCategories: Record<string, string>;
-  theme: string;
-  notifications: boolean;
-  autoSave: boolean;
 }
 
 export function ChatInterface({ chatId }: ChatInterfaceProps) {
@@ -155,117 +136,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [selectedModel, setSelectedModel] = useState("llama-3.3-70b-versatile");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
-  const [usage, setUsage] = useState(65); // Usage percentage
   const [attachments, setAttachments] = useState<any[]>([]);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
-
-  // Chat preferences with localStorage - handled client-side only
-  const [preferences, setPreferences] = useState<ChatPreferences>({
-    pinnedChats: [],
-    bookmarkedChats: [],
-    chatCategories: {},
-    theme: "dark",
-    notifications: true,
-    autoSave: true,
-  });
-
-  // Load preferences from localStorage only on client side
-  useEffect(() => {
-    const stored = localStorage.getItem("chat:preferences");
-    if (stored) {
-      try {
-        setPreferences(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to parse stored preferences:", error);
-      }
-    }
-  }, []);
-
-  const savePreferences = (newPrefs: ChatPreferences) => {
-    setPreferences(newPrefs);
-    localStorage.setItem("chat:preferences", JSON.stringify(newPrefs));
-  };
-
-  // Pin/bookmark functionality
-  const togglePin = (chatId: string) => {
-    const newPinnedChats = preferences.pinnedChats.includes(chatId)
-      ? preferences.pinnedChats.filter((id) => id !== chatId)
-      : [...preferences.pinnedChats, chatId];
-
-    savePreferences({
-      ...preferences,
-      pinnedChats: newPinnedChats,
-    });
-
-    toast({
-      title: preferences.pinnedChats.includes(chatId) ? "Unpinned" : "Pinned",
-      description: `Chat ${
-        preferences.pinnedChats.includes(chatId) ? "removed from" : "added to"
-      } pinned conversations`,
-    });
-  };
-
-  const toggleBookmark = (chatId: string) => {
-    const newBookmarkedChats = preferences.bookmarkedChats.includes(chatId)
-      ? preferences.bookmarkedChats.filter((id) => id !== chatId)
-      : [...preferences.bookmarkedChats, chatId];
-
-    savePreferences({
-      ...preferences,
-      bookmarkedChats: newBookmarkedChats,
-    });
-
-    toast({
-      title: preferences.bookmarkedChats.includes(chatId)
-        ? "Unbookmarked"
-        : "Bookmarked",
-      description: `Chat ${
-        preferences.bookmarkedChats.includes(chatId)
-          ? "removed from"
-          : "added to"
-      } bookmarks`,
-    });
-  };
-
-  const deleteChat = async (chatId: string) => {
-    try {
-      // TODO: Implement delete API call
-      toast({
-        title: "Chat Deleted",
-        description: "The conversation has been deleted",
-      });
-
-      // Remove from preferences
-      savePreferences({
-        ...preferences,
-        pinnedChats: preferences.pinnedChats.filter((id) => id !== chatId),
-        bookmarkedChats: preferences.bookmarkedChats.filter(
-          (id) => id !== chatId
-        ),
-      });
-
-      // Refresh conversations
-      refetchConversations();
-
-      // Navigate away if current chat is deleted
-      if (chatId === chatId) {
-        router.push("/chat/new");
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete conversation",
-      });
-    }
-  };
 
   // Debug logging (reduced noise)
   useEffect(() => {
@@ -292,18 +168,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     syncMessages,
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
-
-  // Calculate actual usage and update when conversations change
-  useEffect(() => {
-    const calculateUsage = () => {
-      // Mock calculation based on number of conversations
-      const baseUsage = Math.min(conversations.length * 2, 80);
-      return baseUsage + Math.floor(Math.random() * 20);
-    };
-
-    const newUsage = calculateUsage();
-    setUsage(newUsage);
-  }, [conversations.length]);
 
   // Track if we've already refreshed for this title change
   const lastRefreshedTitleRef = useRef<string | null>(null);
@@ -336,35 +200,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       return () => clearTimeout(timeoutId);
     }
   }, [conversation?.title]); // Remove refetchConversations from dependencies to prevent infinite loops
-
-  // Convert API conversations to local format for UI compatibility
-  const chats: Chat[] = conversations.map((conv) => ({
-    id: conv.id,
-    title: conv.title,
-    preview: `Last updated ${new Date(conv.updatedAt).toLocaleDateString()}`,
-    timestamp: new Date(conv.updatedAt),
-    model: conv.model,
-    isPinned: preferences.pinnedChats.includes(conv.id),
-    isBookmarked: preferences.bookmarkedChats.includes(conv.id),
-    category: preferences.chatCategories[conv.id] || "General",
-  }));
-
-  // Filter chats based on search and category
-  const filteredChats = chats.filter((chat) => {
-    const matchesSearch = chat.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "All" || chat.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Separate pinned and recent chats
-  const pinnedChats = filteredChats.filter((chat) => chat.isPinned);
-  const recentChats = filteredChats.filter((chat) => !chat.isPinned);
-
-  // Available categories
-  const categories = ["All", "Work", "Personal", "Creative", "Learning"];
 
   // Create new chat function
   const handleCreateNewChat = async () => {
@@ -478,281 +313,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-        {/* Left Sidebar - Enhanced */}
-        <div
-          className={`${
-            sidebarCollapsed ? "w-16" : "w-80"
-          } flex-shrink-0 relative transition-all duration-500 ease-in-out`}
-        >
-          {/* Glassmorphic Background */}
-          <div className="absolute inset-0 bg-slate-800/30 backdrop-blur-2xl border-r border-slate-700/30" />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-700/20 via-transparent to-slate-900/20" />
-
-          {/* Animated Border */}
-          <div className="absolute top-0 right-0 w-[1px] h-full bg-gradient-to-b from-transparent via-emerald-500/50 to-transparent" />
-
-          <div className="relative z-10 flex flex-col h-full">
-            {/* Sidebar Header - Enhanced (Fixed) */}
-            <div className="flex-shrink-0 p-6 border-b border-slate-700/30 relative">
-              {/* Subtle glow effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent" />
-
-              <div className="relative flex items-center justify-between">
-                {!sidebarCollapsed ? (
-                  <div className="transition-all duration-300 hover:scale-105">
-                    <ConversationalGlassLogo
-                      size="md"
-                      animated={true}
-                      showText={true}
-                      className="flex-shrink-0"
-                    />
-                  </div>
-                ) : (
-                  <div className="transition-all duration-300 hover:scale-110">
-                    <ConversationalGlassLogoMini className="flex-shrink-0" />
-                  </div>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all duration-300 rounded-xl backdrop-blur-sm border border-slate-700/30 hover:border-emerald-500/30"
-                >
-                  {sidebarCollapsed ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronLeft className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {!sidebarCollapsed && (
-              <>
-                {/* New Chat Button - Enhanced (Fixed) */}
-                <div className="flex-shrink-0 p-6">
-                  <Button
-                    onClick={handleCreateNewChat}
-                    className="w-full relative group overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 h-12 rounded-xl backdrop-blur-sm border border-emerald-500/30"
-                  >
-                    {/* Animated background */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/20 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-
-                    <div className="relative flex items-center justify-center space-x-2">
-                      <Plus className="h-5 w-5 transition-transform duration-300 group-hover:rotate-90" />
-                      <span className="font-semibold">✨ New Chat</span>
-                    </div>
-                  </Button>
-                </div>
-
-                {/* Search - Enhanced (Fixed) */}
-                <div className="flex-shrink-0 px-6 pb-4">
-                  <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-400 transition-colors duration-300" />
-                    <Input
-                      placeholder="🔍 Search conversations..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-12 pr-12 h-12 bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 focus:text-white rounded-xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10"
-                    />
-                    <DropdownMenu
-                      open={showFilterMenu}
-                      onOpenChange={setShowFilterMenu}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all duration-300 rounded-lg"
-                        >
-                          <Filter className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem
-                          onClick={() => setSelectedCategory("All")}
-                        >
-                          <Clock className="mr-2 h-4 w-4" />
-                          All Chats
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setSelectedCategory("Work")}
-                        >
-                          <Folder className="mr-2 h-4 w-4" />
-                          Work
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setSelectedCategory("Personal")}
-                        >
-                          <User className="mr-2 h-4 w-4" />
-                          Personal
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setSelectedCategory("Creative")}
-                        >
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Creative
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setSelectedCategory("Learning")}
-                        >
-                          <GraduationCap className="mr-2 h-4 w-4" />
-                          Learning
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {/* Chat Categories (Fixed) */}
-                <div className="flex-shrink-0 px-6 pb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((category) => (
-                      <Badge
-                        key={category}
-                        variant="secondary"
-                        className={`cursor-pointer transition-colors ${
-                          selectedCategory === category
-                            ? "bg-emerald-600 text-white border-emerald-500"
-                            : "bg-slate-700 text-slate-200 hover:bg-slate-600 hover:text-white border-slate-600"
-                        }`}
-                        onClick={() => setSelectedCategory(category)}
-                      >
-                        {category}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Chat History - Scrollable Area (FIXED) */}
-                <div className="flex-1 min-h-0">
-                  <ScrollArea className="h-full px-6">
-                    <div className="space-y-2">
-                      {/* Pinned Chats */}
-                      <div className="mb-4">
-                        <div className="flex items-center text-sm text-slate-400 mb-2">
-                          <Pin className="h-3 w-3 mr-1" />
-                          Pinned
-                        </div>
-                        {pinnedChats.map((chat) => (
-                          <ChatHistoryItem
-                            key={chat.id}
-                            chat={chat}
-                            isActive={chat.id === chatId}
-                            onPin={() => togglePin(chat.id)}
-                            onBookmark={() => toggleBookmark(chat.id)}
-                            onDelete={() => deleteChat(chat.id)}
-                          />
-                        ))}
-                      </div>
-
-                      {/* Recent Chats */}
-                      <div>
-                        <div className="flex items-center text-sm text-slate-400 mb-2">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Recent
-                        </div>
-                        {conversationsLoading ? (
-                          <div className="space-y-2">
-                            {[...Array(3)].map((_, i) => (
-                              <div
-                                key={i}
-                                className="p-3 rounded-lg bg-slate-700/30 animate-pulse"
-                              >
-                                <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                                <div className="h-3 bg-slate-600 rounded w-3/4"></div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          recentChats.map((chat) => (
-                            <ChatHistoryItem
-                              key={chat.id}
-                              chat={chat}
-                              isActive={chat.id === chatId}
-                              onPin={() => togglePin(chat.id)}
-                              onBookmark={() => toggleBookmark(chat.id)}
-                              onDelete={() => deleteChat(chat.id)}
-                            />
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </ScrollArea>
-                </div>
-
-                {/* Usage Meter (Fixed) */}
-                <div className="flex-shrink-0 p-6 border-t border-slate-700/30">
-                  <div className="mb-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Usage this month</span>
-                      <span className="text-emerald-400">{usage}%</span>
-                    </div>
-                    <Progress value={usage} className="h-2 bg-slate-700" />
-                  </div>
-                  <p className="text-xs text-slate-500">Resets in 12 days</p>
-                </div>
-
-                {/* User Profile (Fixed) */}
-                <div className="flex-shrink-0 p-6 border-t border-slate-700/30">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start p-2"
-                      >
-                        <Avatar className="h-8 w-8 mr-3">
-                          <AvatarImage src={user?.imageUrl} />
-                          <AvatarFallback>
-                            {user?.firstName?.[0] ||
-                              user?.emailAddresses?.[0]?.emailAddress?.[0] ||
-                              "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="text-left">
-                          <div
-                            className="text-sm font-medium"
-                            data-personal-info={visualPrefs.hidePersonalInfo}
-                          >
-                            {personalization.displayName ||
-                              user?.fullName ||
-                              user?.emailAddresses?.[0]?.emailAddress ||
-                              "User"}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            Free Plan
-                          </div>
-                        </div>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => router.push("/profile")}>
-                        <User className="mr-2 h-4 w-4" />
-                        Profile
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => router.push("/settings")}
-                      >
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span className="flex-1">Settings</span>
-                        <span className="text-xs text-slate-500">⌘,</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <SignOutButton>
-                          <button className="flex items-center w-full">
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Sign out
-                          </button>
-                        </SignOutButton>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        {/* ChatSidebar Component */}
+        <ChatSidebar
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          currentChatId={chatId}
+          selectedModel={selectedModel}
+          onCreateNewChat={handleCreateNewChat}
+        />
 
         {/* Main Content Area - Enhanced */}
         <div className="flex-1 flex flex-col relative">
@@ -763,8 +331,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           {/* Header - Enhanced */}
           <div className="relative z-10 flex items-center justify-between p-6 border-b border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
             {/* Subtle header glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5" />
-            <div className="relative flex items-center space-x-4">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5 pointer-events-none" />
+            <div className="relative flex items-center space-x-4 z-10">
               <div className="flex items-center space-x-3">
                 <div className="w-1 h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full" />
                 <h2 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
@@ -784,7 +352,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               )}
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="relative flex items-center space-x-2 z-10">
               {/* Model Selector */}
               <ModelSelector
                 selectedModel={selectedModel}
@@ -811,20 +379,30 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 </Tooltip>
               )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowShareModal(true)}
-                disabled={!conversation && messages.length === 0}
-              >
-                <Share className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowShareModal(true)}
+                    disabled={!conversation && messages.length === 0}
+                    className="hover:bg-slate-700/50 hover:text-emerald-400 transition-colors"
+                  >
+                    <Share className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Share conversation</p>
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => router.push("/settings")}
+                    className="hover:bg-slate-700/50 hover:text-blue-400 transition-colors"
                   >
                     <Settings className="h-4 w-4" />
                   </Button>
@@ -1032,282 +610,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           conversationTitle={conversation.title}
         />
       )}
-
-      {/* Settings Dialog */}
-      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent className="max-w-md bg-slate-800 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-white">Settings</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Manage your chat preferences and account settings.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Theme Settings */}
-            <div className="space-y-3">
-              <Label htmlFor="theme" className="text-sm font-medium text-white">
-                Theme
-              </Label>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant={preferences.theme === "dark" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() =>
-                    savePreferences({ ...preferences, theme: "dark" })
-                  }
-                  className="flex-1"
-                >
-                  <Moon className="h-4 w-4 mr-2" />
-                  Dark
-                </Button>
-                <Button
-                  variant={
-                    preferences.theme === "light" ? "default" : "outline"
-                  }
-                  size="sm"
-                  onClick={() =>
-                    savePreferences({ ...preferences, theme: "light" })
-                  }
-                  className="flex-1"
-                >
-                  <Sun className="h-4 w-4 mr-2" />
-                  Light
-                </Button>
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-1">
-                <Label
-                  htmlFor="notifications"
-                  className="text-sm font-medium text-white"
-                >
-                  Notifications
-                </Label>
-                <p className="text-xs text-slate-400">
-                  Get notified about new messages
-                </p>
-              </div>
-              <Switch
-                id="notifications"
-                checked={preferences.notifications}
-                onCheckedChange={(checked) =>
-                  savePreferences({ ...preferences, notifications: checked })
-                }
-              />
-            </div>
-
-            {/* Auto Save */}
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-1">
-                <Label
-                  htmlFor="autosave"
-                  className="text-sm font-medium text-white"
-                >
-                  Auto Save
-                </Label>
-                <p className="text-xs text-slate-400">
-                  Automatically save conversations
-                </p>
-              </div>
-              <Switch
-                id="autosave"
-                checked={preferences.autoSave}
-                onCheckedChange={(checked) =>
-                  savePreferences({ ...preferences, autoSave: checked })
-                }
-              />
-            </div>
-
-            {/* Current Usage Display */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-white">
-                Current Usage
-              </Label>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Messages this month</span>
-                  <span className="text-emerald-400">
-                    {conversations.length}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Storage used</span>
-                  <span className="text-emerald-400">{usage}%</span>
-                </div>
-                <Progress value={usage} className="h-2 bg-slate-700" />
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-between pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (
-                    confirm(
-                      "This will clear all your chat preferences. Continue?"
-                    )
-                  ) {
-                    savePreferences({
-                      pinnedChats: [],
-                      bookmarkedChats: [],
-                      chatCategories: {},
-                      theme: "dark",
-                      notifications: true,
-                      autoSave: true,
-                    });
-                    toast({
-                      title: "Settings Reset",
-                      description:
-                        "All preferences have been reset to defaults",
-                    });
-                  }
-                }}
-                className="border-slate-600 text-slate-300 hover:text-white"
-              >
-                Reset to Defaults
-              </Button>
-              <Button
-                onClick={() => setShowSettingsDialog(false)}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                Done
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </TooltipProvider>
   );
 }
 
 // Supporting Components
-function ChatHistoryItem({
-  chat,
-  isActive,
-  onPin,
-  onBookmark,
-  onDelete,
-}: {
-  chat: Chat;
-  isActive: boolean;
-  onPin: () => void;
-  onBookmark: () => void;
-  onDelete: () => void;
-}) {
-  const router = useRouter();
-
-  const handleClick = () => {
-    router.push(`/chat/${chat.id}`);
-  };
-
-  return (
-    <div
-      onClick={handleClick}
-      className={`p-3 rounded-lg cursor-pointer transition-all duration-200 group ${
-        isActive
-          ? "bg-emerald-600/20 border border-emerald-500/30"
-          : "hover:bg-slate-700/50"
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2 mb-1">
-            <h3 className="font-medium text-sm truncate text-white">
-              {chat.title}
-            </h3>
-            {chat.isPinned && (
-              <Pin className="h-3 w-3 text-emerald-400 flex-shrink-0" />
-            )}
-            {chat.isBookmarked && (
-              <Star className="h-3 w-3 text-amber-400 flex-shrink-0" />
-            )}
-          </div>
-          {chat.preview && (
-            <p className="text-xs text-slate-300 truncate mb-2">
-              {chat.preview}
-            </p>
-          )}
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>{chat.timestamp.toLocaleDateString()}</span>
-            <Badge
-              variant="outline"
-              className="text-xs border-slate-600 text-slate-300"
-            >
-              {chat.model}
-            </Badge>
-          </div>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                onPin();
-              }}
-            >
-              <Pin className="mr-2 h-4 w-4" />
-              {chat.isPinned ? "Unpin" : "Pin"} Chat
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                onBookmark();
-              }}
-            >
-              <Star className="mr-2 h-4 w-4" />
-              {chat.isBookmarked ? "Remove Bookmark" : "Bookmark"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Add rename functionality
-              }}
-            >
-              <Edit3 className="mr-2 h-4 w-4" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Add archive functionality
-              }}
-            >
-              <Archive className="mr-2 h-4 w-4" />
-              Archive
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm("Are you sure you want to delete this chat?")) {
-                  onDelete();
-                }
-              }}
-              className="text-red-400 focus:text-red-300"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
-}
 
 function WelcomeInterface({
   quickActions,
