@@ -21,6 +21,7 @@ import { MessageAttachments } from "./MessageAttachments";
 import { InlineImageGeneration } from "./InlineImageGeneration";
 import { BranchingIndicator } from "./branching/BranchingIndicator";
 import { ConversationalGlassLogoMini } from "@/components/ConversationalGlassLogo";
+import { QuickTTSButton } from "./TextToSpeechButton";
 
 interface Message {
   id: string;
@@ -502,6 +503,11 @@ export function MessageBubble({
 
               {!isUser && !hasError && (
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <QuickTTSButton
+                    text={message.content}
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                  />
                   <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
                     <Copy className="h-3 w-3" />
                   </Button>

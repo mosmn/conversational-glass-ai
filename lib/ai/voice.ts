@@ -340,3 +340,261 @@ export function formatDuration(ms: number): string {
   }
   return `${remainingSeconds}s`;
 }
+
+// Text-to-Speech types and interfaces
+export interface TTSOptions {
+  voice?: string;
+  model?: "playai-tts" | "playai-tts-arabic";
+  language?: "en" | "ar";
+  response_format?: "wav";
+}
+
+export interface TTSResult {
+  audioUrl: string;
+  duration?: number;
+  voice: string;
+  model: string;
+  error?: string;
+}
+
+// Available voices
+export const ENGLISH_VOICES = [
+  "Arista-PlayAI",
+  "Atlas-PlayAI",
+  "Basil-PlayAI",
+  "Briggs-PlayAI",
+  "Calum-PlayAI",
+  "Celeste-PlayAI",
+  "Cheyenne-PlayAI",
+  "Chip-PlayAI",
+  "Cillian-PlayAI",
+  "Deedee-PlayAI",
+  "Fritz-PlayAI",
+  "Gail-PlayAI",
+  "Indigo-PlayAI",
+  "Mamaw-PlayAI",
+  "Mason-PlayAI",
+  "Mikail-PlayAI",
+  "Mitch-PlayAI",
+  "Quinn-PlayAI",
+  "Thunder-PlayAI",
+] as const;
+
+export const ARABIC_VOICES = [
+  "Ahmad-PlayAI",
+  "Amira-PlayAI",
+  "Khalid-PlayAI",
+  "Nasser-PlayAI",
+] as const;
+
+// Estimate token count (rough approximation: 1 token ≈ 4 characters)
+function estimateTokenCount(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+// Split text into chunks that fit within token limits
+function chunkText(text: string, maxTokens: number = 1000): string[] {
+  const estimatedTokens = estimateTokenCount(text);
+
+  if (estimatedTokens <= maxTokens) {
+    return [text];
+  }
+
+  // Split by sentences first, then by words if needed
+  const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    const sentenceWithPeriod = sentence.trim() + ".";
+    const chunkWithSentence =
+      currentChunk + (currentChunk ? " " : "") + sentenceWithPeriod;
+
+    if (estimateTokenCount(chunkWithSentence) <= maxTokens) {
+      currentChunk = chunkWithSentence;
+    } else {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = sentenceWithPeriod;
+      } else {
+        // Single sentence is too long, split by words
+        const words = sentenceWithPeriod.split(" ");
+        let wordChunk = "";
+
+        for (const word of words) {
+          const wordChunkWithWord = wordChunk + (wordChunk ? " " : "") + word;
+          if (estimateTokenCount(wordChunkWithWord) <= maxTokens) {
+            wordChunk = wordChunkWithWord;
+          } else {
+            if (wordChunk) {
+              chunks.push(wordChunk);
+              wordChunk = word;
+            } else {
+              // Single word is too long, truncate
+              chunks.push(word.substring(0, maxTokens * 4));
+            }
+          }
+        }
+        if (wordChunk) {
+          currentChunk = wordChunk;
+        }
+      }
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.length > 0 ? chunks : [text.substring(0, maxTokens * 4)];
+}
+
+// Convert text to speech using Groq TTS API
+export async function textToSpeech(
+  text: string,
+  options: TTSOptions = {}
+): Promise<TTSResult> {
+  try {
+    const {
+      voice,
+      model = "playai-tts",
+      language = "en",
+      response_format = "wav",
+    } = options;
+
+    if (!text || text.length === 0) {
+      throw new Error("Text is required for text-to-speech");
+    }
+
+    if (text.length > 10000) {
+      throw new Error("Text too long. Maximum length is 10,000 characters.");
+    }
+
+    // Check if text needs to be chunked for rate limits
+    const estimatedTokens = estimateTokenCount(text);
+    const maxTokensPerRequest = 1000; // Conservative limit to avoid rate limits
+
+    if (estimatedTokens > maxTokensPerRequest) {
+      // For now, truncate very long text with a user-friendly message
+      const truncatedText = text.substring(0, maxTokensPerRequest * 4);
+      console.warn(
+        `Text truncated for TTS: ${text.length} -> ${truncatedText.length} characters`
+      );
+
+      return textToSpeech(
+        truncatedText + "... (text truncated for audio generation)",
+        options
+      );
+    }
+
+    const startTime = Date.now();
+
+    // Send request to TTS API
+    const response = await fetch("/api/voice/speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        model,
+        voice,
+        language,
+        response_format,
+      }),
+    });
+
+    const duration = Date.now() - startTime;
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to generate speech");
+    }
+
+    // Get audio blob
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    // Get metadata from headers
+    const voiceUsed =
+      response.headers.get("X-Voice-Used") || voice || "Fritz-PlayAI";
+    const modelUsed = response.headers.get("X-Model-Used") || model;
+
+    return {
+      audioUrl,
+      duration,
+      voice: voiceUsed,
+      model: modelUsed,
+    };
+  } catch (error) {
+    console.error("Text-to-speech error:", error);
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to generate speech";
+
+    return {
+      audioUrl: "",
+      voice: options.voice || "Fritz-PlayAI",
+      model: options.model || "playai-tts",
+      error: errorMessage,
+    };
+  }
+}
+
+// Play audio from URL with cleanup
+export async function playAudio(audioUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio(audioUrl);
+
+    audio.onended = () => {
+      resolve();
+    };
+
+    audio.onerror = () => {
+      reject(new Error("Failed to play audio"));
+    };
+
+    audio.play().catch(reject);
+  });
+}
+
+// Get available voices from API
+export async function getAvailableVoices(): Promise<{
+  english: readonly string[];
+  arabic: readonly string[];
+  defaultVoices: Record<string, string>;
+}> {
+  try {
+    const response = await fetch("/api/voice/speech");
+    if (!response.ok) {
+      throw new Error("Failed to fetch voices");
+    }
+
+    const data = await response.json();
+    return data.voices
+      ? data
+      : {
+          english: ENGLISH_VOICES,
+          arabic: ARABIC_VOICES,
+          defaultVoices: {
+            "playai-tts": "Fritz-PlayAI",
+            "playai-tts-arabic": "Ahmad-PlayAI",
+          },
+        };
+  } catch (error) {
+    console.warn("Failed to fetch voices from API, using fallback:", error);
+    return {
+      english: ENGLISH_VOICES,
+      arabic: ARABIC_VOICES,
+      defaultVoices: {
+        "playai-tts": "Fritz-PlayAI",
+        "playai-tts-arabic": "Ahmad-PlayAI",
+      },
+    };
+  }
+}
+
+// Check if text-to-speech is supported
+export function isTTSSupported(): boolean {
+  return typeof window !== "undefined" && typeof Audio !== "undefined";
+}
