@@ -31,7 +31,15 @@ export function useModels(): UseModelsReturn {
       setError(null);
 
       const data = await apiClient.getModels();
-      setModelsData(data);
+
+      // Deduplicate models to prevent duplicate keys in UI lists.
+      // Some providers may return the same model multiple times; we ensure
+      // that only a single instance per unique `id` is kept.
+      const uniqueModels = Array.from(
+        new Map(data.models.map((model) => [model.id, model])).values()
+      );
+
+      setModelsData({ ...data, models: uniqueModels });
     } catch (err) {
       const apiError = err as APIError;
       setError(apiError.error || "Failed to fetch models");

@@ -42,6 +42,7 @@ import { ChatInput } from "./ChatInput";
 // Custom hooks
 import { useChatState } from "@/hooks/useChatState";
 import { useMessageHandling } from "@/hooks/useMessageHandling";
+import { useEnabledModels } from "@/hooks/useEnabledModels";
 
 interface Message {
   id: string;
@@ -158,6 +159,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     resumeStream,
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
+  const { enabledModels } = useEnabledModels();
 
   // Message handling hook
   const { handleSendMessage, handlePauseStream } = useMessageHandling({
@@ -474,12 +476,17 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         parentConversationId={chatId}
         parentConversationTitle={conversation?.title || "New Conversation"}
         branchFromMessage={chatState.branchingFromMessage}
-        availableModels={models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          provider: m.provider,
-          description: m.description,
-        }))}
+        availableModels={enabledModels
+          .filter(
+            (model, index, self) =>
+              self.findIndex((m) => m.id === model.id) === index
+          )
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            provider: m.provider,
+            description: m.description,
+          }))}
       />
     </TooltipProvider>
   );

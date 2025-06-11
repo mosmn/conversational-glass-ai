@@ -380,7 +380,11 @@ export function useChat(conversationId: string): UseChatReturn {
               }
             } else if (chunk.type === "error") {
               throw new Error(chunk.error || "Streaming error");
-            } else if (chunk.type === "completed") {
+            } else if (
+              chunk.type === "completed" ||
+              chunk.type === "finished" ||
+              chunk.finished
+            ) {
               // Mark stream as complete
               streamPersistence.markStreamComplete(streamId);
               setCurrentStreamId(null);
@@ -432,6 +436,22 @@ export function useChat(conversationId: string): UseChatReturn {
                     },
                   ];
                 });
+              } else {
+                // Fallback: update optimistic assistant message in-place
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === optimisticAssistantMessage.id
+                      ? {
+                          ...msg,
+                          content: assistantContent,
+                          metadata: {
+                            ...msg.metadata,
+                            streamingComplete: true,
+                          },
+                        }
+                      : msg
+                  )
+                );
               }
 
               // If a title was generated, refresh the conversation data
