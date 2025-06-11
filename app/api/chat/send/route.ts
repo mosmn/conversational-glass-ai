@@ -138,6 +138,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CRITICAL FIX: Update conversation model if it's different from the request model
+    // This ensures branch conversations reflect the current model selection
+    if (conversation.model !== model) {
+      console.log(
+        `🔄 Updating conversation model from '${conversation.model}' to '${model}'`
+      );
+      await db
+        .update(conversations)
+        .set({
+          model,
+          updatedAt: new Date(),
+        })
+        .where(eq(conversations.id, conversationId));
+    }
+
     // Save user message to database immediately
     const userMessage = await MessageQueries.addMessage({
       conversationId,
@@ -337,6 +352,18 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // CRITICAL DEBUG: Log the exact model being used for AI provider call
+          console.log("🚀 AI Provider Call - Final Debug:");
+          console.log(
+            "  🤖 Model being passed to createStreamingCompletion:",
+            model
+          );
+          console.log("  📝 Model as ModelId:", model as ModelId);
+          console.log("  💬 Conversation ID:", conversationId);
+          console.log("  👤 User ID:", user.id);
+          console.log("  🏢 Provider name:", provider.name);
+          console.log("  🧠 AI Model name:", aiModel.name);
+
           // Create multi-provider streaming completion with user context for BYOK
           const aiStream = createStreamingCompletion(
             chatMessages,

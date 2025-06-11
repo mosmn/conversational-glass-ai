@@ -134,6 +134,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     console.log("ChatInterface: chatId changed to:", chatId);
   }, [chatId]);
 
+  // CRITICAL DEBUG: Track selectedModel changes
+  useEffect(() => {
+    console.log("🤖 ChatInterface: selectedModel changed to:", selectedModel);
+  }, [selectedModel]);
+
   // API hooks
   const {
     conversations,
@@ -160,6 +165,18 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   } = useChat(chatId);
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
+
+  // CRITICAL DEBUG: Track conversation changes
+  useEffect(() => {
+    if (conversation) {
+      console.log("💬 ChatInterface: conversation loaded:", {
+        id: conversation.id,
+        title: conversation.title,
+        model: conversation.model,
+        currentSelectedModel: selectedModel,
+      });
+    }
+  }, [conversation, selectedModel]);
 
   // Message handling hook
   const { handleSendMessage, handlePauseStream } = useMessageHandling({

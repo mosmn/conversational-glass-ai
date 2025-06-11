@@ -209,38 +209,37 @@ export function useChat(conversationId: string): UseChatReturn {
       attachments?: any[],
       displayContent?: string
     ) => {
-      if (
-        (!content.trim() && (!attachments || attachments.length === 0)) ||
-        !conversationId
-      )
-        return;
+      if (!conversationId || isStreaming) return;
 
       try {
         setError(null);
         setIsStreaming(true);
         setCurrentStreamContent("");
 
-        // Create optimistic user message with complete attachment data
+        // CRITICAL DEBUG: Log the model being used for API call
+        console.log("📡 useChat.sendMessage - API call details:");
+        console.log("  🤖 Model being sent to API:", model);
+        console.log("  💬 Conversation ID:", conversationId);
+        console.log("  📝 Content preview:", content.substring(0, 50) + "...");
+        console.log("  📎 Attachments count:", attachments?.length || 0);
+
+        // Create optimistic user message
+        const timestamp = new Date().toISOString();
         const optimisticUserMessage: Message = {
           id: `temp-user-${Date.now()}`,
           role: "user",
-          content: displayContent || content, // Use displayContent if provided, otherwise use content
-          timestamp: new Date().toISOString(),
+          content: displayContent || content,
+          timestamp,
           metadata: {
             streamingComplete: true,
             attachments: attachments?.map((att) => ({
               type:
                 att.category ||
-                ((att.type.startsWith("image/")
-                  ? "image"
-                  : att.type === "application/pdf"
-                  ? "pdf"
-                  : "text") as "image" | "pdf" | "text"),
+                (att.type.split("/")[0] as "image" | "pdf" | "text"),
               url: att.url,
               filename: att.name,
               size: att.size,
               extractedText: att.extractedText,
-              thumbnailUrl: att.thumbnailUrl,
               metadata: att.metadata,
             })),
           },

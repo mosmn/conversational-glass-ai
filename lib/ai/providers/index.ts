@@ -128,10 +128,21 @@ export async function* createStreamingCompletion(
   modelId: ModelId,
   options: StreamingOptions = {}
 ): AsyncIterable<StreamingChunk> {
+  // CRITICAL DEBUG: Log the model routing details
+  console.log("🎯 createStreamingCompletion - Provider Routing:");
+  console.log("  🤖 Model ID:", modelId);
+  console.log("  🔍 Looking up provider for model...");
+
   const provider = getProviderForModel(modelId);
+
+  console.log(
+    "  🏢 Provider found:",
+    provider ? provider.name : "❌ NOT FOUND"
+  );
 
   if (!provider) {
     const providerName = getProviderFromModelId(modelId);
+    console.log("  ⚠️ Provider name from model ID:", providerName);
     throw new AIProviderError(
       `Provider '${providerName}' is not configured or available`,
       providerName
@@ -139,9 +150,14 @@ export async function* createStreamingCompletion(
   }
 
   const model = await getModelById(modelId);
+  console.log("  🧠 Model object found:", model ? model.name : "❌ NOT FOUND");
+
   if (!model) {
     throw new ModelNotFoundError(modelId, provider.name);
   }
+
+  console.log("  ✅ Delegating to provider:", provider.name);
+  console.log("  📝 Final model being used:", modelId);
 
   // Delegate to the appropriate provider
   yield* provider.createStreamingCompletion(messages, modelId, options);

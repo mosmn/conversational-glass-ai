@@ -127,12 +127,24 @@ export function ModelSelector({
   useEffect(() => {
     if (enabledModels.length === 0) return;
 
-    // If there's already a selected model and it's valid, don't change it
-    if (selectedModel && enabledModels.find((m) => m.id === selectedModel))
+    // CRITICAL FIX: If there's already a selected model and it's valid, don't change it
+    // This prevents overriding user's model selection in branch conversations
+    if (selectedModel && enabledModels.find((m) => m.id === selectedModel)) {
+      console.log(
+        "🔒 ModelSelector: Keeping existing selected model:",
+        selectedModel
+      );
       return;
+    }
+
+    console.log("🔄 ModelSelector: Initializing model selection...");
+    console.log("  Current selectedModel:", selectedModel);
+    console.log("  Available models:", enabledModels.length);
+    console.log("  Default model from preferences:", defaultModel);
 
     // First, try to use the user's default model from preferences
     if (defaultModel && enabledModels.find((m) => m.id === defaultModel)) {
+      console.log("✅ Using default model from preferences:", defaultModel);
       onModelChange(defaultModel);
       return;
     }
@@ -144,6 +156,10 @@ export function ModelSelector({
       isModelStillValid(persistedSelection, enabledModels)
     ) {
       // Restore the previously selected model if it's still valid
+      console.log(
+        "✅ Restoring from localStorage:",
+        persistedSelection.modelId
+      );
       onModelChange(persistedSelection.modelId);
       setWasRestored(true);
       // Clear the restoration indicator after a few seconds
@@ -153,6 +169,7 @@ export function ModelSelector({
       const fallbackModel =
         enabledModels.find((m) => m.isRecommended) || enabledModels[0];
       if (fallbackModel) {
+        console.log("✅ Using fallback model:", fallbackModel.id);
         onModelChange(fallbackModel.id);
       }
     }

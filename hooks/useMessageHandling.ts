@@ -119,6 +119,8 @@ Please synthesize the information from the search results to provide an accurate
       messageAttachments.length
     );
     console.log("  🔍 Search enabled:", searchEnabled);
+    console.log("  🤖 Selected model being sent:", selectedModel);
+    console.log("  💬 Chat ID:", chatId);
 
     resetInput();
 
@@ -133,6 +135,8 @@ Please synthesize the information from the search results to provide an accurate
         searchResults = searchResult.searchResults;
         setIsSearching(false);
       }
+
+      console.log("🚀 About to call sendMessage with model:", selectedModel);
 
       await sendMessage(
         enhancedContent,

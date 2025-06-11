@@ -456,6 +456,13 @@ class APIClient {
   ): AsyncGenerator<StreamChunk, void, unknown> {
     const url = `${this.baseURL}/api/chat/send`;
 
+    // CRITICAL DEBUG: Log the model being sent to API
+    console.log("🌐 APIClient.sendMessageStream - Request details:");
+    console.log("  🤖 Model in request:", data.model);
+    console.log("  💬 Conversation ID:", data.conversationId);
+    console.log("  📝 Content length:", data.content.length);
+    console.log("  📎 Attachments:", data.attachments?.length || 0);
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
