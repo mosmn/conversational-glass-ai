@@ -9,7 +9,6 @@ import {
 import { Mic, StopCircle } from "lucide-react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useToast } from "@/hooks/use-toast";
-import { VoiceVisualizerCircle } from "./VoiceVisualizer";
 
 interface VoiceInputButtonProps {
   onTranscription: (text: string) => void;
@@ -125,20 +124,26 @@ export function VoiceInputButton({
         <Button
           size={size === "md" ? "sm" : size === "lg" ? "lg" : "sm"}
           variant={variant}
-          className={`${getButtonSize()} rounded-xl transition-all duration-300 backdrop-blur-sm border ${getButtonStyles()} ${className}`}
+          className={`${getButtonSize()} rounded-xl transition-all duration-200 backdrop-blur-sm border ${getButtonStyles()} ${className}`}
+          style={
+            isRecording
+              ? {
+                  transform: `scale(${1 + volume * 0.3})`,
+                  boxShadow: `0 0 ${Math.max(5, volume * 20)}px ${
+                    volume > 0.7
+                      ? "#ef444450"
+                      : volume > 0.4
+                      ? "#f59e0b50"
+                      : "#ef444430"
+                  }`,
+                }
+              : {}
+          }
           onClick={toggleRecording}
           disabled={isDisabled || disabled}
         >
           {isRecording ? (
-            <div className="relative">
-              <VoiceVisualizerCircle
-                volume={volume}
-                isActive={isRecording}
-                size={size === "lg" ? "lg" : size === "md" ? "md" : "sm"}
-                className="absolute inset-0"
-              />
-              <StopCircle className={`${getIconSize()} relative z-10`} />
-            </div>
+            <StopCircle className={getIconSize()} />
           ) : isTranscribing ? (
             <div
               className={`animate-spin rounded-full border-2 border-blue-400 border-t-transparent ${getIconSize()}`}

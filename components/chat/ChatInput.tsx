@@ -10,7 +10,6 @@ import { Paperclip, Globe, Mic, Send, Square, StopCircle } from "lucide-react";
 import { FileAttachment } from "./FileAttachment";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useToast } from "@/hooks/use-toast";
-import { VoiceVisualizer } from "./VoiceVisualizer";
 
 interface ChatInputProps {
   inputValue: string;
@@ -117,32 +116,6 @@ export function ChatInput({
           />
         )}
 
-        {/* Voice Visualization - appears when recording */}
-        {isRecording && (
-          <div className="flex items-center justify-center p-4 bg-slate-800/30 rounded-xl border border-emerald-500/30 backdrop-blur-sm">
-            <div className="flex items-center space-x-4">
-              <VoiceVisualizer
-                volume={volume}
-                isActive={isRecording}
-                size="md"
-                barCount={7}
-                className="relative"
-              />
-              <div className="text-center">
-                <div className="text-sm font-medium text-white">
-                  🎤 Recording...
-                </div>
-                <div className="text-xs text-slate-400">
-                  {formattedDuration} • Speak clearly
-                </div>
-                <div className="text-xs text-emerald-400 mt-1">
-                  Click microphone to stop
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="relative group">
           {/* Enhanced glow effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-transparent to-blue-500/10 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
@@ -212,15 +185,29 @@ export function ChatInput({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-200 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
                     isRecording
-                      ? "text-red-400 bg-red-500/10 border-red-500/30 animate-pulse"
+                      ? "text-red-400 bg-red-500/10 border-red-500/30"
                       : isTranscribing
                       ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
                       : isVoiceSupported
                       ? "text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
                       : "text-slate-600 cursor-not-allowed opacity-50"
                   }`}
+                  style={
+                    isRecording
+                      ? {
+                          transform: `scale(${1 + volume * 0.3})`,
+                          boxShadow: `0 0 ${Math.max(5, volume * 20)}px ${
+                            volume > 0.7
+                              ? "#ef444450"
+                              : volume > 0.4
+                              ? "#f59e0b50"
+                              : "#ef444430"
+                          }`,
+                        }
+                      : {}
+                  }
                   onClick={toggleRecording}
                   disabled={!isVoiceSupported || isProcessing}
                 >
@@ -306,13 +293,13 @@ export function ChatInput({
             {isRecording && (
               <span className="text-red-400 flex items-center gap-1">
                 <div className="animate-pulse w-2 h-2 bg-red-400 rounded-full" />
-                Recording voice... {formattedDuration}
+                Recording... {formattedDuration}
               </span>
             )}
             {isTranscribing && (
               <span className="text-blue-400 flex items-center gap-1">
                 <div className="animate-spin rounded-full h-3 w-3 border border-blue-400 border-t-transparent" />
-                Converting speech to text...
+                Transcribing...
               </span>
             )}
             {isStreaming && (
