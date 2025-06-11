@@ -469,8 +469,8 @@ async function fetchAnthropicModels(
     const models: Record<string, AIModel> = {};
 
     for (const modelData of data.data) {
-      // Only include text/chat models
-      if (modelData.type !== "text" && modelData.type !== "chat") {
+      // Only include model type (according to Anthropic API docs)
+      if (modelData.type !== "model") {
         continue;
       }
 

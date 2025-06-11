@@ -10,30 +10,32 @@ const preferencesSchema = z
   .object({
     notifications: z
       .object({
-        email: z.boolean(),
-        push: z.boolean(),
-        marketing: z.boolean(),
+        email: z.boolean().optional(),
+        push: z.boolean().optional(),
+        marketing: z.boolean().optional(),
       })
       .optional(),
     privacy: z
       .object({
-        publicProfile: z.boolean(),
-        showActivity: z.boolean(),
-        dataCollection: z.boolean(),
+        publicProfile: z.boolean().optional(),
+        showActivity: z.boolean().optional(),
+        dataCollection: z.boolean().optional(),
       })
       .optional(),
     appearance: z
       .object({
-        theme: z.enum(["light", "dark", "auto"]),
-        animations: z.boolean(),
-        compactMode: z.boolean(),
+        theme: z.enum(["light", "dark", "auto"]).optional(),
+        animations: z.boolean().optional(),
+        compactMode: z.boolean().optional(),
       })
       .optional(),
     ai: z
       .object({
-        defaultModel: z.enum(["gpt-4", "claude", "gemini"]),
-        streamingMode: z.boolean(),
-        autoSave: z.boolean(),
+        defaultModel: z.string().optional(), // Allow any model ID
+        enabledModels: z.array(z.string()).optional(), // Array of enabled model IDs
+        streamingMode: z.boolean().optional(),
+        autoSave: z.boolean().optional(),
+        preferredProviders: z.array(z.string()).optional(), // Array of preferred provider IDs
       })
       .optional(),
     personalization: z
@@ -121,10 +123,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log("PUT preferences request body:", JSON.stringify(body, null, 2));
 
     // Validate the request body
     const validationResult = preferencesSchema.safeParse(body);
     if (!validationResult.success) {
+      console.error("PUT validation failed:", validationResult.error.issues);
       return NextResponse.json(
         {
           success: false,
@@ -172,10 +176,15 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log(
+      "PATCH preferences request body:",
+      JSON.stringify(body, null, 2)
+    );
 
     // Validate the request body
     const validationResult = preferencesSchema.safeParse(body);
     if (!validationResult.success) {
+      console.error("PATCH validation failed:", validationResult.error.issues);
       return NextResponse.json(
         {
           success: false,
@@ -198,17 +207,21 @@ export async function PATCH(request: NextRequest) {
     const currentPreferences = user[0]?.preferences || {};
 
     // Merge with new preferences (deep merge for nested objects)
-    const updatedPreferences = { ...currentPreferences };
+    const updatedPreferences: any = { ...currentPreferences };
+    const validatedBody = validationResult.data;
 
-    Object.keys(body).forEach((key) => {
+    Object.keys(validatedBody).forEach((key) => {
+      const bodyValue = (validatedBody as any)[key];
+      const currentValue = (currentPreferences as any)[key];
+
       if (
-        typeof body[key] === "object" &&
-        body[key] !== null &&
-        !Array.isArray(body[key])
+        typeof bodyValue === "object" &&
+        bodyValue !== null &&
+        !Array.isArray(bodyValue)
       ) {
-        updatedPreferences[key] = { ...currentPreferences[key], ...body[key] };
+        updatedPreferences[key] = { ...currentValue, ...bodyValue };
       } else {
-        updatedPreferences[key] = body[key];
+        updatedPreferences[key] = bodyValue;
       }
     });
 

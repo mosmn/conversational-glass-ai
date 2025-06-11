@@ -54,7 +54,7 @@ export function RecommendationPanel({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {recommendedModels.map((model, index) => (
               <motion.div
-                key={model.id}
+                key={`${model.provider}:${model.id}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.1 }}

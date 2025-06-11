@@ -865,9 +865,11 @@ export function FileAttachment({
                     <div className="flex flex-wrap gap-2">
                       {recommendations.alternatives
                         .slice(0, 3)
-                        .map((alt: any) => (
+                        .map((alt: any, index) => (
                           <button
-                            key={alt.model.id}
+                            key={`${alt.model.provider || "unknown"}:${
+                              alt.model.id
+                            }:${index}`}
                             onClick={() => {
                               if (onModelRecommendation) {
                                 const altModel = models.find(

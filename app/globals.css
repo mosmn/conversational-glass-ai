@@ -15,8 +15,8 @@ body {
   color: #ffffff;
 }
 
-/* Ensure proper text contrast in dark theme */
-* {
+/* We only need forced color inheritance when dark theme is active to keep contrast. */
+.dark * {
   color: inherit;
 }
 
@@ -40,7 +40,7 @@ button[class*="outline"]:hover {
 
 /* Fix any remaining button contrast issues */
 button {
-  color: inherit;
+  /* Explicit button colors are handled by Tailwind classes */
 }
 
 button:disabled {
@@ -149,12 +149,14 @@ button:disabled {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
   }
 
   .glass-dark {
     background: rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
   }
 
   /* Conversation River Effects */
@@ -166,6 +168,7 @@ button:disabled {
     );
     backdrop-filter: blur(20px);
     border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #ffffff;
   }
 
   /* Smooth scrolling */

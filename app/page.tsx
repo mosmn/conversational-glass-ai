@@ -20,6 +20,10 @@ import {
   Palette,
   Github,
   Twitter,
+  Image as ImageIcon,
+  Search,
+  RefreshCcw,
+  GitBranch,
 } from "lucide-react";
 import ConversationalGlassLogo from "@/components/ConversationalGlassLogo";
 
@@ -77,6 +81,34 @@ export default function LandingPage() {
       description:
         "Intelligent context preservation across model switches and conversation branches.",
       color: "cyan",
+    },
+    {
+      icon: ImageIcon,
+      title: "AI-Powered Image Generation",
+      description:
+        "Create stunning visuals directly within your conversations using DALL·E 3 and Stable Diffusion.",
+      color: "pink",
+    },
+    {
+      icon: Search,
+      title: "Web Search Genius",
+      description:
+        "Pull in real-time knowledge with integrated web search and sourced citations.",
+      color: "indigo",
+    },
+    {
+      icon: RefreshCcw,
+      title: "Resumable Streams",
+      description:
+        "Never lose progress—continue AI responses even after a page refresh or disconnect.",
+      color: "orange",
+    },
+    {
+      icon: GitBranch,
+      title: "Chat Branching",
+      description:
+        "Explore alternate conversation paths without losing your original thread.",
+      color: "lime",
     },
   ];
 
@@ -219,8 +251,8 @@ export default function LandingPage() {
                 <div className="text-sm text-slate-400">Conversations</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-emerald-400">1</div>
-                <div className="text-sm text-slate-400">Interface</div>
+                <div className="text-3xl font-bold text-emerald-400">10</div>
+                <div className="text-sm text-slate-400">Bonus Features</div>
               </div>
             </div>
           </div>

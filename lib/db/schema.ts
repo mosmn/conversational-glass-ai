@@ -40,9 +40,11 @@ export const users = pgTable(
           compactMode: boolean;
         };
         ai: {
-          defaultModel: "gpt-4" | "claude" | "gemini";
-          streamingMode: boolean;
-          autoSave: boolean;
+          defaultModel?: string; // Allow any model ID
+          enabledModels?: string[]; // Array of enabled model IDs
+          streamingMode?: boolean;
+          autoSave?: boolean;
+          preferredProviders?: string[]; // Array of preferred provider IDs
         };
         // New customization fields for Settings/Customize
         personalization: {
@@ -79,7 +81,13 @@ export const users = pgTable(
           dataCollection: true,
         },
         appearance: { theme: "dark", animations: true, compactMode: false },
-        ai: { defaultModel: "gpt-4", streamingMode: true, autoSave: true },
+        ai: {
+          defaultModel: "gpt-4",
+          enabledModels: [],
+          streamingMode: true,
+          autoSave: true,
+          preferredProviders: [],
+        },
         personalization: {
           displayName: "",
           description: "",

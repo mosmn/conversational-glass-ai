@@ -109,7 +109,8 @@ export function ModelSettingsPage() {
         let userDefaultModel = "";
 
         if (preferencesResponse.ok) {
-          const prefs = await preferencesResponse.json();
+          const prefsResponse = await preferencesResponse.json();
+          const prefs = prefsResponse.data || prefsResponse; // Handle both wrapped and direct response
           enabledModels = new Set(prefs.ai?.enabledModels || []);
           userDefaultModel = prefs.ai?.defaultModel || "";
 
@@ -497,7 +498,7 @@ export function ModelSettingsPage() {
 
             return (
               <motion.div
-                key={model.id}
+                key={`${model.provider}:${model.id}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}

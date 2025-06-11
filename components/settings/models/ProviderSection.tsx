@@ -267,7 +267,7 @@ export function ProviderSection({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {sortedModels.map((model, index) => (
                   <motion.div
-                    key={model.id}
+                    key={`${provider}:${model.id}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
@@ -288,7 +288,7 @@ export function ProviderSection({
               <div className="space-y-3">
                 {sortedModels.map((model, index) => (
                   <motion.div
-                    key={model.id}
+                    key={`${provider}:${model.id}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}

@@ -25,7 +25,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useModels } from "@/hooks/useModels";
+import { useEnabledModels } from "@/hooks/useEnabledModels";
 import type { Model } from "@/lib/api/client";
 import {
   getProviderIcon,
@@ -119,10 +119,7 @@ export function ModelSelector({
   className,
 }: ModelSelectorProps) {
   const [wasRestored, setWasRestored] = useState(false);
-  const { models, loading, error } = useModels();
-
-  // Filter to only show enabled models
-  const enabledModels = models.filter((model) => model.isEnabled !== false); // Show all if isEnabled is undefined (backward compatibility)
+  const { enabledModels, loading, error, defaultModel } = useEnabledModels();
 
   // Load persisted model selection on mount when no model is selected
   useEffect(() => {
@@ -132,6 +129,13 @@ export function ModelSelector({
     if (selectedModel && enabledModels.find((m) => m.id === selectedModel))
       return;
 
+    // First, try to use the user's default model from preferences
+    if (defaultModel && enabledModels.find((m) => m.id === defaultModel)) {
+      onModelChange(defaultModel);
+      return;
+    }
+
+    // Second, try to restore from localStorage
     const persistedSelection = loadSelectedModel();
     if (
       persistedSelection &&
@@ -143,12 +147,14 @@ export function ModelSelector({
       // Clear the restoration indicator after a few seconds
       setTimeout(() => setWasRestored(false), 3000);
     } else {
-      // If no valid persisted model, select the first recommended or first available model
-      const defaultModel =
+      // Fallback: select the first recommended or first available model
+      const fallbackModel =
         enabledModels.find((m) => m.isRecommended) || enabledModels[0];
-      onModelChange(defaultModel.id);
+      if (fallbackModel) {
+        onModelChange(fallbackModel.id);
+      }
     }
-  }, [enabledModels, selectedModel, onModelChange]);
+  }, [enabledModels, selectedModel, onModelChange, defaultModel]);
 
   // Save model selection to localStorage when it changes
   useEffect(() => {
@@ -208,7 +214,7 @@ export function ModelSelector({
     );
   }
 
-  // No models available
+  // No models available - direct user to enable models
   if (enabledModels.length === 0) {
     return (
       <Link href="/settings/models">
@@ -217,14 +223,20 @@ export function ModelSelector({
           className={cn(
             "border-amber-600 min-w-[200px] justify-between",
             "text-white bg-amber-900/20 backdrop-blur-sm hover:bg-amber-900/30",
+            "hover:scale-105 transition-all duration-200",
             className
           )}
         >
           <div className="flex items-center space-x-2">
             <Settings className="h-4 w-4 text-amber-400" />
-            <span className="text-sm">Enable Models</span>
+            <div className="flex flex-col items-start">
+              <span className="text-sm font-medium">No Models Enabled</span>
+              <span className="text-xs text-amber-300">
+                Click to enable models
+              </span>
+            </div>
           </div>
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-4 w-4 text-amber-400" />
         </Button>
       </Link>
     );
@@ -306,7 +318,8 @@ export function ModelSelector({
                 Choose AI Model
               </h3>
               <p className="text-sm text-slate-300">
-                Pick the right AI for your task
+                {enabledModels.length} enabled model
+                {enabledModels.length !== 1 ? "s" : ""} available
               </p>
             </div>
             <Link href="/settings/models">
@@ -342,7 +355,7 @@ export function ModelSelector({
 
                   return (
                     <Card
-                      key={model.id}
+                      key={`${model.provider}:${model.id}`}
                       className={cn(
                         "cursor-pointer transition-all duration-200",
                         isSelected
@@ -442,7 +455,7 @@ export function ModelSelector({
                     <div className="space-y-1">
                       {categoryModels.slice(0, 2).map((model) => (
                         <button
-                          key={model.id}
+                          key={`${model.provider}:${model.id}`}
                           onClick={() => onModelChange(model.id)}
                           className={cn(
                             "w-full text-left p-2 rounded-md transition-colors",
