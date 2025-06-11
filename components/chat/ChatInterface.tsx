@@ -431,7 +431,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           </div>
 
           {/* Floating Artifacts Button */}
-          <div className="absolute top-4 right-4 z-10">
+          {/* <div className="absolute top-4 right-4 z-10">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -458,7 +458,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 <p>View conversation artifacts and generated images</p>
               </TooltipContent>
             </Tooltip>
-          </div>
+          </div> */}
 
           {/* Input Area */}
           <ChatInput
