@@ -136,9 +136,19 @@ export const conversations = pgTable(
     model: varchar("model", { length: 50 }).notNull().default("gpt-4"), // Current AI model
     isShared: boolean("is_shared").default(false),
     shareId: varchar("share_id", { length: 100 }).unique(), // For public sharing
-    // Branching fields
+
+    // New branching fields - branches are now separate conversations
+    parentConversationId: uuid("parent_conversation_id"), // Self-reference, will add constraint later
+    branchPointMessageId: uuid("branch_point_message_id"), // Message where branch was created
+    branchName: varchar("branch_name", { length: 100 }), // Custom branch name
+    isBranch: boolean("is_branch").default(false), // Flag for easy filtering
+    branchCreatedAt: timestamp("branch_created_at"), // When branch was created
+    branchOrder: integer("branch_order").default(0), // Order among sibling branches
+
+    // Legacy branching fields (keeping for backwards compatibility)
     activeBranchId: uuid("active_branch_id"), // Reference to active branch root message
     defaultBranchId: uuid("default_branch_id"), // Reference to default branch root message
+
     metadata: jsonb("metadata")
       .$type<{
         totalMessages: number;
@@ -146,12 +156,16 @@ export const conversations = pgTable(
         tags: string[];
         sentiment: "positive" | "neutral" | "negative" | null;
         summary: string | null;
-        // Branching metadata
+        // Enhanced branching metadata
         branchingMetadata?: {
           totalBranches: number;
           activeBranchName: string;
           branchNames: string[];
           lastBranchedAt?: string;
+          // New fields for conversation branching
+          isParentConversation?: boolean;
+          childBranchCount?: number;
+          branchingPointContext?: string; // Context about where branch was created
         };
       }>()
       .default({
@@ -170,6 +184,14 @@ export const conversations = pgTable(
     updatedAtIdx: index("conversations_updated_at_idx").on(table.updatedAt),
     activeBranchIdx: index("conversations_active_branch_idx").on(
       table.activeBranchId
+    ),
+    // New indexes for conversation branching
+    parentConversationIdx: index("conversations_parent_conversation_idx").on(
+      table.parentConversationId
+    ),
+    isBranchIdx: index("conversations_is_branch_idx").on(table.isBranch),
+    branchPointIdx: index("conversations_branch_point_idx").on(
+      table.branchPointMessageId
     ),
   })
 );
@@ -220,7 +242,7 @@ export const messages = pgTable(
         streamingComplete: true,
         regenerated: false,
       }),
-    parentId: uuid("parent_id").references(() => messages.id), // For message branching
+    parentId: uuid("parent_id"), // Self-reference - handled in relations
     // Branching fields
     branchName: varchar("branch_name", { length: 100 }).default("main"),
     branchDepth: integer("branch_depth").default(0),
