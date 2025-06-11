@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -6,8 +6,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Paperclip, Globe, Mic, Send, Square } from "lucide-react";
+import { Paperclip, Globe, Mic, Send, Square, StopCircle } from "lucide-react";
 import { FileAttachment } from "./FileAttachment";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { useToast } from "@/hooks/use-toast";
+import { VoiceVisualizer } from "./VoiceVisualizer";
 
 interface ChatInputProps {
   inputValue: string;
@@ -48,8 +51,48 @@ export function ChatInput({
   textareaRef,
   modelName,
 }: ChatInputProps) {
+  const { toast } = useToast();
+
+  // Voice input functionality
+  const {
+    isRecording,
+    isTranscribing,
+    formattedDuration,
+    isSupported: isVoiceSupported,
+    toggleRecording,
+    error: voiceError,
+    volume,
+  } = useVoiceInput({
+    onTranscription: (text: string) => {
+      // Append transcribed text to existing input
+      const newValue = inputValue ? `${inputValue} ${text}` : text;
+      onInputChange(newValue);
+
+      // Focus the textarea after transcription
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        // Move cursor to end
+        const length = newValue.length;
+        textareaRef.current.setSelectionRange(length, length);
+      }
+
+      toast({
+        title: "Voice transcribed",
+        description: "Your speech has been converted to text successfully.",
+      });
+    },
+    onError: (error: string) => {
+      toast({
+        title: "Voice input failed",
+        description: error,
+        variant: "destructive",
+      });
+    },
+    language: "en",
+  });
+
   const canSend = inputValue.trim() || attachments.length > 0;
-  const isProcessing = isStreaming || isSearching;
+  const isProcessing = isStreaming || isSearching || isTranscribing;
 
   return (
     <div className="relative p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
@@ -72,6 +115,32 @@ export function ChatInput({
               );
             }}
           />
+        )}
+
+        {/* Voice Visualization - appears when recording */}
+        {isRecording && (
+          <div className="flex items-center justify-center p-4 bg-slate-800/30 rounded-xl border border-emerald-500/30 backdrop-blur-sm">
+            <div className="flex items-center space-x-4">
+              <VoiceVisualizer
+                volume={volume}
+                isActive={isRecording}
+                size="md"
+                barCount={7}
+                className="relative"
+              />
+              <div className="text-center">
+                <div className="text-sm font-medium text-white">
+                  🎤 Recording...
+                </div>
+                <div className="text-xs text-slate-400">
+                  {formattedDuration} • Speak clearly
+                </div>
+                <div className="text-xs text-emerald-400 mt-1">
+                  Click microphone to stop
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="relative group">
@@ -143,13 +212,37 @@ export function ChatInput({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-10 w-10 p-0 rounded-xl transition-all duration-300 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 backdrop-blur-sm border border-slate-700/30 hover:border-blue-500/30"
+                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                    isRecording
+                      ? "text-red-400 bg-red-500/10 border-red-500/30 animate-pulse"
+                      : isTranscribing
+                      ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
+                      : isVoiceSupported
+                      ? "text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
+                      : "text-slate-600 cursor-not-allowed opacity-50"
+                  }`}
+                  onClick={toggleRecording}
+                  disabled={!isVoiceSupported || isProcessing}
                 >
-                  <Mic className="h-5 w-5" />
+                  {isRecording ? (
+                    <StopCircle className="h-5 w-5" />
+                  ) : isTranscribing ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>🎤 Voice input</p>
+                <p>
+                  {!isVoiceSupported
+                    ? "🚫 Voice input not supported in this browser"
+                    : isRecording
+                    ? `🔴 Recording... ${formattedDuration} (click to stop)`
+                    : isTranscribing
+                    ? "🤖 Converting speech to text..."
+                    : "🎤 Click to start voice input"}
+                </p>
               </TooltipContent>
             </Tooltip>
 
@@ -208,6 +301,18 @@ export function ChatInput({
               <span className="text-blue-400 flex items-center gap-1">
                 <div className="animate-spin rounded-full h-3 w-3 border border-blue-400 border-t-transparent" />
                 Searching web... (click stop to cancel)
+              </span>
+            )}
+            {isRecording && (
+              <span className="text-red-400 flex items-center gap-1">
+                <div className="animate-pulse w-2 h-2 bg-red-400 rounded-full" />
+                Recording voice... {formattedDuration}
+              </span>
+            )}
+            {isTranscribing && (
+              <span className="text-blue-400 flex items-center gap-1">
+                <div className="animate-spin rounded-full h-3 w-3 border border-blue-400 border-t-transparent" />
+                Converting speech to text...
               </span>
             )}
             {isStreaming && (
