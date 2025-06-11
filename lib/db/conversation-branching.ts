@@ -239,6 +239,9 @@ export class ConversationBranchingQueries {
         branchDepth: 0,
         branchOrder: 0,
         parentId: null,
+        // CRITICAL FIX: Preserve original timestamps to maintain chronological order
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
       });
     }
   }

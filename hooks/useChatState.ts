@@ -27,6 +27,14 @@ export function useChatState({
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Message sorting functionality (new)
+  const sortMessagesByTimestamp = (messages: any[]) => {
+    return [...messages].sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  };
+
   // Branching State
   const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
   const [branchingFromMessage, setBranchingFromMessage] = useState<{
@@ -101,6 +109,9 @@ export function useChatState({
     setSearchEnabled,
     isSearching,
     setIsSearching,
+
+    // Message sorting functionality
+    sortMessagesByTimestamp,
 
     // Branching State
     showCreateBranchModal,

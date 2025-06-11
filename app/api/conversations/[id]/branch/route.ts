@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { conversations, users } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  conversations,
+  users,
+  messages as messagesTable,
+} from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { ConversationBranchingQueries } from "@/lib/db/conversation-branching";
 import { MessageQueries } from "@/lib/db/queries";
+import { sql } from "drizzle-orm";
 
-// Branch creation request schema
+// Simplified branch creation request schema
 const createBranchSchema = z.object({
   messageId: z.string().uuid("Invalid message ID"),
   branchName: z
@@ -15,8 +20,6 @@ const createBranchSchema = z.object({
     .min(1)
     .max(100, "Branch name must be 1-100 characters"),
   title: z.string().min(1).max(255, "Title must be 1-255 characters"),
-  content: z.string().min(1, "Initial message content is required"),
-  model: z.string().min(1, "Model is required"),
   description: z.string().optional(),
 });
 
@@ -48,7 +51,7 @@ export async function POST(
 
     // Parse and validate request body
     const body = await request.json();
-    const { messageId, branchName, title, content, model, description } =
+    const { messageId, branchName, title, description } =
       createBranchSchema.parse(body);
 
     // Find user in database
@@ -81,7 +84,7 @@ export async function POST(
       );
     }
 
-    // Create the branch conversation
+    // Create the branch conversation (use parent's model as default)
     const branchConversation =
       await ConversationBranchingQueries.createBranchConversation(
         user.id,
@@ -90,7 +93,7 @@ export async function POST(
         {
           title,
           branchName,
-          model,
+          model: parentConversation.model, // Use parent conversation's model
           description,
         }
       );
@@ -103,19 +106,6 @@ export async function POST(
       user.id
     );
 
-    // Add the user's initial message to the branch
-    const userMessage = await MessageQueries.addMessage({
-      conversationId: branchConversation.id,
-      userId: user.id,
-      role: "user",
-      content,
-      model: null, // User messages don't have a model
-      metadata: {
-        streamingComplete: true,
-        regenerated: false,
-      },
-    });
-
     return NextResponse.json({
       success: true,
       branchConversation: {
@@ -126,12 +116,6 @@ export async function POST(
         branchPointMessageId: branchConversation.branchPointMessageId,
         createdAt: branchConversation.createdAt.toISOString(),
         model: branchConversation.model,
-      },
-      userMessage: {
-        id: userMessage.id,
-        content: userMessage.content,
-        role: userMessage.role,
-        timestamp: userMessage.createdAt.toISOString(),
       },
       message: `Branch conversation "${branchName}" created successfully`,
     });

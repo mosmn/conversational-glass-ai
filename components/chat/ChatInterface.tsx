@@ -476,17 +476,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         parentConversationId={chatId}
         parentConversationTitle={conversation?.title || "New Conversation"}
         branchFromMessage={chatState.branchingFromMessage}
-        availableModels={enabledModels
-          .filter(
-            (model, index, self) =>
-              self.findIndex((m) => m.id === model.id) === index
-          )
-          .map((m) => ({
-            id: m.id,
-            name: m.name,
-            provider: m.provider,
-            description: m.description,
-          }))}
       />
     </TooltipProvider>
   );

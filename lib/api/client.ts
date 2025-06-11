@@ -394,11 +394,21 @@ class APIClient {
       messageId: string;
       branchName: string;
       title: string;
-      content: string;
-      model: string;
       description?: string;
     }
-  ) {
+  ): Promise<{
+    success: boolean;
+    branchConversation: {
+      id: string;
+      title: string;
+      branchName: string;
+      parentConversationId?: string;
+      branchPointMessageId?: string;
+      createdAt: string;
+      model: string;
+    };
+    message: string;
+  }> {
     return this.fetchWithAuth(`/conversations/${conversationId}/branch`, {
       method: "POST",
       body: JSON.stringify(data),

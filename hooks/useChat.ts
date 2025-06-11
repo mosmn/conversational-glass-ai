@@ -92,11 +92,25 @@ export function useChat(conversationId: string): UseChatReturn {
           }
         );
 
+        // Sort messages by timestamp
+        const sortedMessages = response.messages.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
         if (reset) {
-          setMessages(response.messages);
+          setMessages(sortedMessages);
           setNextCursor(response.pagination.nextCursor); // Reset cursor when resetting messages
         } else {
-          setMessages((prev) => [...response.messages, ...prev]);
+          // Combine existing messages with new ones and sort
+          setMessages((prev) => {
+            const combined = [...sortedMessages, ...prev];
+            return combined.sort(
+              (a, b) =>
+                new Date(a.timestamp).getTime() -
+                new Date(b.timestamp).getTime()
+            );
+          });
         }
 
         setHasMore(response.pagination.hasMore);
@@ -124,7 +138,20 @@ export function useChat(conversationId: string): UseChatReturn {
         includeMetadata: true, // Include metadata to get attachment info
       });
 
-      setMessages((prev) => [...response.messages, ...prev]);
+      // Sort messages by timestamp and combine with existing
+      const sortedMessages = response.messages.sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      setMessages((prev) => {
+        const combined = [...sortedMessages, ...prev];
+        return combined.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+      });
+
       setHasMore(response.pagination.hasMore);
       setNextCursor(response.pagination.nextCursor);
     } catch (err) {
@@ -225,16 +252,22 @@ export function useChat(conversationId: string): UseChatReturn {
           role: "assistant",
           content: "",
           model,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(Date.now() + 1000).toISOString(), // Add 1 second to ensure it sorts after the user message
           metadata: { streamingComplete: false },
         };
 
-        // Add optimistic messages to UI
-        setMessages((prev) => [
-          ...prev,
-          optimisticUserMessage,
-          optimisticAssistantMessage,
-        ]);
+        // Add optimistic messages to UI and ensure they're sorted
+        setMessages((prev) => {
+          const updatedMessages = [
+            ...prev,
+            optimisticUserMessage,
+            optimisticAssistantMessage,
+          ];
+          return updatedMessages.sort(
+            (a, b) =>
+              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+        });
 
         // Cancel any existing stream
         if (abortControllerRef.current) {
@@ -414,7 +447,7 @@ export function useChat(conversationId: string): UseChatReturn {
                       msg.id !== optimisticAssistantMessage.id
                   );
 
-                  return [
+                  const newMessages = [
                     ...filtered,
                     {
                       ...optimisticUserMessage,
@@ -435,6 +468,13 @@ export function useChat(conversationId: string): UseChatReturn {
                       },
                     },
                   ];
+
+                  // CRITICAL FIX: Sort messages by timestamp to ensure proper order
+                  return newMessages.sort(
+                    (a, b) =>
+                      new Date(a.timestamp).getTime() -
+                      new Date(b.timestamp).getTime()
+                  );
                 });
               } else {
                 // Fallback: update optimistic assistant message in-place
