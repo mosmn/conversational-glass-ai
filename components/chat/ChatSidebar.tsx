@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/useConversations";
+import { useHierarchicalConversations } from "@/hooks/useHierarchicalConversations";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import {
   usePersonalization,
   useVisualPreferences,
 } from "@/hooks/useUserPreferences";
+import { HierarchicalChatItem } from "@/components/chat/HierarchicalChatItem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -126,16 +128,24 @@ export function ChatSidebar({
     refetchConversations,
   } = useConversations();
 
+  // Hierarchical conversations for enhanced sidebar display
+  const {
+    conversations: hierarchicalConversations,
+    loading: hierarchicalLoading,
+    refetchConversations: refetchHierarchical,
+    navigateToConversation,
+  } = useHierarchicalConversations();
+
   // Calculate actual usage and update when conversations change
   useEffect(() => {
     const calculateUsage = () => {
-      const baseUsage = Math.min(conversations.length * 2, 80);
+      const baseUsage = Math.min(hierarchicalConversations.length * 2, 80);
       return baseUsage + Math.floor(Math.random() * 20);
     };
 
     const newUsage = calculateUsage();
     setUsage(newUsage);
-  }, [conversations.length]);
+  }, [hierarchicalConversations.length]);
 
   // Pin/bookmark functionality
   const togglePin = (chatId: string) => {
@@ -196,6 +206,7 @@ export function ChatSidebar({
 
       // Refresh conversations
       refetchConversations();
+      refetchHierarchical();
 
       // Navigate away if current chat is deleted
       if (chatId === currentChatId) {
@@ -210,31 +221,36 @@ export function ChatSidebar({
     }
   };
 
-  // Convert API conversations to local format for UI compatibility
-  const chats: Chat[] = conversations.map((conv) => ({
-    id: conv.id,
-    title: conv.title,
-    preview: `Last updated ${new Date(conv.updatedAt).toLocaleDateString()}`,
-    timestamp: new Date(conv.updatedAt),
-    model: conv.model,
-    isPinned: preferences.pinnedChats.includes(conv.id),
-    isBookmarked: preferences.bookmarkedChats.includes(conv.id),
-    category: preferences.chatCategories[conv.id] || "General",
-  }));
+  // Process hierarchical conversations for display
+  const filteredHierarchicalChats = hierarchicalConversations.filter((conv) => {
+    // Search filter
+    const matchesSearch =
+      !searchQuery ||
+      conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.branchName &&
+        conv.branchName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // Filter chats based on search and category
-  const filteredChats = chats.filter((chat) => {
-    const matchesSearch = chat.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+    // Category filter
+    const category = preferences.chatCategories[conv.id] || "General";
     const matchesCategory =
-      selectedCategory === "All" || chat.category === selectedCategory;
+      selectedCategory === "All" || category === selectedCategory;
+
     return matchesSearch && matchesCategory;
   });
 
-  // Separate pinned and recent chats
-  const pinnedChats = filteredChats.filter((chat) => chat.isPinned);
-  const recentChats = filteredChats.filter((chat) => !chat.isPinned);
+  // Separate pinned and recent chats for hierarchical display
+  const pinnedHierarchicalChats = filteredHierarchicalChats.filter((conv) =>
+    preferences.pinnedChats.includes(conv.id)
+  );
+  const recentHierarchicalChats = filteredHierarchicalChats.filter(
+    (conv) => !preferences.pinnedChats.includes(conv.id)
+  );
+
+  // Handler for navigating to parent conversations
+  const handleNavigateToParent = (parentId: string) => {
+    navigateToConversation(parentId);
+    router.push(`/chat/${parentId}`);
+  };
 
   // Available categories
   const categories = ["All", "Work", "Personal", "Creative", "Learning"];
@@ -396,24 +412,31 @@ export function ChatSidebar({
               <ScrollArea className="h-full px-4">
                 <div className="space-y-2 max-w-full">
                   {/* Pinned Chats */}
-                  <div className="mb-4">
-                    <div className="flex items-center text-sm text-slate-400 mb-2 px-2">
-                      <Pin className="h-3 w-3 mr-1" />
-                      Pinned
+                  {pinnedHierarchicalChats.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center text-sm text-slate-400 mb-2 px-2">
+                        <Pin className="h-3 w-3 mr-1" />
+                        Pinned
+                      </div>
+                      <div className="space-y-1">
+                        {pinnedHierarchicalChats.map((chat) => (
+                          <HierarchicalChatItem
+                            key={chat.id}
+                            chat={chat}
+                            isActive={chat.id === currentChatId}
+                            isPinned={preferences.pinnedChats.includes(chat.id)}
+                            isBookmarked={preferences.bookmarkedChats.includes(
+                              chat.id
+                            )}
+                            onPin={() => togglePin(chat.id)}
+                            onBookmark={() => toggleBookmark(chat.id)}
+                            onDelete={() => deleteChat(chat.id)}
+                            onNavigateToParent={handleNavigateToParent}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {pinnedChats.map((chat) => (
-                        <ChatHistoryItem
-                          key={chat.id}
-                          chat={chat}
-                          isActive={chat.id === currentChatId}
-                          onPin={() => togglePin(chat.id)}
-                          onBookmark={() => toggleBookmark(chat.id)}
-                          onDelete={() => deleteChat(chat.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Recent Chats */}
                   <div>
@@ -421,7 +444,7 @@ export function ChatSidebar({
                       <Clock className="h-3 w-3 mr-1" />
                       Recent
                     </div>
-                    {conversationsLoading ? (
+                    {hierarchicalLoading ? (
                       <div className="space-y-1">
                         {[...Array(3)].map((_, i) => (
                           <div
@@ -433,16 +456,30 @@ export function ChatSidebar({
                           </div>
                         ))}
                       </div>
+                    ) : recentHierarchicalChats.length === 0 ? (
+                      <div className="text-center py-8 px-4">
+                        <div className="text-slate-400 mb-2">
+                          No conversations yet
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Create a new chat to get started
+                        </div>
+                      </div>
                     ) : (
                       <div className="space-y-1">
-                        {recentChats.map((chat) => (
-                          <ChatHistoryItem
+                        {recentHierarchicalChats.map((chat) => (
+                          <HierarchicalChatItem
                             key={chat.id}
                             chat={chat}
                             isActive={chat.id === currentChatId}
+                            isPinned={preferences.pinnedChats.includes(chat.id)}
+                            isBookmarked={preferences.bookmarkedChats.includes(
+                              chat.id
+                            )}
                             onPin={() => togglePin(chat.id)}
                             onBookmark={() => toggleBookmark(chat.id)}
                             onDelete={() => deleteChat(chat.id)}
+                            onNavigateToParent={handleNavigateToParent}
                           />
                         ))}
                       </div>

@@ -126,14 +126,15 @@ export class ConversationQueries {
     userId: string,
     data: Omit<NewConversation, "userId">
   ): Promise<Conversation> {
-    const [conversation] = await db
+    const [newConversation] = await db
       .insert(conversations)
       .values({
         userId,
         ...data,
       })
       .returning();
-    return conversation;
+
+    return newConversation;
   }
 
   // Get conversation by ID with messages

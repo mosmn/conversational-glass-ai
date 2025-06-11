@@ -28,7 +28,6 @@ export function useChatState({
   const [isSearching, setIsSearching] = useState(false);
 
   // Branching State
-  const [showBranchNavigator, setShowBranchNavigator] = useState(false);
   const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
   const [branchingFromMessage, setBranchingFromMessage] = useState<{
     id: string;
@@ -72,7 +71,11 @@ export function useChatState({
   };
 
   const handleViewBranches = () => {
-    setShowBranchNavigator(true);
+    // Branch navigation is now handled by the hierarchical sidebar
+    toast({
+      title: "Branch Navigation",
+      description: "Use the sidebar to navigate between conversation branches",
+    });
   };
 
   const clearBranchingModal = () => {
@@ -100,8 +103,6 @@ export function useChatState({
     setIsSearching,
 
     // Branching State
-    showBranchNavigator,
-    setShowBranchNavigator,
     showCreateBranchModal,
     setShowCreateBranchModal,
     branchingFromMessage,

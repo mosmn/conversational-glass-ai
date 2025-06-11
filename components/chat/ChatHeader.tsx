@@ -17,9 +17,7 @@ interface ChatHeaderProps {
   selectedModel: string;
   onModelChange: (model: string) => void;
   lastSyncTime?: string;
-  totalBranches: number;
   onShareClick: () => void;
-  onBranchNavigatorClick: () => void;
   hasConversation: boolean;
 }
 
@@ -29,9 +27,7 @@ export function ChatHeader({
   selectedModel,
   onModelChange,
   lastSyncTime,
-  totalBranches,
   onShareClick,
-  onBranchNavigatorClick,
   hasConversation,
 }: ChatHeaderProps) {
   const router = useRouter();
@@ -82,26 +78,6 @@ export function ChatHeader({
             </TooltipTrigger>
             <TooltipContent>
               <p>Last synced: {new Date(lastSyncTime).toLocaleTimeString()}</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Branch Navigator Button */}
-        {totalBranches > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBranchNavigatorClick}
-                className="hover:bg-slate-700/50 hover:text-purple-400 transition-colors"
-              >
-                <GitBranch className="h-4 w-4 mr-1" />
-                <span className="text-xs">{totalBranches}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>View conversation branches ({totalBranches})</p>
             </TooltipContent>
           </Tooltip>
         )}

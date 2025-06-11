@@ -50,6 +50,13 @@
       "when": 1749557899634,
       "tag": "0006_graceful_ken_ellis",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1749626421880,
+      "tag": "0007_typical_terrax",
+      "breakpoints": true
     }
   ]
 }

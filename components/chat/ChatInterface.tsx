@@ -17,9 +17,7 @@ import { Sparkles, Code, BarChart3, GraduationCap, Clock } from "lucide-react";
 import { ShareModal } from "./ShareModal";
 import { ChatSidebar } from "./ChatSidebar";
 import { useStreamRecovery } from "@/hooks/useStreamRecovery";
-import { CreateBranchModal } from "./branching/CreateBranchModal";
-import { BranchNavigator } from "./branching/BranchNavigator";
-import { useBranching } from "@/hooks/useBranching";
+import { ConversationBranchModal } from "./ConversationBranchModal";
 import {
   Dialog,
   DialogContent,
@@ -182,18 +180,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     showNotifications: true,
   });
 
-  // Branching hook
-  const {
-    branchingState,
-    createBranch,
-    updateBranch,
-    deleteBranch,
-    switchToBranch,
-    getMessageBranchInfo,
-    branchFromMessage,
-    refreshBranches,
-  } = useBranching(chatId);
-
   // Show toast notification for chat errors
   useEffect(() => {
     if (chatError) {
@@ -287,35 +273,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   };
 
-  // Handle branch creation
-  const handleBranchFromMessage = async (
-    branchName: string,
-    content: string,
-    description?: string
-  ): Promise<boolean> => {
-    if (!chatState.branchingFromMessage) return false;
-
-    try {
-      const success = await branchFromMessage(
-        chatState.branchingFromMessage.id,
-        branchName,
-        content,
-        selectedModel,
-        description
-      );
-
-      if (success) {
-        await refreshBranches();
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("Failed to create branch:", error);
-      return false;
-    }
-  };
-
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
@@ -346,11 +303,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
             lastSyncTime={lastSyncTime || undefined}
-            totalBranches={branchingState.totalBranches}
             onShareClick={() => chatState.setShowShareModal(true)}
-            onBranchNavigatorClick={() =>
-              chatState.setShowBranchNavigator(true)
-            }
             hasConversation={!!conversation || messages.length > 0}
           />
 
@@ -514,57 +467,19 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         />
       )}
 
-      {/* Branch Navigator Modal */}
-      <Dialog
-        open={chatState.showBranchNavigator}
-        onOpenChange={chatState.setShowBranchNavigator}
-      >
-        <DialogContent className="max-w-2xl bg-slate-900/95 backdrop-blur-xl border-slate-700/50">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <span>Conversation Branches</span>
-            </DialogTitle>
-            <DialogDescription>
-              Navigate between different conversation paths and alternatives
-            </DialogDescription>
-          </DialogHeader>
-
-          <BranchNavigator
-            branches={branchingState.branches}
-            activeBranchId={branchingState.activeBranchId}
-            defaultBranchId={branchingState.defaultBranchId}
-            isLoading={branchingState.loading}
-            onSwitchBranch={async (branchId) => {
-              const success = await switchToBranch(branchId);
-              if (success) {
-                chatState.setShowBranchNavigator(false);
-                window.location.reload();
-              }
-            }}
-            onSetAsDefault={async (branchId) => {
-              await updateBranch(branchId, { setAsDefault: true });
-            }}
-            onRenameBranch={async (branchId, newName) => {
-              await updateBranch(branchId, { branchName: newName });
-            }}
-            onDeleteBranch={async (branchId) => {
-              const success = await deleteBranch(branchId);
-              if (success && branchingState.branches.length <= 1) {
-                chatState.setShowBranchNavigator(false);
-              }
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Branch Modal */}
-      <CreateBranchModal
+      {/* Conversation Branch Modal */}
+      <ConversationBranchModal
         isOpen={chatState.showCreateBranchModal}
         onClose={chatState.clearBranchingModal}
-        onCreateBranch={handleBranchFromMessage}
-        parentMessage={chatState.branchingFromMessage}
-        conversationTitle={conversation?.title || "New Conversation"}
-        isLoading={branchingState.loading}
+        parentConversationId={chatId}
+        parentConversationTitle={conversation?.title || "New Conversation"}
+        branchFromMessage={chatState.branchingFromMessage}
+        availableModels={models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          provider: m.provider,
+          description: m.description,
+        }))}
       />
     </TooltipProvider>
   );

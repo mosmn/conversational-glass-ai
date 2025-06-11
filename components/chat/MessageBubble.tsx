@@ -19,7 +19,7 @@ import {
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { InlineImageGeneration } from "./InlineImageGeneration";
-import { BranchingIndicator } from "./branching/BranchingIndicator";
+import { SimpleBranchButton } from "./SimpleBranchButton";
 import { ConversationalGlassLogoMini } from "@/components/ConversationalGlassLogo";
 import { QuickTTSButton } from "./TextToSpeechButton";
 
@@ -452,41 +452,24 @@ export function MessageBubble({
                   </span>
                 )}
 
-                {/* Branching indicator */}
-                {!isStreaming &&
-                  !hasError &&
-                  onCreateBranch &&
-                  onViewBranches && (
-                    <BranchingIndicator
-                      messageId={message.id}
-                      hasChildren={
-                        message.metadata?.branchingMetadata?.hasChildren ||
-                        false
-                      }
-                      childrenCount={
-                        message.metadata?.branchingMetadata?.childrenCount || 0
-                      }
-                      hasAlternatives={
-                        message.metadata?.branchingMetadata?.isAlternative ||
-                        false
-                      }
-                      alternativesCount={
-                        message.metadata?.branchingMetadata?.alternatives
-                          ?.length || 0
-                      }
-                      canBranch={true}
-                      onCreateBranch={() =>
-                        onCreateBranch({
-                          id: message.id,
-                          content: message.content,
-                          role: message.role,
-                          model: message.model,
-                        })
-                      }
-                      onViewBranches={onViewBranches}
-                      className="ml-2"
-                    />
-                  )}
+                {/* Simple branching button */}
+                {!isStreaming && !hasError && onCreateBranch && (
+                  <SimpleBranchButton
+                    messageId={message.id}
+                    messageContent={message.content}
+                    messageRole={message.role}
+                    messageModel={message.model}
+                    onCreateBranch={() =>
+                      onCreateBranch({
+                        id: message.id,
+                        content: message.content,
+                        role: message.role,
+                        model: message.model,
+                      })
+                    }
+                    className="ml-2"
+                  />
+                )}
               </div>
 
               <div className="flex items-center space-x-2">

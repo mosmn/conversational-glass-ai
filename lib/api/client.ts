@@ -387,70 +387,50 @@ class APIClient {
     });
   }
 
-  async updateBranch(
+  // NEW: Create a branch conversation (new approach)
+  async createBranchConversation(
     conversationId: string,
-    branchId: string,
-    updates: {
-      branchName?: string;
-      setAsActive?: boolean;
-      setAsDefault?: boolean;
+    data: {
+      messageId: string;
+      branchName: string;
+      title: string;
+      content: string;
+      model: string;
+      description?: string;
     }
   ) {
+    return this.fetchWithAuth(`/conversations/${conversationId}/branch`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // NEW: Get conversation with branching relationships
+  async getConversationWithBranching(conversationId: string) {
     return this.fetchWithAuth(
-      `/conversations/${conversationId}/branches/${branchId}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(updates),
-      }
+      `/conversations/${conversationId}?includeBranching=true`
     );
   }
 
-  async deleteBranch(conversationId: string, branchId: string) {
+  // NEW: Get hierarchical conversations list for sidebar
+  async getConversationsWithBranching(params?: {
+    limit?: number;
+    includeOrphaned?: boolean;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.includeOrphaned) searchParams.set("includeOrphaned", "true");
+
+    const query = searchParams.toString();
     return this.fetchWithAuth(
-      `/conversations/${conversationId}/branches/${branchId}`,
-      {
-        method: "DELETE",
-      }
+      `/conversations/hierarchy${query ? `?${query}` : ""}`
     );
   }
 
-  async getMessageBranches(conversationId: string, messageId: string) {
-    return this.fetchWithAuth(
-      `/conversations/${conversationId}/messages/${messageId}/branch`
-    );
-  }
-
-  async branchFromMessage(
-    conversationId: string,
-    messageId: string,
-    branchName: string,
-    content: string,
-    model: string,
-    description?: string
-  ) {
-    return this.fetchWithAuth(
-      `/conversations/${conversationId}/messages/${messageId}/branch`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          branchName,
-          content,
-          model,
-          description,
-        }),
-      }
-    );
-  }
-
-  // Load more messages using cursor pagination
-  async loadMoreMessages(
-    conversationId: string,
-    cursor: string,
-    limit = 50
-  ): Promise<MessagesResponse> {
-    return this.getConversationMessages(conversationId, {
-      cursor,
-      limit,
+  // NEW: Delete a branch conversation
+  async deleteBranchConversation(conversationId: string) {
+    return this.fetchWithAuth(`/conversations/${conversationId}/branch`, {
+      method: "DELETE",
     });
   }
 
