@@ -264,7 +264,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       case "Cmd+n":
       case "Cmd+N":
         event.preventDefault();
-        window.location.href = "/chat/new";
+        window.location.href = "/";
         break;
       case "Cmd+k":
       case "Cmd+K":

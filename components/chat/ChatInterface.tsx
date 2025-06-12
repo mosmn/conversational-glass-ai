@@ -115,10 +115,16 @@ interface Message {
 }
 
 interface ChatInterfaceProps {
-  chatId: string;
+  chatId?: string; // Make chatId optional
+  initialMessage?: string; // For auto-sending first message
+  initialModel?: string; // For setting initial model
 }
 
-export function ChatInterface({ chatId }: ChatInterfaceProps) {
+export function ChatInterface({
+  chatId,
+  initialMessage,
+  initialModel,
+}: ChatInterfaceProps) {
   const router = useRouter();
   const { user } = useUser();
   const personalization = usePersonalization();
@@ -127,7 +133,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const { toast } = useToast();
 
   // Custom hooks for state management
-  const chatState = useChatState({ chatId, selectedModel, setSelectedModel });
+  const chatState = useChatState({
+    chatId: chatId || "temp",
+    selectedModel,
+    setSelectedModel,
+  });
 
   // Debug logging (reduced noise)
   useEffect(() => {
@@ -138,6 +148,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   useEffect(() => {
     console.log("🤖 ChatInterface: selectedModel changed to:", selectedModel);
   }, [selectedModel]);
+
+  // Handle initial model setting
+  useEffect(() => {
+    if (initialModel && !selectedModel) {
+      setSelectedModel(initialModel);
+    }
+  }, [initialModel, selectedModel]);
 
   // API hooks
   const {
@@ -162,7 +179,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     canPauseStream,
     pauseStream,
     resumeStream,
-  } = useChat(chatId);
+  } = useChat(chatId || ""); // Pass empty string when no chatId to prevent loading
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
 
@@ -178,12 +195,179 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   }, [conversation, selectedModel]);
 
-  // Message handling hook
-  const { handleSendMessage, handlePauseStream } = useMessageHandling({
+  // Modified message handling for initial chat creation
+  const handleSendMessageWithCreation = async (
+    inputValue: string,
+    attachments: any[],
+    searchEnabled: boolean,
+    setIsSearching: (searching: boolean) => void,
+    resetInput: () => void
+  ) => {
+    if (!inputValue.trim() && attachments.length === 0) return;
+
+    // If no chatId, create a new conversation and send the message directly
+    if (!chatId) {
+      try {
+        const newConversation = await createConversation({
+          title: "New Chat",
+          model: selectedModel || "gpt-4",
+        });
+
+        if (newConversation) {
+          // Navigate to the new chat page and let it load normally
+          router.push(`/chat/${newConversation.id}`);
+
+          // Store the message to send in localStorage for the new page
+          localStorage.setItem(
+            "pendingMessage",
+            JSON.stringify({
+              content: inputValue,
+              attachments,
+              searchEnabled,
+              model: selectedModel,
+            })
+          );
+
+          return;
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to create new conversation",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to create conversation:", error);
+        toast({
+          title: "Error",
+          description: "Failed to create new conversation",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // If we have a chatId, use the normal message handling
+    if (messageHandling) {
+      await messageHandling.handleSendMessage(
+        inputValue,
+        attachments,
+        searchEnabled,
+        setIsSearching,
+        resetInput
+      );
+    }
+  };
+
+  // Message handling hook - only use when we have a chatId
+  const messageHandling = chatId
+    ? useMessageHandling({
+        chatId,
+        selectedModel,
+        sendMessage,
+      })
+    : null;
+
+  // Handle initial message auto-send - simplified approach
+  useEffect(() => {
+    console.log("🔍 Initial message effect triggered:", {
+      initialMessage,
+      chatId,
+      selectedModel,
+      messagesLength: messages.length,
+      messagesLoading,
+      hasMessageHandling: !!messageHandling,
+    });
+
+    if (
+      initialMessage &&
+      chatId &&
+      selectedModel &&
+      messages.length === 0 &&
+      !messagesLoading &&
+      messageHandling
+    ) {
+      console.log("🚀 Auto-sending initial message:", initialMessage);
+
+      // Auto-send the initial message with a small delay
+      const timer = setTimeout(async () => {
+        try {
+          console.log("📤 Sending initial message...");
+          await messageHandling.handleSendMessage(
+            initialMessage,
+            [],
+            false,
+            () => {},
+            () => {}
+          );
+          console.log("✅ Initial message sent successfully");
+        } catch (error) {
+          console.error("❌ Failed to send initial message:", error);
+        }
+      }, 500); // Reduced delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [
+    initialMessage,
     chatId,
     selectedModel,
-    sendMessage,
-  });
+    messages.length,
+    messagesLoading,
+    messageHandling,
+  ]);
+
+  // Handle pending message from localStorage (for new chat flow)
+  useEffect(() => {
+    if (
+      chatId &&
+      selectedModel &&
+      messages.length === 0 &&
+      !messagesLoading &&
+      messageHandling
+    ) {
+      const pendingMessage = localStorage.getItem("pendingMessage");
+      if (pendingMessage) {
+        try {
+          const { content, attachments, searchEnabled, model } =
+            JSON.parse(pendingMessage);
+
+          console.log("🚀 Sending pending message:", content);
+
+          // Clear the pending message
+          localStorage.removeItem("pendingMessage");
+
+          // Send the message with a small delay
+          const timer = setTimeout(async () => {
+            try {
+              await messageHandling.handleSendMessage(
+                content,
+                attachments || [],
+                searchEnabled || false,
+                () => {},
+                () => {}
+              );
+              console.log("✅ Pending message sent successfully");
+            } catch (error) {
+              console.error("❌ Failed to send pending message:", error);
+            }
+          }, 300);
+
+          return () => clearTimeout(timer);
+        } catch (error) {
+          console.error("❌ Failed to parse pending message:", error);
+          localStorage.removeItem("pendingMessage");
+        }
+      }
+    }
+  }, [
+    chatId,
+    selectedModel,
+    messages.length,
+    messagesLoading,
+    messageHandling,
+  ]);
 
   // Stream recovery hook
   const {
@@ -233,14 +417,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   // Create new chat function
   const handleCreateNewChat = async () => {
-    const conversation = await createConversation({
-      title: "New Chat",
-      model: selectedModel,
-    });
-
-    if (conversation) {
-      router.push(`/chat/${conversation.id}`);
-    }
+    router.push("/");
   };
 
   // Quick actions for welcome screen
@@ -282,7 +459,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage(
+      handleSendMessageWithCreation(
         chatState.inputValue,
         chatState.attachments,
         chatState.searchEnabled,
@@ -301,7 +478,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           onToggleCollapse={() =>
             chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
           }
-          currentChatId={chatId}
+          currentChatId={chatId || ""}
           selectedModel={selectedModel}
           onCreateNewChat={handleCreateNewChat}
         />
@@ -382,7 +559,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       key={message.id}
                       message={message}
                       user={user}
-                      conversationId={chatId}
+                      conversationId={chatId || ""}
                       onImageGenerated={chatState.handleImageGenerated}
                       showInlineImageGeneration={
                         chatState.showInlineImageGeneration
@@ -437,7 +614,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             inputValue={chatState.inputValue}
             onInputChange={chatState.setInputValue}
             onSendMessage={() =>
-              handleSendMessage(
+              handleSendMessageWithCreation(
                 chatState.inputValue,
                 chatState.attachments,
                 chatState.searchEnabled,
@@ -459,7 +636,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             isSearching={chatState.isSearching}
             isStreaming={isStreaming}
             onPauseStream={() =>
-              handlePauseStream(
+              messageHandling?.handlePauseStream(
                 isStreaming,
                 canPauseStream,
                 chatState.isSearching,
@@ -468,7 +645,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 triggerDetection
               )
             }
-            conversationId={chatId}
+            conversationId={chatId || ""}
             selectedModel={selectedModel}
             textareaRef={chatState.textareaRef}
             modelName={models.find((m) => m.id === selectedModel)?.name}
@@ -490,7 +667,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       <ConversationBranchModal
         isOpen={chatState.showCreateBranchModal}
         onClose={chatState.clearBranchingModal}
-        parentConversationId={chatId}
+        parentConversationId={chatId || ""}
         parentConversationTitle={conversation?.title || "New Conversation"}
         branchFromMessage={chatState.branchingFromMessage}
       />
