@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/useConversations";
 import { useHierarchicalConversations } from "@/hooks/useHierarchicalConversations";
@@ -21,7 +21,7 @@ interface ChatSidebarProps {
   onCreateNewChat: () => void;
 }
 
-export function ChatSidebar({
+function ChatSidebarComponent({
   isCollapsed,
   onToggleCollapse,
   currentChatId,
@@ -31,7 +31,6 @@ export function ChatSidebar({
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [usage, setUsage] = useState(65);
   const { toast } = useToast();
 
   // Use the extracted preferences hook
@@ -54,70 +53,84 @@ export function ChatSidebar({
     navigateToConversation,
   } = useHierarchicalConversations();
 
-  // Calculate actual usage and update when conversations change
-  useEffect(() => {
-    const calculateUsage = () => {
-      const baseUsage = Math.min(hierarchicalConversations.length * 2, 80);
-      return baseUsage + Math.floor(Math.random() * 20);
-    };
-
-    const newUsage = calculateUsage();
-    setUsage(newUsage);
+  // Memoize usage calculation to prevent recalculation on every render
+  const usage = useMemo(() => {
+    const baseUsage = Math.min(hierarchicalConversations.length * 2, 80);
+    return baseUsage + Math.floor(Math.random() * 20);
   }, [hierarchicalConversations.length]);
 
-  // Enhanced handlers with toast notifications
-  const handlePin = (chatId: string) => {
-    const wasPinned = togglePin(chatId);
-    toast({
-      title: wasPinned ? "Pinned" : "Unpinned",
-      description: `Chat ${
-        wasPinned ? "added to" : "removed from"
-      } pinned conversations`,
-    });
-  };
-
-  const handleBookmark = (chatId: string) => {
-    const wasBookmarked = toggleBookmark(chatId);
-    toast({
-      title: wasBookmarked ? "Bookmarked" : "Unbookmarked",
-      description: `Chat ${
-        wasBookmarked ? "added to" : "removed from"
-      } bookmarks`,
-    });
-  };
-
-  const handleDelete = async (chatId: string) => {
-    try {
+  // Memoized handlers to prevent recreation on every render
+  const handlePin = useCallback(
+    (chatId: string) => {
+      const wasPinned = togglePin(chatId);
       toast({
-        title: "Chat Deleted",
-        description: "The conversation has been deleted",
+        title: wasPinned ? "Pinned" : "Unpinned",
+        description: `Chat ${
+          wasPinned ? "added to" : "removed from"
+        } pinned conversations`,
       });
+    },
+    [togglePin, toast]
+  );
 
-      // Remove from preferences
-      removeFromPreferences(chatId);
+  const handleBookmark = useCallback(
+    (chatId: string) => {
+      const wasBookmarked = toggleBookmark(chatId);
+      toast({
+        title: wasBookmarked ? "Bookmarked" : "Unbookmarked",
+        description: `Chat ${
+          wasBookmarked ? "added to" : "removed from"
+        } bookmarks`,
+      });
+    },
+    [toggleBookmark, toast]
+  );
 
-      // Refresh conversations
-      refetchConversations();
-      refetchHierarchical();
+  const handleDelete = useCallback(
+    async (chatId: string) => {
+      try {
+        toast({
+          title: "Chat Deleted",
+          description: "The conversation has been deleted",
+        });
 
-      // Navigate away if current chat is deleted
-      if (chatId === currentChatId) {
-        router.push("/");
+        // Remove from preferences
+        removeFromPreferences(chatId);
+
+        // Refresh conversations
+        refetchConversations();
+        refetchHierarchical();
+
+        // Navigate away if current chat is deleted
+        if (chatId === currentChatId) {
+          router.push("/");
+        }
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete conversation",
+        });
       }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete conversation",
-      });
-    }
-  };
+    },
+    [
+      toast,
+      removeFromPreferences,
+      refetchConversations,
+      refetchHierarchical,
+      currentChatId,
+      router,
+    ]
+  );
 
   // Handler for navigating to parent conversations
-  const handleNavigateToParent = (parentId: string) => {
-    navigateToConversation(parentId);
-    router.push(`/chat/${parentId}`);
-  };
+  const handleNavigateToParent = useCallback(
+    (parentId: string) => {
+      navigateToConversation(parentId);
+      router.push(`/chat/${parentId}`);
+    },
+    [navigateToConversation, router]
+  );
 
   return (
     <div
@@ -177,3 +190,18 @@ export function ChatSidebar({
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const ChatSidebar = React.memo(
+  ChatSidebarComponent,
+  (prevProps, nextProps) => {
+    // Custom comparison function - only re-render if these specific props change
+    return (
+      prevProps.isCollapsed === nextProps.isCollapsed &&
+      prevProps.currentChatId === nextProps.currentChatId &&
+      prevProps.selectedModel === nextProps.selectedModel
+    );
+  }
+);
+
+ChatSidebar.displayName = "ChatSidebar";

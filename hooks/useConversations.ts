@@ -10,7 +10,15 @@ interface UseConversationsReturn {
   createConversation: (data: {
     title?: string;
     model?: string;
+    initialMessage?: {
+      content: string;
+      attachments?: any[];
+    };
   }) => Promise<Conversation | null>;
+  updateConversation: (
+    conversationId: string,
+    updates: Partial<Conversation>
+  ) => void;
   refetchConversations: () => Promise<void>;
   hasMore: boolean;
   loadMore: () => Promise<void>;
@@ -67,13 +75,25 @@ export function useConversations(): UseConversationsReturn {
   );
 
   const createConversation = useCallback(
-    async (data: { title?: string; model?: string }) => {
+    async (data: {
+      title?: string;
+      model?: string;
+      initialMessage?: {
+        content: string;
+        attachments?: any[];
+      };
+    }) => {
       try {
         setError(null);
         const response = await apiClient.createConversation(data);
 
         // Add the new conversation to the beginning of the list
         setConversations((prev) => [response.conversation, ...prev]);
+
+        // Log warnings if any (for model fallbacks)
+        if (response.warning) {
+          console.warn("⚠️ Conversation creation warning:", response.warning);
+        }
 
         return response.conversation;
       } catch (err) {
@@ -82,6 +102,17 @@ export function useConversations(): UseConversationsReturn {
         console.error("Create conversation error:", err);
         return null;
       }
+    },
+    []
+  );
+
+  const updateConversation = useCallback(
+    (conversationId: string, updates: Partial<Conversation>) => {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId ? { ...conv, ...updates } : conv
+        )
+      );
     },
     []
   );
@@ -111,6 +142,7 @@ export function useConversations(): UseConversationsReturn {
     loading,
     error,
     createConversation,
+    updateConversation,
     refetchConversations,
     hasMore,
     loadMore,

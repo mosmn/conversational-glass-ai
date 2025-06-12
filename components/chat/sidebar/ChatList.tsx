@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pin, Clock } from "lucide-react";
 import { HierarchicalChatItem } from "@/components/chat/HierarchicalChatItem";
@@ -47,7 +47,7 @@ interface ChatListProps {
   onNavigateToParent: (parentId: string) => void;
 }
 
-export function ChatList({
+function ChatListComponent({
   hierarchicalConversations,
   preferences,
   currentChatId,
@@ -59,30 +59,43 @@ export function ChatList({
   onDelete,
   onNavigateToParent,
 }: ChatListProps) {
-  // Filter conversations
-  const filteredHierarchicalChats = hierarchicalConversations.filter((conv) => {
-    // Search filter
-    const matchesSearch =
-      !searchQuery ||
-      conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (conv.branchName &&
-        conv.branchName.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Memoize filtered conversations to prevent recalculation on every render
+  const {
+    filteredHierarchicalChats,
+    pinnedHierarchicalChats,
+    recentHierarchicalChats,
+  } = useMemo(() => {
+    // Filter conversations
+    const filtered = hierarchicalConversations.filter((conv) => {
+      // Search filter
+      const matchesSearch =
+        !searchQuery ||
+        conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (conv.branchName &&
+          conv.branchName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // Category filter
-    const category = preferences.chatCategories[conv.id] || "General";
-    const matchesCategory =
-      selectedCategory === "All" || category === selectedCategory;
+      // Category filter
+      const category = preferences.chatCategories[conv.id] || "General";
+      const matchesCategory =
+        selectedCategory === "All" || category === selectedCategory;
 
-    return matchesSearch && matchesCategory;
-  });
+      return matchesSearch && matchesCategory;
+    });
 
-  // Separate pinned and recent chats
-  const pinnedHierarchicalChats = filteredHierarchicalChats.filter((conv) =>
-    preferences.pinnedChats.includes(conv.id)
-  );
-  const recentHierarchicalChats = filteredHierarchicalChats.filter(
-    (conv) => !preferences.pinnedChats.includes(conv.id)
-  );
+    // Separate pinned and recent chats
+    const pinned = filtered.filter((conv) =>
+      preferences.pinnedChats.includes(conv.id)
+    );
+    const recent = filtered.filter(
+      (conv) => !preferences.pinnedChats.includes(conv.id)
+    );
+
+    return {
+      filteredHierarchicalChats: filtered,
+      pinnedHierarchicalChats: pinned,
+      recentHierarchicalChats: recent,
+    };
+  }, [hierarchicalConversations, preferences, searchQuery, selectedCategory]);
 
   return (
     <div className="flex-1 min-h-0">
@@ -161,3 +174,23 @@ export function ChatList({
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const ChatList = React.memo(
+  ChatListComponent,
+  (prevProps, nextProps) => {
+    // Custom comparison function - only re-render if these specific props change
+    return (
+      prevProps.hierarchicalConversations ===
+        nextProps.hierarchicalConversations &&
+      prevProps.currentChatId === nextProps.currentChatId &&
+      prevProps.searchQuery === nextProps.searchQuery &&
+      prevProps.selectedCategory === nextProps.selectedCategory &&
+      prevProps.hierarchicalLoading === nextProps.hierarchicalLoading &&
+      JSON.stringify(prevProps.preferences) ===
+        JSON.stringify(nextProps.preferences)
+    );
+  }
+);
+
+ChatList.displayName = "ChatList";

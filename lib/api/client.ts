@@ -309,8 +309,17 @@ class APIClient {
     );
   }
 
-  async createConversation(data: { title?: string; model?: string }): Promise<{
+  async createConversation(data: {
+    title?: string;
+    model?: string;
+    initialMessage?: {
+      content: string;
+      attachments?: any[];
+    };
+  }): Promise<{
     conversation: Conversation;
+    warning?: string;
+    hasInitialMessage?: boolean;
   }> {
     return this.fetchWithAuth("/conversations", {
       method: "POST",

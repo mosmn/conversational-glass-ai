@@ -34,6 +34,10 @@ interface UseHierarchicalConversationsReturn {
   conversations: HierarchicalConversation[];
   loading: boolean;
   error: string | null;
+  updateConversation: (
+    conversationId: string,
+    updates: Partial<HierarchicalConversation>
+  ) => void;
   refetchConversations: () => Promise<void>;
   navigateToConversation: (conversationId: string) => void;
 }
@@ -82,6 +86,17 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     }
   }, []);
 
+  const updateConversation = useCallback(
+    (conversationId: string, updates: Partial<HierarchicalConversation>) => {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId ? { ...conv, ...updates } : conv
+        )
+      );
+    },
+    []
+  );
+
   const refetchConversations = useCallback(async () => {
     await fetchConversations();
   }, [fetchConversations]);
@@ -112,6 +127,7 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     conversations,
     loading,
     error,
+    updateConversation,
     refetchConversations,
     navigateToConversation,
   };

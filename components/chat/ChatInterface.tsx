@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/useConversations";
+import { useHierarchicalConversations } from "@/hooks/useHierarchicalConversations";
 import { useChat } from "@/hooks/useChat";
 import { useModels } from "@/hooks/useModels";
 import { useToast } from "@/hooks/use-toast";
@@ -116,15 +117,9 @@ interface Message {
 
 interface ChatInterfaceProps {
   chatId?: string; // Make chatId optional
-  initialMessage?: string; // For auto-sending first message
-  initialModel?: string; // For setting initial model
 }
 
-export function ChatInterface({
-  chatId,
-  initialMessage,
-  initialModel,
-}: ChatInterfaceProps) {
+export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const router = useRouter();
   const { user } = useUser();
   const personalization = usePersonalization();
@@ -149,20 +144,18 @@ export function ChatInterface({
     console.log("🤖 ChatInterface: selectedModel changed to:", selectedModel);
   }, [selectedModel]);
 
-  // Handle initial model setting
-  useEffect(() => {
-    if (initialModel && !selectedModel) {
-      setSelectedModel(initialModel);
-    }
-  }, [initialModel, selectedModel]);
-
   // API hooks
   const {
     conversations,
     loading: conversationsLoading,
     createConversation,
+    updateConversation,
     refetchConversations,
   } = useConversations();
+
+  // Hierarchical conversations for sidebar updates
+  const { updateConversation: updateHierarchicalConversation } =
+    useHierarchicalConversations();
   const {
     messages,
     conversation,
@@ -183,6 +176,48 @@ export function ChatInterface({
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
 
+  // Auto-select a valid model if none is selected or current selection is invalid
+  useEffect(() => {
+    if (!modelsLoading && models.length > 0 && enabledModels.length > 0) {
+      if (!selectedModel) {
+        // No model selected - pick the first enabled model
+        const firstEnabledModel = enabledModels.find((m) => m.isEnabled);
+        if (firstEnabledModel) {
+          console.log(
+            `🔄 Auto-selecting first enabled model: ${firstEnabledModel.id}`
+          );
+          setSelectedModel(firstEnabledModel.id);
+        }
+      } else {
+        // Check if current selection is still valid
+        const currentModelValid = enabledModels.find(
+          (m) => m.id === selectedModel && m.isEnabled
+        );
+        if (!currentModelValid) {
+          const fallbackModel = enabledModels.find((m) => m.isEnabled);
+          if (fallbackModel) {
+            console.warn(
+              `⚠️ Current model '${selectedModel}' invalid, switching to: ${fallbackModel.id}`
+            );
+            setSelectedModel(fallbackModel.id);
+            toast({
+              title: "Model Updated",
+              description: `Previous model no longer available. Switched to ${fallbackModel.name}.`,
+              variant: "default",
+            });
+          }
+        }
+      }
+    }
+  }, [
+    selectedModel,
+    models,
+    enabledModels,
+    modelsLoading,
+    setSelectedModel,
+    toast,
+  ]);
+
   // CRITICAL DEBUG: Track conversation changes
   useEffect(() => {
     if (conversation) {
@@ -194,6 +229,15 @@ export function ChatInterface({
       });
     }
   }, [conversation, selectedModel]);
+
+  // Message handling hook - only use when we have a chatId
+  const messageHandling = chatId
+    ? useMessageHandling({
+        chatId,
+        selectedModel,
+        sendMessage,
+      })
+    : null;
 
   // Modified message handling for initial chat creation
   const handleSendMessageWithCreation = async (
@@ -208,26 +252,106 @@ export function ChatInterface({
     // If no chatId, create a new conversation and send the message directly
     if (!chatId) {
       try {
+        // Validate the selected model before creating conversation
+        let modelToUse = selectedModel;
+
+        if (!modelToUse) {
+          // If no model selected, use the first available enabled model
+          const enabledModelsList = enabledModels.filter((m) => m.isEnabled);
+          modelToUse =
+            enabledModelsList.length > 0
+              ? enabledModelsList[0].id
+              : "llama-3.1-8b-instant";
+          console.log(`🔄 No model selected, using fallback: ${modelToUse}`);
+        } else {
+          // Check if the selected model is available and enabled
+          const selectedModelData = models.find((m) => m.id === selectedModel);
+          const enabledModelsList = enabledModels.find(
+            (m) => m.id === selectedModel && m.isEnabled
+          );
+
+          if (!selectedModelData || !enabledModelsList) {
+            const fallbackModel = enabledModels.find((m) => m.isEnabled);
+            modelToUse = fallbackModel
+              ? fallbackModel.id
+              : "llama-3.1-8b-instant";
+            console.warn(
+              `⚠️ Selected model '${selectedModel}' not available/enabled, using fallback: ${modelToUse}`
+            );
+
+            toast({
+              title: "Model Updated",
+              description: `Selected model not available. Using ${
+                fallbackModel?.name || modelToUse
+              } instead.`,
+              variant: "default",
+            });
+          }
+        }
+
+        // CRITICAL FIX: Create conversation without initialMessage, then send message normally
+        // This avoids the issue of creating duplicate user messages
         const newConversation = await createConversation({
           title: "New Chat",
-          model: selectedModel || "gpt-4",
+          model: modelToUse,
+          // Don't include initialMessage - we'll send it manually
         });
 
         if (newConversation) {
-          // Navigate to the new chat page and let it load normally
+          console.log(`✅ Created conversation:`, newConversation);
+
+          // Update the selected model to match what was actually used
+          if (modelToUse !== selectedModel) {
+            setSelectedModel(modelToUse);
+          }
+
+          // Navigate to the new chat page first
           router.push(`/chat/${newConversation.id}`);
 
-          // Store the message to send in localStorage for the new page
-          localStorage.setItem(
-            "pendingMessage",
-            JSON.stringify({
-              content: inputValue,
-              attachments,
-              searchEnabled,
-              model: selectedModel,
-            })
-          );
+          // CRITICAL FIX: Now send the message normally using the chat send API
+          // This will create both user message and AI response
+          try {
+            console.log(
+              `🤖 Sending initial message to conversation ${newConversation.id}`
+            );
 
+            const sendResponse = await fetch("/api/chat/send", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                conversationId: newConversation.id,
+                content: inputValue,
+                model: modelToUse,
+                attachments: attachments || [],
+              }),
+            });
+
+            if (!sendResponse.ok) {
+              console.error(
+                "Failed to send initial message:",
+                await sendResponse.text()
+              );
+              toast({
+                title: "Warning",
+                description: "Message sent but AI response may have failed",
+                variant: "default",
+              });
+            } else {
+              console.log("✅ Successfully sent initial message to AI");
+            }
+          } catch (error) {
+            console.error("Error sending initial message:", error);
+            toast({
+              title: "Warning",
+              description: "Message sent but AI response may have failed",
+              variant: "default",
+            });
+          }
+
+          // Clear the input after everything is done
+          resetInput();
           return;
         } else {
           toast({
@@ -239,9 +363,13 @@ export function ChatInterface({
         }
       } catch (error) {
         console.error("Failed to create conversation:", error);
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to create new conversation";
         toast({
           title: "Error",
-          description: "Failed to create new conversation",
+          description: errorMessage,
           variant: "destructive",
         });
         return;
@@ -260,114 +388,12 @@ export function ChatInterface({
     }
   };
 
-  // Message handling hook - only use when we have a chatId
-  const messageHandling = chatId
-    ? useMessageHandling({
-        chatId,
-        selectedModel,
-        sendMessage,
-      })
-    : null;
-
-  // Handle initial message auto-send - simplified approach
+  // Clean up any old pending messages (no longer needed)
   useEffect(() => {
-    console.log("🔍 Initial message effect triggered:", {
-      initialMessage,
-      chatId,
-      selectedModel,
-      messagesLength: messages.length,
-      messagesLoading,
-      hasMessageHandling: !!messageHandling,
-    });
-
-    if (
-      initialMessage &&
-      chatId &&
-      selectedModel &&
-      messages.length === 0 &&
-      !messagesLoading &&
-      messageHandling
-    ) {
-      console.log("🚀 Auto-sending initial message:", initialMessage);
-
-      // Auto-send the initial message with a small delay
-      const timer = setTimeout(async () => {
-        try {
-          console.log("📤 Sending initial message...");
-          await messageHandling.handleSendMessage(
-            initialMessage,
-            [],
-            false,
-            () => {},
-            () => {}
-          );
-          console.log("✅ Initial message sent successfully");
-        } catch (error) {
-          console.error("❌ Failed to send initial message:", error);
-        }
-      }, 500); // Reduced delay
-
-      return () => clearTimeout(timer);
+    if (chatId) {
+      localStorage.removeItem("pendingMessage");
     }
-  }, [
-    initialMessage,
-    chatId,
-    selectedModel,
-    messages.length,
-    messagesLoading,
-    messageHandling,
-  ]);
-
-  // Handle pending message from localStorage (for new chat flow)
-  useEffect(() => {
-    if (
-      chatId &&
-      selectedModel &&
-      messages.length === 0 &&
-      !messagesLoading &&
-      messageHandling
-    ) {
-      const pendingMessage = localStorage.getItem("pendingMessage");
-      if (pendingMessage) {
-        try {
-          const { content, attachments, searchEnabled, model } =
-            JSON.parse(pendingMessage);
-
-          console.log("🚀 Sending pending message:", content);
-
-          // Clear the pending message
-          localStorage.removeItem("pendingMessage");
-
-          // Send the message with a small delay
-          const timer = setTimeout(async () => {
-            try {
-              await messageHandling.handleSendMessage(
-                content,
-                attachments || [],
-                searchEnabled || false,
-                () => {},
-                () => {}
-              );
-              console.log("✅ Pending message sent successfully");
-            } catch (error) {
-              console.error("❌ Failed to send pending message:", error);
-            }
-          }, 300);
-
-          return () => clearTimeout(timer);
-        } catch (error) {
-          console.error("❌ Failed to parse pending message:", error);
-          localStorage.removeItem("pendingMessage");
-        }
-      }
-    }
-  }, [
-    chatId,
-    selectedModel,
-    messages.length,
-    messagesLoading,
-    messageHandling,
-  ]);
+  }, [chatId]);
 
   // Stream recovery hook
   const {
@@ -394,24 +420,37 @@ export function ChatInterface({
     }
   }, [chatError, toast]);
 
-  // Refresh conversations when conversation title changes
+  // Update conversation in place when title changes (no refetch needed)
   useEffect(() => {
     if (
       conversation?.title &&
       conversation.title !== "New Chat" &&
       !conversation.title.startsWith("New Chat") &&
-      conversation.title !== chatState.lastRefreshedTitleRef.current
+      conversation.title !== chatState.lastRefreshedTitleRef.current &&
+      chatId
     ) {
-      const timeoutId = setTimeout(() => {
-        refetchConversations();
-        chatState.lastRefreshedTitleRef.current = conversation.title;
-      }, 2000);
+      // Update both conversation stores without refetching
+      updateConversation(chatId, {
+        title: conversation.title,
+        updatedAt: new Date().toISOString(),
+      });
 
-      return () => clearTimeout(timeoutId);
+      updateHierarchicalConversation(chatId, {
+        title: conversation.title,
+        updatedAt: new Date().toISOString(),
+      });
+
+      chatState.lastRefreshedTitleRef.current = conversation.title;
+      console.log(
+        "🔄 Updated conversation title in both sidebar stores:",
+        conversation.title
+      );
     }
   }, [
     conversation?.title,
-    refetchConversations,
+    updateConversation,
+    updateHierarchicalConversation,
+    chatId,
     chatState.lastRefreshedTitleRef,
   ]);
 
