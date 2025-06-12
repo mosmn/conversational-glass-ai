@@ -103,7 +103,7 @@ function ChatSidebarComponent({
 
         // Navigate away if current chat is deleted
         if (chatId === currentChatId) {
-          router.push("/");
+          router.push("/chat");
         }
       } catch (error) {
         toast({

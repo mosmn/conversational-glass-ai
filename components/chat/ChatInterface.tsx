@@ -127,16 +127,22 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const { toast } = useToast();
 
+  // Optimistic chat ID state for smoother transitions
+  const [optimisticChatId, setOptimisticChatId] = useState<string | undefined>(
+    chatId
+  );
+
   // Custom hooks for state management
   const chatState = useChatState({
-    chatId: chatId || "temp",
+    chatId: optimisticChatId || "temp",
     selectedModel,
     setSelectedModel,
   });
 
-  // Debug logging (reduced noise)
+  // Update optimistic chat ID when prop changes
   useEffect(() => {
     console.log("ChatInterface: chatId changed to:", chatId);
+    setOptimisticChatId(chatId);
   }, [chatId]);
 
   // CRITICAL DEBUG: Track selectedModel changes
@@ -172,7 +178,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     canPauseStream,
     pauseStream,
     resumeStream,
-  } = useChat(chatId || ""); // Pass empty string when no chatId to prevent loading
+  } = useChat(optimisticChatId || ""); // Use optimistic chat ID for smoother transitions
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
 
@@ -230,14 +236,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   }, [conversation, selectedModel]);
 
-  // Message handling hook - only use when we have a chatId
-  const messageHandling = chatId
-    ? useMessageHandling({
-        chatId,
-        selectedModel,
-        sendMessage,
-      })
-    : null;
+  // Message handling hook - always call but pass chatId (can be undefined)
+  const messageHandling = useMessageHandling({
+    chatId: optimisticChatId || "", // Pass empty string when no chatId
+    selectedModel,
+    sendMessage,
+  });
 
   // Modified message handling for initial chat creation
   const handleSendMessageWithCreation = async (
@@ -250,7 +254,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     if (!inputValue.trim() && attachments.length === 0) return;
 
     // If no chatId, create a new conversation and send the message directly
-    if (!chatId) {
+    if (!optimisticChatId) {
       try {
         // Validate the selected model before creating conversation
         let modelToUse = selectedModel;
@@ -305,7 +309,10 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             setSelectedModel(modelToUse);
           }
 
-          // Navigate to the new chat page first
+          // Optimistically update the chat ID for immediate UI response
+          setOptimisticChatId(newConversation.id);
+
+          // Navigate to the new chat using the unified route structure
           router.push(`/chat/${newConversation.id}`);
 
           // CRITICAL FIX: Now send the message normally using the chat send API
@@ -377,7 +384,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
 
     // If we have a chatId, use the normal message handling
-    if (messageHandling) {
+    if (optimisticChatId) {
       await messageHandling.handleSendMessage(
         inputValue,
         attachments,
@@ -390,10 +397,10 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   // Clean up any old pending messages (no longer needed)
   useEffect(() => {
-    if (chatId) {
+    if (optimisticChatId) {
       localStorage.removeItem("pendingMessage");
     }
-  }, [chatId]);
+  }, [optimisticChatId]);
 
   // Stream recovery hook
   const {
@@ -404,7 +411,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     discardAllStreams,
     triggerDetection,
   } = useStreamRecovery({
-    conversationId: chatId,
+    conversationId: optimisticChatId,
     autoDetect: true,
     showNotifications: true,
   });
@@ -427,15 +434,15 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       conversation.title !== "New Chat" &&
       !conversation.title.startsWith("New Chat") &&
       conversation.title !== chatState.lastRefreshedTitleRef.current &&
-      chatId
+      optimisticChatId
     ) {
       // Update both conversation stores without refetching
-      updateConversation(chatId, {
+      updateConversation(optimisticChatId, {
         title: conversation.title,
         updatedAt: new Date().toISOString(),
       });
 
-      updateHierarchicalConversation(chatId, {
+      updateHierarchicalConversation(optimisticChatId, {
         title: conversation.title,
         updatedAt: new Date().toISOString(),
       });
@@ -456,7 +463,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   // Create new chat function
   const handleCreateNewChat = async () => {
-    router.push("/");
+    router.push("/chat");
   };
 
   // Quick actions for welcome screen
@@ -517,7 +524,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           onToggleCollapse={() =>
             chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
           }
-          currentChatId={chatId || ""}
+          currentChatId={optimisticChatId || ""}
           selectedModel={selectedModel}
           onCreateNewChat={handleCreateNewChat}
         />
@@ -598,7 +605,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       key={message.id}
                       message={message}
                       user={user}
-                      conversationId={chatId || ""}
+                      conversationId={optimisticChatId || ""}
                       onImageGenerated={chatState.handleImageGenerated}
                       showInlineImageGeneration={
                         chatState.showInlineImageGeneration
@@ -674,17 +681,19 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             }
             isSearching={chatState.isSearching}
             isStreaming={isStreaming}
-            onPauseStream={() =>
-              messageHandling?.handlePauseStream(
-                isStreaming,
-                canPauseStream,
-                chatState.isSearching,
-                pauseStream,
-                chatState.setIsSearching,
-                triggerDetection
-              )
-            }
-            conversationId={chatId || ""}
+            onPauseStream={() => {
+              if (optimisticChatId) {
+                messageHandling.handlePauseStream(
+                  isStreaming,
+                  canPauseStream,
+                  chatState.isSearching,
+                  pauseStream,
+                  chatState.setIsSearching,
+                  triggerDetection
+                );
+              }
+            }}
+            conversationId={optimisticChatId || ""}
             selectedModel={selectedModel}
             textareaRef={chatState.textareaRef}
             modelName={models.find((m) => m.id === selectedModel)?.name}
@@ -706,7 +715,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       <ConversationBranchModal
         isOpen={chatState.showCreateBranchModal}
         onClose={chatState.clearBranchingModal}
-        parentConversationId={chatId || ""}
+        parentConversationId={optimisticChatId || ""}
         parentConversationTitle={conversation?.title || "New Conversation"}
         branchFromMessage={chatState.branchingFromMessage}
       />
