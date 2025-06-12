@@ -160,8 +160,10 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   } = useConversations();
 
   // Hierarchical conversations for sidebar updates
-  const { updateConversation: updateHierarchicalConversation } =
-    useHierarchicalConversations();
+  const {
+    updateConversation: updateHierarchicalConversation,
+    refetchConversations: refetchHierarchical,
+  } = useHierarchicalConversations();
   const {
     messages,
     conversation,
@@ -429,36 +431,47 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   // Update conversation in place when title changes (no refetch needed)
   useEffect(() => {
+    const currentChatId = optimisticChatId || chatId;
     if (
       conversation?.title &&
       conversation.title !== "New Chat" &&
       !conversation.title.startsWith("New Chat") &&
-      conversation.title !== chatState.lastRefreshedTitleRef.current &&
-      optimisticChatId
+      conversation.title !== chatState.lastRefreshedTitle &&
+      currentChatId
     ) {
       // Update both conversation stores without refetching
-      updateConversation(optimisticChatId, {
+      updateConversation(currentChatId, {
         title: conversation.title,
         updatedAt: new Date().toISOString(),
       });
 
-      updateHierarchicalConversation(optimisticChatId, {
+      updateHierarchicalConversation(currentChatId, {
         title: conversation.title,
         updatedAt: new Date().toISOString(),
       });
 
-      chatState.lastRefreshedTitleRef.current = conversation.title;
+      // Also trigger a sidebar refresh as a fallback to ensure the title update is visible
+      refetchConversations();
+      refetchHierarchical();
+
+      chatState.setLastRefreshedTitle(conversation.title);
       console.log(
-        "🔄 Updated conversation title in both sidebar stores:",
-        conversation.title
+        "🔄 Updated conversation title in both sidebar stores and triggered refresh:",
+        conversation.title,
+        "for chatId:",
+        currentChatId
       );
     }
   }, [
     conversation?.title,
     updateConversation,
     updateHierarchicalConversation,
+    refetchConversations,
+    refetchHierarchical,
+    optimisticChatId,
     chatId,
-    chatState.lastRefreshedTitleRef,
+    chatState.lastRefreshedTitle,
+    chatState.setLastRefreshedTitle,
   ]);
 
   // Create new chat function

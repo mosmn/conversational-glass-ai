@@ -100,7 +100,7 @@ function ChatListComponent({
   return (
     <div className="flex-1 min-h-0">
       <ScrollArea className="h-full px-4">
-        <div className="space-y-2 max-w-full">
+        <div className="space-y-2 w-full overflow-hidden">
           {/* Pinned Chats */}
           {pinnedHierarchicalChats.length > 0 && (
             <div className="mb-4">
@@ -175,22 +175,9 @@ function ChatListComponent({
   );
 }
 
-// Memoize the component to prevent unnecessary re-renders
-export const ChatList = React.memo(
-  ChatListComponent,
-  (prevProps, nextProps) => {
-    // Custom comparison function - only re-render if these specific props change
-    return (
-      prevProps.hierarchicalConversations ===
-        nextProps.hierarchicalConversations &&
-      prevProps.currentChatId === nextProps.currentChatId &&
-      prevProps.searchQuery === nextProps.searchQuery &&
-      prevProps.selectedCategory === nextProps.selectedCategory &&
-      prevProps.hierarchicalLoading === nextProps.hierarchicalLoading &&
-      JSON.stringify(prevProps.preferences) ===
-        JSON.stringify(nextProps.preferences)
-    );
-  }
-);
+// Memoize with default shallow comparison. This ensures the list still re-renders
+// when any prop reference changes (e.g., a conversation title update) while
+// avoiding unnecessary deep equality checks that could skip legitimate updates.
+export const ChatList = React.memo(ChatListComponent);
 
 ChatList.displayName = "ChatList";

@@ -27,6 +27,11 @@ export function useChatState({
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Title tracking state (changed from ref to state)
+  const [lastRefreshedTitle, setLastRefreshedTitle] = useState<string | null>(
+    null
+  );
+
   // Message sorting functionality (new)
   const sortMessagesByTimestamp = (messages: any[]) => {
     return [...messages].sort(
@@ -46,7 +51,6 @@ export function useChatState({
 
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastRefreshedTitleRef = useRef<string | null>(null);
 
   // Actions
   const resetInput = () => {
@@ -119,9 +123,10 @@ export function useChatState({
     branchingFromMessage,
     setBranchingFromMessage,
 
-    // Refs
+    // Refs and state
     textareaRef,
-    lastRefreshedTitleRef,
+    lastRefreshedTitle,
+    setLastRefreshedTitle,
 
     // Actions
     resetInput,

@@ -80,26 +80,59 @@ export function ShareModal({
   const loadSharingStatus = async () => {
     try {
       setLoading(true);
+      console.log(
+        "🔄 Loading sharing status for conversation:",
+        conversationId
+      );
+
       const response = await fetch(
         `/api/conversations/${conversationId}/share`
       );
 
+      console.log("📡 Sharing status response:", {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
       if (response.ok) {
         const data = await response.json();
-        setSharingStatus(data.sharing);
+        console.log("✅ Sharing status data:", data);
+        setSharingStatus(
+          data.sharing || {
+            enabled: false,
+            shareId: null,
+            shareUrl: null,
+          }
+        );
+      } else if (response.status === 404) {
+        console.log(
+          "📭 Conversation not found or sharing not set up yet - this is normal"
+        );
+        setSharingStatus({
+          enabled: false,
+          shareId: null,
+          shareUrl: null,
+        });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to load sharing status",
-          variant: "destructive",
+        const errorText = await response.text();
+        console.error(
+          "❌ Failed to load sharing status:",
+          response.status,
+          errorText
+        );
+        setSharingStatus({
+          enabled: false,
+          shareId: null,
+          shareUrl: null,
         });
       }
     } catch (error) {
-      console.error("Load sharing status error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load sharing status",
-        variant: "destructive",
+      console.error("💥 Load sharing status error:", error);
+      setSharingStatus({
+        enabled: false,
+        shareId: null,
+        shareUrl: null,
       });
     } finally {
       setLoading(false);
@@ -107,8 +140,21 @@ export function ShareModal({
   };
 
   const toggleSharing = async (enabled: boolean) => {
+    console.log("🔄 Toggling sharing:", {
+      enabled,
+      conversationId,
+      currentLoading: loading,
+    });
+
+    if (loading) {
+      console.log("⏸️ Already loading, preventing double-click");
+      return;
+    }
+
     try {
       setLoading(true);
+      console.log("📡 Sending sharing toggle request...");
+
       const response = await fetch(
         `/api/conversations/${conversationId}/share`,
         {
@@ -120,9 +166,22 @@ export function ShareModal({
         }
       );
 
+      console.log("📡 Toggle sharing response:", {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
       if (response.ok) {
         const data = await response.json();
-        setSharingStatus(data.sharing);
+        console.log("✅ Toggle sharing success:", data);
+        setSharingStatus(
+          data.sharing || {
+            enabled: false,
+            shareId: null,
+            shareUrl: null,
+          }
+        );
 
         toast({
           title: enabled ? "Sharing enabled" : "Sharing disabled",
@@ -131,21 +190,35 @@ export function ShareModal({
             : "Your conversation is no longer shared",
         });
       } else {
-        const error = await response.json();
+        const errorText = await response.text();
+        console.error("❌ Toggle sharing failed:", response.status, errorText);
+
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+
         toast({
           title: "Error",
-          description: error.error || "Failed to update sharing settings",
+          description:
+            errorData.error ||
+            `Failed to ${enabled ? "enable" : "disable"} sharing`,
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Toggle sharing error:", error);
+      console.error("💥 Toggle sharing error:", error);
       toast({
         title: "Error",
-        description: "Failed to update sharing settings",
+        description: `Failed to ${
+          enabled ? "enable" : "disable"
+        } sharing. Please try again.`,
         variant: "destructive",
       });
     } finally {
+      console.log("🏁 Toggle sharing finished, setting loading to false");
       setLoading(false);
     }
   };
@@ -238,13 +311,13 @@ export function ShareModal({
   return (
     <TooltipProvider>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-md glass-dark border-slate-700/50">
+        <DialogContent className="sm:max-w-md bg-slate-800 border-slate-700 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-white">
               <Share className="h-5 w-5 text-emerald-400" />
               Share Conversation
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-300">
               Share "{conversationTitle}" with others or export the
               conversation.
             </DialogDescription>
@@ -252,12 +325,14 @@ export function ShareModal({
 
           <div className="space-y-6">
             {/* Sharing Toggle */}
-            <Card className="glass-dark border-slate-700/50">
+            <Card className="bg-slate-700/50 border-slate-600 text-white">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-emerald-400" />
-                    <CardTitle className="text-sm">Public Sharing</CardTitle>
+                    <CardTitle className="text-sm text-white">
+                      Public Sharing
+                    </CardTitle>
                   </div>
                   <Switch
                     checked={sharingStatus.enabled}
@@ -265,7 +340,7 @@ export function ShareModal({
                     disabled={loading}
                   />
                 </div>
-                <CardDescription>
+                <CardDescription className="text-slate-300">
                   {sharingStatus.enabled
                     ? "Your conversation is publicly accessible via a unique link"
                     : "Enable sharing to create a public link to this conversation"}
@@ -279,7 +354,7 @@ export function ShareModal({
                       <Input
                         value={sharingStatus.shareUrl}
                         readOnly
-                        className="bg-slate-800/50 border-slate-600 text-sm"
+                        className="bg-slate-800 border-slate-600 text-slate-200"
                       />
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -287,7 +362,7 @@ export function ShareModal({
                             onClick={copyShareUrl}
                             size="sm"
                             variant="outline"
-                            className="shrink-0"
+                            className="shrink-0 border-slate-600 text-slate-200 hover:bg-slate-600"
                           >
                             {copied ? (
                               <Check className="h-4 w-4 text-emerald-400" />
@@ -306,7 +381,7 @@ export function ShareModal({
                             onClick={openSharedConversation}
                             size="sm"
                             variant="outline"
-                            className="shrink-0"
+                            className="shrink-0 border-slate-600 text-slate-200 hover:bg-slate-600"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -330,11 +405,11 @@ export function ShareModal({
 
             {/* Privacy Notice */}
             {sharingStatus.enabled && (
-              <Card className="glass-dark border-amber-500/30 bg-amber-500/5">
+              <Card className="bg-amber-500/10 border-amber-500/30">
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-                    <div className="text-xs text-amber-200/80">
+                    <div className="text-xs text-amber-200">
                       <p className="font-medium mb-1">Privacy Notice</p>
                       <p>
                         This conversation will be publicly viewable by anyone
@@ -347,11 +422,11 @@ export function ShareModal({
               </Card>
             )}
 
-            <Separator className="bg-slate-700/50" />
+            <Separator className="bg-slate-600" />
 
             {/* Export Options */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium flex items-center gap-2 text-white">
                 <Download className="h-4 w-4 text-emerald-400" />
                 Export Options
               </Label>
@@ -362,7 +437,7 @@ export function ShareModal({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="justify-start"
+                      className="justify-start border-slate-600 text-slate-200 hover:bg-slate-600"
                       onClick={() => exportConversation("markdown")}
                     >
                       <Download className="h-3 w-3 mr-2" />
@@ -377,7 +452,7 @@ export function ShareModal({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="justify-start"
+                      className="justify-start border-slate-600 text-slate-200 hover:bg-slate-600"
                       onClick={() => exportConversation("json")}
                     >
                       <Download className="h-3 w-3 mr-2" />
@@ -392,7 +467,7 @@ export function ShareModal({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="justify-start"
+                      className="justify-start border-slate-600 text-slate-400"
                       onClick={() => exportConversation("pdf")}
                       disabled={true} // PDF coming in Phase 3
                     >
@@ -404,14 +479,19 @@ export function ShareModal({
                 </Tooltip>
               </div>
 
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Download conversation in your preferred format
               </p>
             </div>
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-2 pt-2">
-              <Button onClick={onClose} variant="outline" size="sm">
+              <Button
+                onClick={onClose}
+                variant="outline"
+                size="sm"
+                className="border-slate-600 text-slate-200 hover:bg-slate-600"
+              >
                 Close
               </Button>
             </div>

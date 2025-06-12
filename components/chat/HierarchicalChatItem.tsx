@@ -112,11 +112,11 @@ export function HierarchicalChatItem({
 
   return (
     <TooltipProvider>
-      <div className="mx-2 mb-1">
+      <div className="w-full overflow-hidden">
         {/* Main conversation item */}
         <div
           onClick={handleClick}
-          className={`relative p-3 rounded-lg cursor-pointer transition-all duration-200 group overflow-hidden max-w-full ${
+          className={`relative mx-2 p-3 rounded-lg cursor-pointer transition-all duration-200 group w-[calc(100%_-_1rem)] overflow-hidden ${
             isActive
               ? "bg-emerald-600/20 border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
               : "hover:bg-slate-700/50"
@@ -128,9 +128,9 @@ export function HierarchicalChatItem({
           )}
 
           {/* Main content area with reserved space for menu */}
-          <div className="pr-8">
+          <div className="pr-10 w-full overflow-hidden">
             {/* Title row with branch info */}
-            <div className="flex items-center gap-2 mb-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
               {/* Expand/collapse button for conversations with branches */}
               {chat.hasChildren && (
                 <Button
@@ -158,26 +158,26 @@ export function HierarchicalChatItem({
               )}
 
               {/* Title */}
-              <h3 className="font-medium text-sm text-white truncate flex-1 min-w-0">
+              <h3 className="font-medium text-sm text-white truncate flex-1 overflow-hidden">
                 {chat.isBranch && chat.branchName ? (
-                  <span>
+                  <span className="block truncate">
                     <span className="text-teal-400">{chat.branchName}</span>
                     <span className="text-slate-400 text-xs ml-1">
                       • {chat.title}
                     </span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 overflow-hidden">
                     {chat.title === "New Chat" ||
                     chat.title.startsWith("New Chat") ? (
                       <>
-                        <span className="text-slate-400">
+                        <span className="text-slate-400 truncate">
                           Generating title...
                         </span>
-                        <div className="animate-spin rounded-full h-3 w-3 border border-slate-400 border-t-transparent" />
+                        <div className="animate-spin rounded-full h-3 w-3 border border-slate-400 border-t-transparent flex-shrink-0" />
                       </>
                     ) : (
-                      chat.title
+                      <span className="truncate">{chat.title}</span>
                     )}
                   </span>
                 )}
@@ -229,8 +229,8 @@ export function HierarchicalChatItem({
             )}
 
             {/* Bottom row */}
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <span className="text-xs text-slate-400 truncate flex-shrink min-w-0">
+            <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
+              <span className="text-xs text-slate-400 truncate flex-shrink overflow-hidden">
                 {chat.isBranch && chat.branchCreatedAt
                   ? formatDate(chat.branchCreatedAt)
                   : formatDate(chat.createdAt)}
@@ -244,14 +244,14 @@ export function HierarchicalChatItem({
             </div>
           </div>
 
-          {/* Three-dot menu */}
-          <div className="absolute top-2 right-2">
+          {/* Three-dot menu - positioned within bounds */}
+          <div className="absolute top-3 right-3 z-10">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0 hover:bg-slate-600/50 rounded-md"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-slate-600/50 rounded-md"
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
@@ -261,8 +261,8 @@ export function HierarchicalChatItem({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                side="right"
-                alignOffset={-10}
+                side="left"
+                alignOffset={-5}
                 sideOffset={5}
                 className="w-48 bg-slate-800 border-slate-700 shadow-xl z-50"
               >
@@ -348,7 +348,7 @@ export function HierarchicalChatItem({
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="ml-4 mt-1 space-y-1"
+              className="ml-6 mt-1 space-y-1 w-[calc(100%_-_1.5rem)] overflow-hidden"
             >
               {chat.branches
                 .sort((a, b) => (a.branchOrder || 0) - (b.branchOrder || 0))
@@ -359,22 +359,22 @@ export function HierarchicalChatItem({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: 0.05 }}
                     onClick={() => handleBranchClick(branch.id)}
-                    className={`relative p-2 rounded-md cursor-pointer transition-all duration-200 group border-l-2 border-l-teal-400/50 bg-slate-800/30 hover:bg-slate-700/50 ${
+                    className={`relative p-2 rounded-md cursor-pointer transition-all duration-200 group border-l-2 border-l-teal-400/50 bg-slate-800/30 hover:bg-slate-700/50 w-full overflow-hidden ${
                       branch.id === chat.id
                         ? "bg-emerald-600/10 border-l-emerald-400"
                         : ""
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 w-full overflow-hidden">
                       <GitBranch className="h-3 w-3 text-teal-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 mb-1">
+                      <div className="flex-1 overflow-hidden">
+                        <div className="flex items-center gap-1 mb-1 overflow-hidden">
                           <span className="text-xs font-medium text-teal-300 truncate">
                             {branch.branchName || "Unnamed Branch"}
                           </span>
-                          <Zap className="h-2.5 w-2.5 text-teal-400" />
+                          <Zap className="h-2.5 w-2.5 text-teal-400 flex-shrink-0" />
                         </div>
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 overflow-hidden">
                           <span className="text-xs text-slate-400 truncate">
                             {branch.branchCreatedAt
                               ? formatDate(branch.branchCreatedAt)
@@ -382,7 +382,7 @@ export function HierarchicalChatItem({
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-xs h-4 px-1 border-slate-600 text-slate-400"
+                            className="text-xs h-4 px-1 border-slate-600 text-slate-400 flex-shrink-0"
                           >
                             {branch.model}
                           </Badge>

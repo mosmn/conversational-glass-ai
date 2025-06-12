@@ -191,17 +191,9 @@ function ChatSidebarComponent({
   );
 }
 
-// Memoize the component to prevent unnecessary re-renders
-export const ChatSidebar = React.memo(
-  ChatSidebarComponent,
-  (prevProps, nextProps) => {
-    // Custom comparison function - only re-render if these specific props change
-    return (
-      prevProps.isCollapsed === nextProps.isCollapsed &&
-      prevProps.currentChatId === nextProps.currentChatId &&
-      prevProps.selectedModel === nextProps.selectedModel
-    );
-  }
-);
+// Memoize with default shallow comparison. This prevents excessive renders while
+// still allowing the component to update whenever *any* prop changes, which
+// covers edge-cases like title updates that previously weren't reflected.
+export const ChatSidebar = React.memo(ChatSidebarComponent);
 
 ChatSidebar.displayName = "ChatSidebar";
