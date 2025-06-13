@@ -112,11 +112,11 @@ export function HierarchicalChatItem({
 
   return (
     <TooltipProvider>
-      <div className="w-full overflow-hidden">
+      <div className="w-full overflow-visible">
         {/* Main conversation item */}
         <div
           onClick={handleClick}
-          className={`relative mx-2 p-3 rounded-lg cursor-pointer transition-all duration-200 group w-[calc(100%_-_1rem)] overflow-hidden ${
+          className={`relative p-3 rounded-lg cursor-pointer transition-all duration-200 group w-full ${
             isActive
               ? "bg-emerald-600/20 border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
               : "hover:bg-slate-700/50"
@@ -158,7 +158,7 @@ export function HierarchicalChatItem({
               )}
 
               {/* Title */}
-              <h3 className="font-medium text-sm text-white truncate flex-1 overflow-hidden">
+              <h3 className="font-medium text-sm text-white truncate flex-1 min-w-0 overflow-hidden">
                 {chat.isBranch && chat.branchName ? (
                   <span className="block truncate">
                     <span className="text-teal-400">{chat.branchName}</span>
@@ -167,17 +167,17 @@ export function HierarchicalChatItem({
                     </span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2 overflow-hidden">
+                  <span className="flex items-center gap-2 min-w-0 overflow-hidden">
                     {chat.title === "New Chat" ||
                     chat.title.startsWith("New Chat") ? (
                       <>
-                        <span className="text-slate-400 truncate">
+                        <span className="text-slate-400 truncate flex-shrink min-w-0">
                           Generating title...
                         </span>
                         <div className="animate-spin rounded-full h-3 w-3 border border-slate-400 border-t-transparent flex-shrink-0" />
                       </>
                     ) : (
-                      <span className="truncate">{chat.title}</span>
+                      <span className="truncate min-w-0">{chat.title}</span>
                     )}
                   </span>
                 )}
@@ -230,99 +230,51 @@ export function HierarchicalChatItem({
 
             {/* Bottom row */}
             <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
-              <span className="text-xs text-slate-400 truncate flex-shrink overflow-hidden">
+              <span className="text-xs text-slate-400 truncate flex-shrink min-w-0 overflow-hidden">
                 {chat.isBranch && chat.branchCreatedAt
                   ? formatDate(chat.branchCreatedAt)
                   : formatDate(chat.createdAt)}
               </span>
-              <Badge
-                variant="outline"
-                className="text-xs border-slate-600 text-slate-300 flex-shrink-0"
-              >
-                {chat.model}
-              </Badge>
             </div>
           </div>
 
           {/* Three-dot menu - positioned within bounds */}
-          <div className="absolute top-3 right-3 z-10">
-            <DropdownMenu>
+          <div className="absolute top-2 right-2 z-30">
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-slate-600/50 rounded-md"
+                  className="group-hover:opacity-100 transition-opacity h-7 w-7 p-0 hover:bg-slate-600/50 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border border-slate-600/50 opacity-80 hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-4 w-4 text-slate-200" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                side="left"
-                alignOffset={-5}
-                sideOffset={5}
-                className="w-48 bg-slate-800 border-slate-700 shadow-xl z-50"
+                side="bottom"
+                alignOffset={-10}
+                sideOffset={8}
+                className="w-44 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 shadow-2xl shadow-black/40 rounded-lg z-[9999]"
+                avoidCollisions={true}
+                collisionPadding={8}
               >
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
                     onPin();
                   }}
-                  className="hover:bg-slate-700 cursor-pointer"
+                  className="flex items-center px-3 py-2 hover:bg-slate-700/50 cursor-pointer transition-colors duration-200"
                 >
-                  <Pin className="mr-2 h-4 w-4" />
-                  {isPinned ? "Unpin" : "Pin"} Chat
+                  <Pin className="mr-2 h-4 w-4 text-emerald-400" />
+                  <span className="text-slate-200">
+                    {isPinned ? "Unpin" : "Pin"} Chat
+                  </span>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onBookmark();
-                  }}
-                  className="hover:bg-slate-700 cursor-pointer"
-                >
-                  <Star className="mr-2 h-4 w-4" />
-                  {isBookmarked ? "Remove Bookmark" : "Bookmark"}
-                </DropdownMenuItem>
-                {chat.isBranch && chat.parentConversationId && (
-                  <>
-                    <DropdownMenuSeparator className="bg-slate-700" />
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNavigateToParent();
-                      }}
-                      className="hover:bg-slate-700 cursor-pointer"
-                    >
-                      <ArrowUpRight className="mr-2 h-4 w-4" />
-                      Go to Parent
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator className="bg-slate-700" />
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // TODO: Add rename functionality
-                  }}
-                  className="hover:bg-slate-700 cursor-pointer"
-                >
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // TODO: Add archive functionality
-                  }}
-                  className="hover:bg-slate-700 cursor-pointer"
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-slate-700" />
+                <DropdownMenuSeparator className="bg-slate-700/50 my-1" />
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
@@ -330,10 +282,10 @@ export function HierarchicalChatItem({
                       onDelete();
                     }
                   }}
-                  className="text-red-400 focus:text-red-300 hover:bg-red-900/20 cursor-pointer"
+                  className="flex items-center px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 cursor-pointer transition-colors duration-200"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  <span>Delete Chat</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -348,7 +300,7 @@ export function HierarchicalChatItem({
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="ml-6 mt-1 space-y-1 w-[calc(100%_-_1.5rem)] overflow-hidden"
+              className="ml-6 mt-1 space-y-1 w-full overflow-hidden"
             >
               {chat.branches
                 .sort((a, b) => (a.branchOrder || 0) - (b.branchOrder || 0))
@@ -367,25 +319,19 @@ export function HierarchicalChatItem({
                   >
                     <div className="flex items-center gap-2 w-full overflow-hidden">
                       <GitBranch className="h-3 w-3 text-teal-400 flex-shrink-0" />
-                      <div className="flex-1 overflow-hidden">
-                        <div className="flex items-center gap-1 mb-1 overflow-hidden">
-                          <span className="text-xs font-medium text-teal-300 truncate">
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-1 mb-1 min-w-0 overflow-hidden">
+                          <span className="text-xs font-medium text-teal-300 truncate flex-shrink min-w-0">
                             {branch.branchName || "Unnamed Branch"}
                           </span>
                           <Zap className="h-2.5 w-2.5 text-teal-400 flex-shrink-0" />
                         </div>
-                        <div className="flex items-center justify-between gap-2 overflow-hidden">
-                          <span className="text-xs text-slate-400 truncate">
+                        <div className="flex items-center justify-between gap-2 min-w-0 overflow-hidden">
+                          <span className="text-xs text-slate-400 truncate flex-shrink min-w-0">
                             {branch.branchCreatedAt
                               ? formatDate(branch.branchCreatedAt)
                               : formatDate(branch.createdAt)}
                           </span>
-                          <Badge
-                            variant="outline"
-                            className="text-xs h-4 px-1 border-slate-600 text-slate-400 flex-shrink-0"
-                          >
-                            {branch.model}
-                          </Badge>
                         </div>
                       </div>
                     </div>

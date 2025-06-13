@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/useConversations";
 import { useHierarchicalConversations } from "@/hooks/useHierarchicalConversations";
@@ -14,7 +14,14 @@ import {
 } from "@/hooks/useUserPreferences";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Code, BarChart3, GraduationCap, Clock } from "lucide-react";
+import {
+  Sparkles,
+  Code,
+  BarChart3,
+  GraduationCap,
+  Clock,
+  ChevronDown,
+} from "lucide-react";
 import { ShareModal } from "./ShareModal";
 import { ChatSidebar } from "./ChatSidebar";
 import { useStreamRecovery } from "@/hooks/useStreamRecovery";
@@ -127,6 +134,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const { toast } = useToast();
 
+  // Auto-scroll refs
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Track if user is at the bottom of scroll
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+
   // Optimistic chat ID state for smoother transitions
   const [optimisticChatId, setOptimisticChatId] = useState<string | undefined>(
     chatId
@@ -138,6 +153,41 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     selectedModel,
     setSelectedModel,
   });
+
+  // Check if user is at bottom of scroll
+  const checkIfAtBottom = useCallback(() => {
+    if (scrollAreaRef.current) {
+      const viewport = scrollAreaRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      );
+      if (viewport) {
+        const { scrollTop, scrollHeight, clientHeight } = viewport;
+        const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50; // 50px threshold
+        setIsAtBottom(isNearBottom);
+        return isNearBottom;
+      }
+    }
+    return true;
+  }, []);
+
+  // Auto-scroll function with bottom detection
+  const scrollToBottomViewport = useCallback(
+    (smooth = true, force = false) => {
+      if (scrollAreaRef.current && (force || isAtBottom || shouldAutoScroll)) {
+        const viewport = scrollAreaRef.current.querySelector(
+          "[data-radix-scroll-area-viewport]"
+        );
+        if (viewport) {
+          viewport.scrollTo({
+            top: viewport.scrollHeight,
+            behavior: smooth ? "smooth" : "auto",
+          });
+          setIsAtBottom(true);
+        }
+      }
+    },
+    [isAtBottom, shouldAutoScroll]
+  );
 
   // Update optimistic chat ID when prop changes
   useEffect(() => {
@@ -184,6 +234,63 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
 
+  // Auto-scroll when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Use a small delay to ensure the message is rendered
+      const timeoutId = setTimeout(() => {
+        scrollToBottomViewport(true);
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages.length, scrollToBottomViewport]);
+
+  // Auto-scroll when streaming state changes (start/stop)
+  useEffect(() => {
+    if (isStreaming) {
+      // Scroll immediately when streaming starts
+      scrollToBottomViewport(true);
+    }
+  }, [isStreaming, scrollToBottomViewport]);
+
+  // Auto-scroll during streaming (for content updates)
+  useEffect(() => {
+    if (isStreaming && messages.length > 0) {
+      // Get the last message content length to detect content changes
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === "assistant") {
+        // Scroll during streaming content updates
+        const timeoutId = setTimeout(() => {
+          scrollToBottomViewport(false); // Use instant scroll during streaming for better UX
+        }, 50);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [messages, isStreaming, scrollToBottomViewport]);
+
+  // Set up scroll event listener to track user scroll position
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const viewport = scrollAreaRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      );
+      if (viewport) {
+        const handleScroll = () => {
+          checkIfAtBottom();
+        };
+
+        viewport.addEventListener("scroll", handleScroll, { passive: true });
+        return () => viewport.removeEventListener("scroll", handleScroll);
+      }
+    }
+  }, [checkIfAtBottom]);
+
+  // Reset auto-scroll state when chat changes
+  useEffect(() => {
+    setShouldAutoScroll(true);
+    setIsAtBottom(true);
+  }, [optimisticChatId]);
+
   // Auto-select a valid model if none is selected or current selection is invalid
   useEffect(() => {
     if (!modelsLoading && models.length > 0 && enabledModels.length > 0) {
@@ -208,11 +315,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               `⚠️ Current model '${selectedModel}' invalid, switching to: ${fallbackModel.id}`
             );
             setSelectedModel(fallbackModel.id);
-            toast({
-              title: "Model Updated",
-              description: `Previous model no longer available. Switched to ${fallbackModel.name}.`,
-              variant: "default",
-            });
           }
         }
       }
@@ -284,14 +386,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             console.warn(
               `⚠️ Selected model '${selectedModel}' not available/enabled, using fallback: ${modelToUse}`
             );
-
-            toast({
-              title: "Model Updated",
-              description: `Selected model not available. Using ${
-                fallbackModel?.name || modelToUse
-              } instead.`,
-              variant: "default",
-            });
           }
         }
 
@@ -439,28 +533,48 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       conversation.title !== chatState.lastRefreshedTitle &&
       currentChatId
     ) {
-      // Update both conversation stores without refetching
-      updateConversation(currentChatId, {
-        title: conversation.title,
-        updatedAt: new Date().toISOString(),
+      console.log("🔄 Title update detected:", {
+        currentTitle: conversation.title,
+        lastRefreshedTitle: chatState.lastRefreshedTitle,
+        chatId: currentChatId,
       });
 
-      updateHierarchicalConversation(currentChatId, {
-        title: conversation.title,
-        updatedAt: new Date().toISOString(),
-      });
-
-      // Also trigger a sidebar refresh as a fallback to ensure the title update is visible
-      refetchConversations();
-      refetchHierarchical();
-
+      // Set the last refreshed title FIRST to prevent loops
       chatState.setLastRefreshedTitle(conversation.title);
+
+      // Update both conversation stores
+      const titleUpdate = {
+        title: conversation.title,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Update regular conversations list
+      updateConversation(currentChatId, titleUpdate);
+
+      // Update hierarchical conversations list (if the conversation exists there)
+      updateHierarchicalConversation(currentChatId, titleUpdate);
+
       console.log(
-        "🔄 Updated conversation title in both sidebar stores and triggered refresh:",
+        "✅ Updated conversation title in local state:",
         conversation.title,
         "for chatId:",
         currentChatId
       );
+
+      // Trigger sidebar refresh to ensure the title update is visible
+      // Use a small delay to ensure the local state updates are processed first
+      const timeoutId = setTimeout(async () => {
+        console.log("🔄 Triggering sidebar refresh for title update");
+        try {
+          await Promise.all([refetchConversations(), refetchHierarchical()]);
+          console.log("✅ Sidebar refresh completed for title update");
+        } catch (error) {
+          console.error("❌ Sidebar refresh failed:", error);
+        }
+      }, 50);
+
+      // Cleanup timeout if effect is unmounted
+      return () => clearTimeout(timeoutId);
     }
   }, [
     conversation?.title,
@@ -473,6 +587,49 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     chatState.lastRefreshedTitle,
     chatState.setLastRefreshedTitle,
   ]);
+
+  // Ensure newly created conversations appear in both conversation lists
+  useEffect(() => {
+    const currentChatId = optimisticChatId || chatId;
+    if (conversation && currentChatId && conversations.length > 0) {
+      // Check if this conversation exists in the regular conversations list
+      const existsInRegular = conversations.some(
+        (conv) => conv.id === currentChatId
+      );
+
+      if (!existsInRegular) {
+        console.log(
+          "🔄 New conversation not in regular list, triggering refresh:",
+          currentChatId
+        );
+        refetchConversations();
+      }
+    }
+  }, [
+    conversation?.id,
+    optimisticChatId,
+    chatId,
+    conversations,
+    refetchConversations,
+  ]);
+
+  // Separate effect for hierarchical conversations to avoid conflicts
+  useEffect(() => {
+    const currentChatId = optimisticChatId || chatId;
+    if (conversation && currentChatId) {
+      // Use a slight delay to ensure the conversation is in the regular list first
+      const timeoutId = setTimeout(() => {
+        // Trigger hierarchical refresh to ensure the conversation appears there too
+        refetchHierarchical();
+        console.log(
+          "🔄 Refreshed hierarchical conversations for new conversation:",
+          currentChatId
+        );
+      }, 200);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [conversation?.id, optimisticChatId, chatId, refetchHierarchical]);
 
   // Create new chat function
   const handleCreateNewChat = async () => {
@@ -567,7 +724,10 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800/10 to-transparent" />
             <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
 
-            <ScrollArea className="h-full px-6 py-8 relative z-10">
+            <ScrollArea
+              className="h-full px-6 py-8 relative z-10"
+              ref={scrollAreaRef}
+            >
               {messagesLoading ? (
                 <div className="space-y-6 max-w-4xl mx-auto">
                   {[...Array(2)].map((_, i) => (
@@ -633,40 +793,28 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   ))}
 
                   {isStreaming && <TypingIndicator />}
+
+                  {/* Auto-scroll target */}
+                  <div ref={messagesEndRef} className="h-1" />
                 </div>
               )}
             </ScrollArea>
           </div>
 
-          {/* Floating Artifacts Button */}
-          {/* <div className="absolute top-4 right-4 z-10">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90"
-                  onClick={() => {
-                    toast({
-                      title: "Coming Soon",
-                      description: "Conversation artifacts view will open here",
-                    });
-                  }}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Artifacts (
-                  {
-                    messages.filter((m) => (m.metadata as any)?.generatedImage)
-                      .length
-                  }
-                  )
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View conversation artifacts and generated images</p>
-              </TooltipContent>
-            </Tooltip>
-          </div> */}
+          {/* Scroll to Bottom Button */}
+          {!isAtBottom && messages.length > 0 && (
+            <div className="absolute bottom-24 right-6 z-20">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => scrollToBottomViewport(true, true)}
+                className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90 shadow-lg"
+              >
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Scroll to bottom
+              </Button>
+            </div>
+          )}
 
           {/* Input Area */}
           <ChatInput
