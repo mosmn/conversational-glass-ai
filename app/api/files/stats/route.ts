@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { files } from "@/lib/db/schema";
+import { files, users } from "@/lib/db/schema";
 import { eq, sql, and, gte } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
@@ -13,6 +13,17 @@ export async function GET(request: NextRequest) {
         { error: "Authentication required" },
         { status: 401 }
       );
+    }
+
+    // Find user in database
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkUserId))
+      .limit(1);
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Calculate date ranges
@@ -51,7 +62,7 @@ export async function GET(request: NextRequest) {
         largestFile: sql<number>`MAX(${files.size})`,
       })
       .from(files)
-      .where(eq(files.userId, clerkUserId));
+      .where(eq(files.userId, user.id));
 
     // Get daily upload stats for the last 30 days
     const dailyStats = await db
@@ -62,7 +73,7 @@ export async function GET(request: NextRequest) {
       })
       .from(files)
       .where(
-        and(eq(files.userId, clerkUserId), gte(files.createdAt, thirtyDaysAgo))
+        and(eq(files.userId, user.id), gte(files.createdAt, thirtyDaysAgo))
       )
       .groupBy(sql`DATE(${files.createdAt})`)
       .orderBy(sql`DATE(${files.createdAt})`);
@@ -76,10 +87,7 @@ export async function GET(request: NextRequest) {
       })
       .from(files)
       .where(
-        and(
-          eq(files.userId, clerkUserId),
-          sql`${files.conversationId} IS NOT NULL`
-        )
+        and(eq(files.userId, user.id), sql`${files.conversationId} IS NOT NULL`)
       )
       .groupBy(files.conversationId)
       .orderBy(sql`COUNT(*) DESC`)

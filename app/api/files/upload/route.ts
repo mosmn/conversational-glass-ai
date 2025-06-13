@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { users, files } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { uploadFile } from "@/lib/storage";
 import {
@@ -14,7 +14,16 @@ import {
 
 // Validation schemas
 const uploadParamsSchema = z.object({
-  conversationId: z.string().uuid("Invalid conversation ID"),
+  conversationId: z
+    .string()
+    .refine(
+      (val) =>
+        val === "" ||
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          val
+        ),
+      "Invalid conversation ID - must be a valid UUID or empty string for new conversations"
+    ),
   maxFiles: z.number().min(1).max(10).default(5),
   maxSizePerFile: z.number().min(1).max(50).default(10), // MB
 });
@@ -70,6 +79,14 @@ export async function POST(request: NextRequest) {
     const maxSizePerFile =
       parseInt(formData.get("maxSizePerFile") as string) || 10;
 
+    console.log("📁 File upload request received:", {
+      conversationId: conversationId || "(empty)",
+      fileCount: Array.from(formData.entries()).filter(([key]) =>
+        key.startsWith("file-")
+      ).length,
+      userId: user.id,
+    });
+
     // Validate parameters
     const params = uploadParamsSchema.parse({
       conversationId,
@@ -78,18 +95,18 @@ export async function POST(request: NextRequest) {
     });
 
     // Get uploaded files
-    const files: File[] = [];
+    const uploadedFiles: File[] = [];
     for (const [key, value] of formData.entries()) {
       if (key.startsWith("file-") && value instanceof File) {
-        files.push(value);
+        uploadedFiles.push(value);
       }
     }
 
-    if (files.length === 0) {
+    if (uploadedFiles.length === 0) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    if (files.length > params.maxFiles) {
+    if (uploadedFiles.length > params.maxFiles) {
       return NextResponse.json(
         { error: `Maximum ${params.maxFiles} files allowed` },
         { status: 400 }
@@ -100,7 +117,7 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     // Process each file
-    for (const file of files) {
+    for (const file of uploadedFiles) {
       try {
         // Convert file to buffer
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -121,13 +138,21 @@ export async function POST(request: NextRequest) {
         }
 
         // Upload file to storage
+        // Use "temp" folder for files uploaded before conversation is created
+        const storageConversationId = params.conversationId || "temp";
+
         const uploadedFile = await uploadFile(
           buffer,
           file.name,
           mimeType,
           user.id,
-          params.conversationId
+          storageConversationId
         );
+
+        if (!uploadedFile || !uploadedFile.id) {
+          console.error("❌ Upload failed - uploadedFile:", uploadedFile);
+          throw new Error("Upload failed - no file ID returned");
+        }
 
         // Process file content
         const processedData = await processFile(buffer, file.name, mimeType);
@@ -136,12 +161,13 @@ export async function POST(request: NextRequest) {
         let thumbnailUrl: string | undefined;
         if (processedData.thumbnail) {
           try {
+            const thumbnailFilename = `thumb_${uploadedFile.filename}`;
             const thumbnailFile = await uploadFile(
               processedData.thumbnail,
-              `thumb_${uploadedFile.filename}`,
+              thumbnailFilename,
               "image/jpeg",
               user.id,
-              params.conversationId
+              storageConversationId
             );
             thumbnailUrl = thumbnailFile.url;
           } catch (thumbnailError) {
@@ -149,6 +175,39 @@ export async function POST(request: NextRequest) {
             // Continue without thumbnail
           }
         }
+
+        // Save file record to database
+        const fileCategory = getFileCategory(uploadedFile.mimeType);
+        const [savedFile] = await db
+          .insert(files)
+          .values({
+            id: uploadedFile.id,
+            userId: user.id,
+            conversationId: params.conversationId || null,
+            messageId: null, // Will be updated when message is sent
+            filename: uploadedFile.filename,
+            originalFilename: uploadedFile.originalFilename,
+            mimeType: uploadedFile.mimeType,
+            size: uploadedFile.size,
+            category: fileCategory,
+            url: uploadedFile.url,
+            thumbnailUrl,
+            extractedText: processedData.extractedText,
+            tags: [],
+            metadata: processedData.metadata,
+            isOrphaned: !params.conversationId, // Mark as orphaned if no conversation
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            accessedAt: new Date(),
+          })
+          .returning();
+
+        console.log("✅ File saved to database:", {
+          id: savedFile.id,
+          filename: savedFile.originalFilename,
+          userId: user.id,
+          conversationId: params.conversationId || "none",
+        });
 
         // Prepare response
         const fileResponse: UploadedFileResponse = {
@@ -158,7 +217,7 @@ export async function POST(request: NextRequest) {
           mimeType: uploadedFile.mimeType,
           size: uploadedFile.size,
           url: uploadedFile.url,
-          category: getFileCategory(uploadedFile.mimeType),
+          category: fileCategory,
           extractedText: processedData.extractedText,
           thumbnailUrl,
           metadata: processedData.metadata,
@@ -177,7 +236,7 @@ export async function POST(request: NextRequest) {
       files: uploadResults,
       errors: errors.length > 0 ? errors : undefined,
       summary: {
-        total: files.length,
+        total: uploadedFiles.length,
         successful: uploadResults.length,
         failed: errors.length,
       },

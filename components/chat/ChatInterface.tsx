@@ -652,33 +652,53 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       title: "Create",
       description: "Generate content, write, brainstorm",
       color: "emerald",
+      prompts: [
+        "Write a blog post about AI trends in 2025",
+        "Create a marketing strategy for a new product",
+        "Generate creative ideas for a team building event",
+        "Write a professional bio for my LinkedIn profile",
+        "Help me brainstorm startup ideas in AI",
+      ],
     },
     {
       icon: Code,
       title: "Code",
       description: "Debug, explain, write code",
       color: "blue",
+      prompts: [
+        "Help me debug this React component",
+        "Explain how async/await works in JavaScript",
+        "Write a Python script for data processing",
+        "Review my code for best practices",
+        "Create a REST API endpoint in Node.js",
+      ],
     },
     {
       icon: BarChart3,
       title: "Analyze",
       description: "Research, analyze data, summarize",
       color: "purple",
+      prompts: [
+        "Analyze this market research data",
+        "Summarize the key points from this report",
+        "Help me interpret these survey results",
+        "Compare these two business strategies",
+        "Create a SWOT analysis for my project",
+      ],
     },
     {
       icon: GraduationCap,
       title: "Learn",
       description: "Explain concepts, tutorials",
       color: "amber",
+      prompts: [
+        "Explain quantum computing in simple terms",
+        "Teach me the basics of machine learning",
+        "Create a study plan for web development",
+        "Help me understand blockchain technology",
+        "Explain how neural networks work",
+      ],
     },
-  ];
-
-  const suggestedPrompts = [
-    "Help me debug this React component",
-    "Explain quantum computing in simple terms",
-    "Write a professional email to my client",
-    "Create a meal plan for this week",
-    "Review my code for best practices",
   ];
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -754,6 +774,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             onToggleSidebar={() =>
               chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
             }
+            onNewChat={handleCreateNewChat}
+            sidebarCollapsed={chatState.sidebarCollapsed}
           />
 
           {/* Messages Area */}
@@ -787,7 +809,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
               ) : messages.length === 0 ? (
                 <WelcomeInterface
                   quickActions={quickActions}
-                  suggestedPrompts={suggestedPrompts}
                   onPromptSelect={chatState.setInputValue}
                 />
               ) : (

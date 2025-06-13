@@ -7,7 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Share, Settings, GitBranch, Menu } from "lucide-react";
+import { Share, Settings, GitBranch, Menu, Plus } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatHeaderProps {
@@ -19,6 +19,8 @@ interface ChatHeaderProps {
   onShareClick: () => void;
   hasConversation: boolean;
   onToggleSidebar: () => void;
+  onNewChat: () => void;
+  sidebarCollapsed: boolean;
 }
 
 export function ChatHeader({
@@ -30,6 +32,8 @@ export function ChatHeader({
   onShareClick,
   hasConversation,
   onToggleSidebar,
+  onNewChat,
+  sidebarCollapsed,
 }: ChatHeaderProps) {
   const router = useRouter();
 
@@ -49,20 +53,31 @@ export function ChatHeader({
           <Menu className="h-4 w-4" />
         </Button>
 
+        {/* New Chat Button - Shows when sidebar is collapsed on desktop */}
+        {sidebarCollapsed && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onNewChat}
+                className="hidden lg:flex hover:bg-slate-700/50 hover:text-emerald-400 transition-colors h-8 w-8 p-0 flex-shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>New conversation</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
           <div className="w-1 h-6 sm:h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full flex-shrink-0" />
           <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent truncate">
             {conversationTitle || "✨ New Conversation"}
           </h2>
         </div>
-        {(conversationModel || selectedModel) && (
-          <Badge
-            variant="outline"
-            className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10 backdrop-blur-sm px-2 sm:px-3 py-1 rounded-full font-medium text-xs sm:text-sm flex-shrink-0 hidden sm:flex"
-          >
-            🤖 {conversationModel || selectedModel}
-          </Badge>
-        )}
       </div>
 
       <div className="relative flex items-center space-x-1 sm:space-x-2 z-10 flex-shrink-0">

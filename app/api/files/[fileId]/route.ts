@@ -112,7 +112,7 @@ export async function GET(
 // Delete file
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: RouteParams }
+  { params }: { params: Promise<RouteParams> }
 ) {
   try {
     // Authenticate user
@@ -124,15 +124,23 @@ export async function DELETE(
       );
     }
 
-    const { fileId } = params;
+    const { fileId } = await params;
 
-    // Get file path from request body
-    const body = await request.json();
-    const { filePath } = body;
+    // Get file path from request body or query parameters
+    let filePath: string | null = null;
+
+    try {
+      const body = await request.json();
+      filePath = body.filePath;
+    } catch (jsonError) {
+      // If JSON parsing fails, try to get from query parameters
+      const searchParams = request.nextUrl.searchParams;
+      filePath = searchParams.get("path");
+    }
 
     if (!filePath) {
       return NextResponse.json(
-        { error: "File path required" },
+        { error: "File path required in request body or query parameters" },
         { status: 400 }
       );
     }

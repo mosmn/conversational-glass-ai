@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { files } from "@/lib/db/schema";
+import { files, users } from "@/lib/db/schema";
 import { eq, and, lt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { deleteFile } from "@/lib/storage";
@@ -36,9 +36,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Find user in database
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkUserId))
+      .limit(1);
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    console.log(
+      `Cleanup operation requested by user: ${user.id} (${clerkUserId})`
+    );
+
     // Parse and validate request body
     const body = await request.json();
-    const { operation, options = {} } = cleanupSchema.parse(body);
+    const { operation, options } = cleanupSchema.parse(body);
+
+    // Destructure options with defaults
+    const { days, category, fileIds, dryRun = false } = options || {};
+
+    console.log(`Cleanup operation: ${operation}`, {
+      days,
+      category,
+      fileIds,
+      dryRun,
+    });
 
     let query = db
       .select({
@@ -52,11 +77,11 @@ export async function POST(request: NextRequest) {
         isOrphaned: files.isOrphaned,
       })
       .from(files)
-      .where(eq(files.userId, clerkUserId));
+      .where(eq(files.userId, user.id));
 
     // Build query based on operation type
     let operationName = "";
-    const conditions = [eq(files.userId, clerkUserId)];
+    const conditions = [eq(files.userId, user.id)];
 
     switch (operation) {
       case "delete-orphaned":
@@ -65,7 +90,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case "delete-older-than":
-        if (!options.days) {
+        if (!days) {
           return NextResponse.json(
             {
               error: "Days parameter required for delete-older-than operation",
@@ -73,14 +98,14 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        operationName = `Delete Files Older Than ${options.days} Days`;
+        operationName = `Delete Files Older Than ${days} Days`;
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - options.days);
+        cutoffDate.setDate(cutoffDate.getDate() - days);
         conditions.push(lt(files.createdAt, cutoffDate));
         break;
 
       case "delete-by-category":
-        if (!options.category) {
+        if (!category) {
           return NextResponse.json(
             {
               error:
@@ -89,19 +114,19 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        operationName = `Delete ${options.category.toUpperCase()} Files`;
-        conditions.push(eq(files.category, options.category));
+        operationName = `Delete ${category.toUpperCase()} Files`;
+        conditions.push(eq(files.category, category));
         break;
 
       case "delete-by-ids":
-        if (!options.fileIds || options.fileIds.length === 0) {
+        if (!fileIds || fileIds.length === 0) {
           return NextResponse.json(
             { error: "File IDs required for delete-by-ids operation" },
             { status: 400 }
           );
         }
-        operationName = `Delete Selected Files (${options.fileIds.length})`;
-        conditions.push(inArray(files.id, options.fileIds));
+        operationName = `Delete Selected Files (${fileIds.length})`;
+        conditions.push(inArray(files.id, fileIds));
         break;
 
       case "delete-duplicates":
@@ -114,7 +139,7 @@ export async function POST(request: NextRequest) {
             size: files.size,
           })
           .from(files)
-          .where(eq(files.userId, clerkUserId))
+          .where(eq(files.userId, user.id))
           .groupBy(files.originalFilename, files.size)
           .having(sql`COUNT(*) > 1`);
 
@@ -133,11 +158,11 @@ export async function POST(request: NextRequest) {
           .from(files)
           .where(
             and(
-              eq(files.userId, clerkUserId),
+              eq(files.userId, user.id),
               sql`(${files.originalFilename}, ${files.size}) IN (
                 SELECT ${files.originalFilename}, ${files.size}
                 FROM ${files}
-                WHERE ${files.userId} = ${clerkUserId}
+                WHERE ${files.userId} = ${user.id}
                 GROUP BY ${files.originalFilename}, ${files.size}
                 HAVING COUNT(*) > 1
               )`
@@ -168,7 +193,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (options.dryRun) {
+        if (dryRun) {
           return NextResponse.json({
             success: true,
             data: {
@@ -193,10 +218,31 @@ export async function POST(request: NextRequest) {
 
         for (const file of filesToDelete) {
           try {
-            // Delete from storage
-            const filePath = new URL(file.url).pathname.replace(
-              "/api/files/",
-              ""
+            // Extract the proper file path for deletion
+            // The file.url could be either:
+            // 1. IBM COS URL: https://cos-endpoint/bucket/uploads/userId/conversationId/filename
+            // 2. Local URL: /uploads/userId/conversationId/filename
+            let filePath: string;
+
+            if (file.url.startsWith("http")) {
+              // IBM COS URL - extract the path after the bucket name
+              const url = new URL(file.url);
+              const pathParts = url.pathname.split("/");
+              // Remove empty first element and bucket name
+              pathParts.shift(); // Remove empty string
+              if (pathParts.length > 0) {
+                pathParts.shift(); // Remove bucket name
+              }
+              filePath = pathParts.join("/");
+            } else {
+              // Local URL - remove leading slash
+              filePath = file.url.startsWith("/")
+                ? file.url.substring(1)
+                : file.url;
+            }
+
+            console.log(
+              `Deleting file: ${file.originalFilename} at path: ${filePath}`
             );
             await deleteFile(filePath);
 
@@ -218,14 +264,11 @@ export async function POST(request: NextRequest) {
           success: true,
           data: {
             operation: operationName,
+            success: true,
+            deletedFiles: deletedFiles.length,
+            freedSpace: deletedFiles.reduce((sum, file) => sum + file.size, 0),
             dryRun: false,
-            deletedFiles,
-            totalDeleted: deletedFiles.length,
-            totalSize: deletedFiles.reduce((sum, file) => sum + file.size, 0),
-            actualSavings: formatBytes(
-              deletedFiles.reduce((sum, file) => sum + file.size, 0)
-            ),
-            errors,
+            errors: errors.length > 0 ? errors.map((e) => e.error) : undefined,
           },
         });
 
@@ -252,8 +295,12 @@ export async function POST(request: NextRequest) {
         .from(files)
         .where(and(...conditions));
 
+      console.log(
+        `Found ${filesToDelete.length} files to delete for operation: ${operation}`
+      );
+
       // If dry run, just return preview
-      if (options.dryRun) {
+      if (dryRun) {
         return NextResponse.json({
           success: true,
           data: {
@@ -275,16 +322,41 @@ export async function POST(request: NextRequest) {
 
       for (const file of filesToDelete) {
         try {
-          // Delete from storage
-          const filePath = new URL(file.url).pathname.replace(
-            "/api/files/",
-            ""
+          // Extract the proper file path for deletion
+          // The file.url could be either:
+          // 1. IBM COS URL: https://cos-endpoint/bucket/uploads/userId/conversationId/filename
+          // 2. Local URL: /uploads/userId/conversationId/filename
+          let filePath: string;
+
+          if (file.url.startsWith("http")) {
+            // IBM COS URL - extract the path after the bucket name
+            const url = new URL(file.url);
+            const pathParts = url.pathname.split("/");
+            // Remove empty first element and bucket name
+            pathParts.shift(); // Remove empty string
+            if (pathParts.length > 0) {
+              pathParts.shift(); // Remove bucket name
+            }
+            filePath = pathParts.join("/");
+          } else {
+            // Local URL - remove leading slash
+            filePath = file.url.startsWith("/")
+              ? file.url.substring(1)
+              : file.url;
+          }
+
+          console.log(
+            `Deleting file: ${file.originalFilename} (${file.id}) at path: ${filePath}`
           );
           await deleteFile(filePath);
 
           deletedFiles.push(file);
+          console.log(`Successfully deleted file: ${file.originalFilename}`);
         } catch (error) {
-          console.error(`Failed to delete file ${file.id}:`, error);
+          console.error(
+            `Failed to delete file ${file.id} (${file.originalFilename}):`,
+            error
+          );
           errors.push({
             fileId: file.id,
             filename: file.originalFilename,
@@ -295,22 +367,44 @@ export async function POST(request: NextRequest) {
 
       // Delete successful files from database
       if (deletedFiles.length > 0) {
-        const deletedIds = deletedFiles.map((f) => f.id);
-        await db.delete(files).where(inArray(files.id, deletedIds));
+        try {
+          const deletedIds = deletedFiles.map((f) => f.id);
+          console.log(
+            `Removing ${deletedIds.length} file records from database`
+          );
+          await db.delete(files).where(inArray(files.id, deletedIds));
+          console.log(
+            `Successfully removed ${deletedIds.length} file records from database`
+          );
+        } catch (dbError) {
+          console.error(
+            "Failed to remove file records from database:",
+            dbError
+          );
+          errors.push({
+            fileId: "database",
+            filename: "database cleanup",
+            error:
+              dbError instanceof Error
+                ? dbError.message
+                : "Database cleanup failed",
+          });
+        }
       }
+
+      console.log(
+        `Cleanup completed. Deleted: ${deletedFiles.length}, Errors: ${errors.length}`
+      );
 
       return NextResponse.json({
         success: true,
         data: {
           operation: operationName,
+          success: true,
+          deletedFiles: deletedFiles.length,
+          freedSpace: deletedFiles.reduce((sum, file) => sum + file.size, 0),
           dryRun: false,
-          deletedFiles,
-          totalDeleted: deletedFiles.length,
-          totalSize: deletedFiles.reduce((sum, file) => sum + file.size, 0),
-          actualSavings: formatBytes(
-            deletedFiles.reduce((sum, file) => sum + file.size, 0)
-          ),
-          errors,
+          errors: errors.length > 0 ? errors.map((e) => e.error) : undefined,
         },
       });
     }

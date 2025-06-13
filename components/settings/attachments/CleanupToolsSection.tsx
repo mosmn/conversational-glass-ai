@@ -21,6 +21,16 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import {
+  fetchCleanupStats,
+  cleanupOrphanedFiles,
+  cleanupOldFiles,
+  cleanupDuplicateFiles,
+  cleanupFilesByCategory,
+  performComprehensiveCleanup,
+  formatBytes as apiFormatBytes,
+  type CleanupStats,
+} from "@/lib/api/cleanup";
+import {
   Trash2,
   AlertTriangle,
   Clock,
@@ -37,33 +47,6 @@ import {
   Sparkles,
   BarChart3,
 } from "lucide-react";
-
-interface CleanupStats {
-  orphanedFiles: {
-    count: number;
-    totalSize: number;
-    potential_savings: number;
-  };
-  oldFiles: {
-    older_than_30_days: { count: number; totalSize: number };
-    older_than_90_days: { count: number; totalSize: number };
-    older_than_180_days: { count: number; totalSize: number };
-  };
-  duplicates: {
-    count: number;
-    totalSize: number;
-    sets: number;
-  };
-  large_files: {
-    over_10mb: { count: number; totalSize: number };
-    over_50mb: { count: number; totalSize: number };
-  };
-  totalCleanupPotential: {
-    files: number;
-    size: number;
-    percentage: number;
-  };
-}
 
 interface CleanupOperation {
   id: string;
@@ -83,34 +66,6 @@ interface CleanupOperation {
   endTime?: Date;
 }
 
-// Mock data for demonstration
-const generateMockCleanupStats = (): CleanupStats => ({
-  orphanedFiles: {
-    count: 3,
-    totalSize: 15728640, // ~15MB
-    potential_savings: 15728640,
-  },
-  oldFiles: {
-    older_than_30_days: { count: 8, totalSize: 52428800 }, // ~50MB
-    older_than_90_days: { count: 5, totalSize: 31457280 }, // ~30MB
-    older_than_180_days: { count: 2, totalSize: 10485760 }, // ~10MB
-  },
-  duplicates: {
-    count: 6,
-    totalSize: 20971520, // ~20MB
-    sets: 3,
-  },
-  large_files: {
-    over_10mb: { count: 4, totalSize: 167772160 }, // ~160MB
-    over_50mb: { count: 1, totalSize: 83886080 }, // ~80MB
-  },
-  totalCleanupPotential: {
-    files: 17,
-    size: 88604160, // ~84MB
-    percentage: 8.2,
-  },
-});
-
 export function CleanupToolsSection() {
   const { toast } = useToast();
   const [stats, setStats] = useState<CleanupStats | null>(null);
@@ -119,19 +74,19 @@ export function CleanupToolsSection() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("90");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const fetchCleanupStats = async () => {
+  const loadCleanupStats = async () => {
     setIsLoading(true);
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      const mockStats = generateMockCleanupStats();
-      setStats(mockStats);
+      const cleanupStats = await fetchCleanupStats();
+      setStats(cleanupStats);
     } catch (error) {
       console.error("Error fetching cleanup stats:", error);
       toast({
         title: "Error",
-        description: "Failed to load cleanup statistics",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to load cleanup statistics",
         variant: "destructive",
       });
     } finally {
@@ -154,82 +109,84 @@ export function CleanupToolsSection() {
     setOperations((prev) => [...prev, newOperation]);
 
     try {
-      // Simulate progressive cleanup with realistic delays
-      const simulateProgress = async () => {
-        const steps = [10, 25, 45, 70, 85, 100];
-        for (const step of steps) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, 400 + Math.random() * 600)
-          );
-          setOperations((prev) =>
-            prev.map((op) =>
-              op.id === operationId ? { ...op, progress: step } : op
-            )
-          );
-        }
-      };
+      let result;
 
-      await simulateProgress();
-
-      // Mock successful results based on operation type
-      let deletedCount = 0;
-      let freedSpace = 0;
-
+      // Call the appropriate cleanup function based on type
       switch (type) {
         case "orphaned":
-          deletedCount = stats?.orphanedFiles.count || 0;
-          freedSpace = stats?.orphanedFiles.totalSize || 0;
+          result = await cleanupOrphanedFiles();
           break;
         case "old_files":
-          const timeframe = params.days || 90;
-          if (timeframe === 30) {
-            deletedCount = stats?.oldFiles.older_than_30_days.count || 0;
-            freedSpace = stats?.oldFiles.older_than_30_days.totalSize || 0;
-          } else if (timeframe === 90) {
-            deletedCount = stats?.oldFiles.older_than_90_days.count || 0;
-            freedSpace = stats?.oldFiles.older_than_90_days.totalSize || 0;
-          } else {
-            deletedCount = stats?.oldFiles.older_than_180_days.count || 0;
-            freedSpace = stats?.oldFiles.older_than_180_days.totalSize || 0;
-          }
+          const days = params.days || 90;
+          result = await cleanupOldFiles(days);
           break;
         case "duplicates":
-          deletedCount = stats?.duplicates.count || 0;
-          freedSpace = stats?.duplicates.totalSize || 0;
+          result = await cleanupDuplicateFiles();
           break;
-        case "large_files":
-          deletedCount = Math.floor(Math.random() * 3) + 1;
-          freedSpace = (params.minSize || 50 * 1024 * 1024) * deletedCount;
+        case "by_category":
+          if (params.category) {
+            result = await cleanupFilesByCategory(params.category);
+          } else {
+            throw new Error("Category parameter required");
+          }
+          break;
+        case "comprehensive":
+          const comprehensiveResults = await performComprehensiveCleanup();
+          // Aggregate results from multiple operations
+          result = {
+            operation: "Comprehensive Cleanup",
+            success: true,
+            deletedFiles: comprehensiveResults.reduce(
+              (sum, r) => sum + r.deletedFiles,
+              0
+            ),
+            freedSpace: comprehensiveResults.reduce(
+              (sum, r) => sum + r.freedSpace,
+              0
+            ),
+          };
+          break;
+        case "custom":
+          // Handle custom cleanup with multiple parameters
+          const customDays = parseInt(params.days || "90");
+          result = await cleanupOldFiles(customDays);
           break;
         default:
-          deletedCount = Math.floor(Math.random() * 10) + 1;
-          freedSpace = Math.floor(Math.random() * 50 * 1024 * 1024);
+          throw new Error(`Unknown cleanup type: ${type}`);
       }
 
+      // Update operation status
       setOperations((prev) =>
         prev.map((op) =>
           op.id === operationId
             ? {
                 ...op,
-                status: "completed",
+                status: result.success ? "completed" : "error",
                 progress: 100,
-                deletedCount,
-                freedSpace,
+                deletedCount: result.deletedFiles || 0,
+                freedSpace: result.freedSpace || 0,
                 endTime: new Date(),
+                error: result.success
+                  ? undefined
+                  : result.errors?.[0] || "Unknown error",
               }
             : op
         )
       );
 
-      toast({
-        title: "Cleanup Completed",
-        description: `Deleted ${deletedCount} files, freed ${formatBytes(
-          freedSpace
-        )}`,
-      });
+      if (result.success) {
+        toast({
+          title: "Cleanup Completed",
+          description: `Deleted ${
+            result.deletedFiles
+          } files, freed ${apiFormatBytes(result.freedSpace)}`,
+        });
 
-      // Refresh stats after cleanup
-      setTimeout(() => fetchCleanupStats(), 1000);
+        // Refresh stats after cleanup
+        setTimeout(() => loadCleanupStats(), 1000);
+      } else {
+        throw new Error(result.errors?.[0] || "Cleanup operation failed");
+      }
     } catch (error) {
       console.error("Cleanup error:", error);
       setOperations((prev) =>
@@ -238,6 +195,7 @@ export function CleanupToolsSection() {
             ? {
                 ...op,
                 status: "error",
+                progress: 100,
                 error: error instanceof Error ? error.message : "Unknown error",
                 endTime: new Date(),
               }
@@ -252,14 +210,6 @@ export function CleanupToolsSection() {
         variant: "destructive",
       });
     }
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const formatDuration = (startTime: Date, endTime: Date) => {
@@ -315,7 +265,7 @@ export function CleanupToolsSection() {
   };
 
   useEffect(() => {
-    fetchCleanupStats();
+    loadCleanupStats();
   }, []);
 
   if (isLoading) {
@@ -406,7 +356,7 @@ export function CleanupToolsSection() {
                   variant="outline"
                   className="border-orange-500 text-orange-400 text-xs"
                 >
-                  {formatBytes(stats.totalCleanupPotential.size)} available
+                  {apiFormatBytes(stats.totalCleanupPotential.size)} available
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -459,7 +409,7 @@ export function CleanupToolsSection() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-300">Potential savings</span>
                     <span className="text-amber-400 font-medium">
-                      {formatBytes(stats.orphanedFiles.totalSize)}
+                      {apiFormatBytes(stats.orphanedFiles.totalSize)}
                     </span>
                   </div>
                   <Button
@@ -506,7 +456,9 @@ export function CleanupToolsSection() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-300">Potential savings</span>
                     <span className="text-blue-400 font-medium">
-                      {formatBytes(stats.oldFiles.older_than_90_days.totalSize)}
+                      {apiFormatBytes(
+                        stats.oldFiles.older_than_90_days.totalSize
+                      )}
                     </span>
                   </div>
                   <Button
@@ -553,7 +505,7 @@ export function CleanupToolsSection() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-300">Potential savings</span>
                     <span className="text-purple-400 font-medium">
-                      {formatBytes(stats.duplicates.totalSize)}
+                      {apiFormatBytes(stats.duplicates.totalSize)}
                     </span>
                   </div>
                   <Button
@@ -600,7 +552,7 @@ export function CleanupToolsSection() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-300">Total size</span>
                     <span className="text-green-400 font-medium">
-                      {formatBytes(stats.large_files.over_50mb.totalSize)}
+                      {apiFormatBytes(stats.large_files.over_50mb.totalSize)}
                     </span>
                   </div>
                   <Button
@@ -824,7 +776,7 @@ export function CleanupToolsSection() {
                             {operation.status === "completed" && (
                               <p className="text-xs text-slate-400 mt-1">
                                 Deleted {operation.deletedCount} files • Freed{" "}
-                                {formatBytes(operation.freedSpace)}
+                                {apiFormatBytes(operation.freedSpace)}
                               </p>
                             )}
 
@@ -859,7 +811,7 @@ export function CleanupToolsSection() {
           <div className="flex justify-center pt-4">
             <Button
               variant="outline"
-              onClick={fetchCleanupStats}
+              onClick={loadCleanupStats}
               className="border-slate-600 text-slate-300 hover:bg-slate-800"
             >
               <RefreshCw className="h-4 w-4 mr-2" />

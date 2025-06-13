@@ -42,6 +42,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 
+// Update interface to match database schema
 interface AttachedFile {
   id: string;
   filename: string;
@@ -53,7 +54,16 @@ interface AttachedFile {
   thumbnailUrl?: string;
   extractedText?: string;
   tags: string[];
-  metadata: any;
+  metadata: {
+    width?: number;
+    height?: number;
+    pages?: number;
+    wordCount?: number;
+    hasImages?: boolean;
+    processingStatus?: "pending" | "completed" | "failed";
+    error?: string;
+    checksum?: string;
+  };
   isOrphaned: boolean;
   createdAt: string;
   updatedAt: string;
@@ -85,109 +95,11 @@ interface FileHistoryData {
   };
 }
 
-// Mock data for demonstration
-const generateMockFiles = (): AttachedFile[] => [
-  {
-    id: "1",
-    filename: "document-analysis.pdf",
-    originalFilename: "AI Research Paper - Transformer Models.pdf",
-    mimeType: "application/pdf",
-    size: 2457600, // ~2.4MB
-    category: "pdf",
-    url: "/mock/files/doc1.pdf",
-    thumbnailUrl: "https://via.placeholder.com/150x200/6366f1/ffffff?text=PDF",
-    extractedText:
-      "Abstract: This paper explores the evolution of transformer models...",
-    tags: ["research", "ai", "transformers"],
-    metadata: { pages: 24, author: "Dr. Smith" },
-    isOrphaned: false,
-    createdAt: "2024-06-08T10:30:00Z",
-    updatedAt: "2024-06-08T10:30:00Z",
-    accessedAt: "2024-06-09T14:22:00Z",
-    conversationId: "conv-1",
-    messageId: "msg-1",
-    conversationTitle: "Research Discussion",
-  },
-  {
-    id: "2",
-    filename: "app-mockup.png",
-    originalFilename: "Mobile App UI Mockup v3.png",
-    mimeType: "image/png",
-    size: 1024000, // ~1MB
-    category: "image",
-    url: "/mock/files/img1.png",
-    thumbnailUrl: "https://via.placeholder.com/150x150/10b981/ffffff?text=IMG",
-    extractedText: "",
-    tags: ["design", "ui", "mobile"],
-    metadata: { width: 1080, height: 1920, format: "PNG" },
-    isOrphaned: false,
-    createdAt: "2024-06-07T15:45:00Z",
-    updatedAt: "2024-06-07T15:45:00Z",
-    accessedAt: "2024-06-09T12:15:00Z",
-    conversationId: "conv-2",
-    messageId: "msg-2",
-    conversationTitle: "Design Review",
-  },
-  {
-    id: "3",
-    filename: "meeting-notes.txt",
-    originalFilename: "Team Meeting Notes - June 5.txt",
-    mimeType: "text/plain",
-    size: 5120, // ~5KB
-    category: "text",
-    url: "/mock/files/text1.txt",
-    extractedText: "Meeting attendees: John, Sarah, Mike...",
-    tags: ["meeting", "notes", "team"],
-    metadata: { lines: 45, words: 234 },
-    isOrphaned: false,
-    createdAt: "2024-06-05T14:30:00Z",
-    updatedAt: "2024-06-05T14:30:00Z",
-    accessedAt: "2024-06-06T09:00:00Z",
-    conversationId: "conv-3",
-    messageId: "msg-3",
-    conversationTitle: "Meeting Follow-up",
-  },
-  {
-    id: "4",
-    filename: "orphaned-image.jpg",
-    originalFilename: "Untitled Screenshot.jpg",
-    mimeType: "image/jpeg",
-    size: 856320, // ~856KB
-    category: "image",
-    url: "/mock/files/img2.jpg",
-    thumbnailUrl: "https://via.placeholder.com/150x150/f59e0b/ffffff?text=JPG",
-    extractedText: "",
-    tags: ["screenshot"],
-    metadata: { width: 1920, height: 1080, format: "JPEG" },
-    isOrphaned: true,
-    createdAt: "2024-06-03T11:20:00Z",
-    updatedAt: "2024-06-03T11:20:00Z",
-    accessedAt: "2024-06-03T11:20:00Z",
-    conversationId: undefined,
-    messageId: undefined,
-    conversationTitle: undefined,
-  },
-  {
-    id: "5",
-    filename: "large-dataset.pdf",
-    originalFilename: "Complete Data Analysis Report 2024.pdf",
-    mimeType: "application/pdf",
-    size: 15728640, // ~15MB
-    category: "pdf",
-    url: "/mock/files/doc2.pdf",
-    thumbnailUrl: "https://via.placeholder.com/150x200/ef4444/ffffff?text=PDF",
-    extractedText: "Executive Summary: Our comprehensive analysis reveals...",
-    tags: ["data", "analysis", "report", "2024"],
-    metadata: { pages: 156, author: "Analytics Team" },
-    isOrphaned: false,
-    createdAt: "2024-06-01T09:15:00Z",
-    updatedAt: "2024-06-01T09:15:00Z",
-    accessedAt: "2024-06-08T16:30:00Z",
-    conversationId: "conv-4",
-    messageId: "msg-4",
-    conversationTitle: "Data Review Session",
-  },
-];
+interface FileHistoryResponse {
+  success: boolean;
+  data: FileHistoryData;
+  error?: string;
+}
 
 export function AttachmentHistorySection() {
   const { toast } = useToast();
@@ -209,97 +121,45 @@ export function AttachmentHistorySection() {
     else setIsLoading(true);
 
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: "12", // Show 12 files per page for grid view
+        category: categoryFilter,
+        sortBy,
+        sortOrder,
+        showOrphaned: showOrphaned.toString(),
+      });
 
-      // Generate mock data with applied filters
-      let mockFiles = generateMockFiles();
-
-      // Apply search filter
+      // Add optional parameters
       if (searchQuery.trim()) {
-        mockFiles = mockFiles.filter(
-          (file) =>
-            file.originalFilename
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase()) ||
-            file.tags.some((tag) =>
-              tag.toLowerCase().includes(searchQuery.toLowerCase())
-            )
-        );
+        params.append("search", searchQuery.trim());
       }
 
-      // Apply category filter
-      if (categoryFilter !== "all") {
-        mockFiles = mockFiles.filter(
-          (file) => file.category === categoryFilter
-        );
+      const response = await fetch(`/api/files/history?${params}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // Apply orphaned filter
-      if (!showOrphaned) {
-        mockFiles = mockFiles.filter((file) => !file.isOrphaned);
+      const result: FileHistoryResponse = await response.json();
+
+      if (result.success && result.data) {
+        setData(result.data);
+      } else {
+        throw new Error(result.error || "Failed to fetch file history");
       }
-
-      // Apply sorting
-      mockFiles.sort((a, b) => {
-        let aValue, bValue;
-        switch (sortBy) {
-          case "name":
-            aValue = a.originalFilename.toLowerCase();
-            bValue = b.originalFilename.toLowerCase();
-            break;
-          case "size":
-            aValue = a.size;
-            bValue = b.size;
-            break;
-          case "accessed":
-            aValue = new Date(a.accessedAt).getTime();
-            bValue = new Date(b.accessedAt).getTime();
-            break;
-          default: // created
-            aValue = new Date(a.createdAt).getTime();
-            bValue = new Date(b.createdAt).getTime();
-        }
-
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          return sortOrder === "desc"
-            ? bValue.localeCompare(aValue)
-            : aValue.localeCompare(bValue);
-        } else {
-          return sortOrder === "desc"
-            ? (bValue as number) - (aValue as number)
-            : (aValue as number) - (bValue as number);
-        }
-      });
-
-      // Apply pagination
-      const limit = 12;
-      const total = mockFiles.length;
-      const totalPages = Math.ceil(total / limit);
-      const offset = (currentPage - 1) * limit;
-      const paginatedFiles = mockFiles.slice(offset, offset + limit);
-
-      setData({
-        files: paginatedFiles,
-        pagination: {
-          page: currentPage,
-          limit,
-          total,
-          totalPages,
-          hasNextPage: currentPage < totalPages,
-          hasPrevPage: currentPage > 1,
-        },
-        filters: {
-          search: searchQuery,
-          category: categoryFilter,
-          sortBy,
-          sortOrder,
-          showOrphaned,
-        },
-      });
     } catch (error) {
       console.error("Error fetching file history:", error);
-      // For development: show empty state if API fails
+
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "Failed to load file history. Please try again.",
+        variant: "destructive",
+      });
+
+      // Set empty state on error
       setData({
         files: [],
         pagination: {
@@ -326,14 +186,28 @@ export function AttachmentHistorySection() {
 
   const deleteFile = async (fileId: string) => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      toast({
-        title: "File Deleted",
-        description: "File has been successfully deleted",
+      const response = await fetch(`/api/files/${fileId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
-      fetchFileHistory(true);
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete file: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "File Deleted",
+          description: "File has been successfully deleted",
+        });
+        fetchFileHistory(true);
+      } else {
+        throw new Error(result.error || "Failed to delete file");
+      }
     } catch (error) {
       console.error("Error deleting file:", error);
       toast({
@@ -346,7 +220,19 @@ export function AttachmentHistorySection() {
 
   const downloadFile = async (file: AttachedFile) => {
     try {
-      // Simulate download
+      // For direct download, we can use the file URL or create a download endpoint
+      const downloadUrl = file.url.startsWith("http")
+        ? file.url
+        : `/api/files/${file.id}?path=${encodeURIComponent(file.url)}`;
+
+      // Create a temporary link and trigger download
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = file.originalFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
       toast({
         title: "Download Started",
         description: `Downloading ${file.originalFilename}`,

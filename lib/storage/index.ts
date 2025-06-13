@@ -3,6 +3,7 @@ import { writeFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { z } from "zod";
+import crypto from "crypto";
 
 // Environment validation for IBM COS
 const ibmCosEnvSchema = z.object({
@@ -128,7 +129,8 @@ export interface UploadProgress {
 
 // Generate unique file ID
 function generateFileId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  // Generate a proper UUID v4 to match database schema
+  return crypto.randomUUID();
 }
 
 // Generate file path for organization

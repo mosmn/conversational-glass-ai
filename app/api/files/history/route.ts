@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { files, conversations, messages } from "@/lib/db/schema";
+import { files, conversations, messages, users } from "@/lib/db/schema";
 import { eq, and, desc, sql, like, gte, lte, inArray } from "drizzle-orm";
 import { z } from "zod";
 
@@ -28,6 +28,17 @@ export async function GET(request: NextRequest) {
         { error: "Authentication required" },
         { status: 401 }
       );
+    }
+
+    // Find user in database
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkUserId))
+      .limit(1);
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Parse and validate query parameters
@@ -69,10 +80,10 @@ export async function GET(request: NextRequest) {
       })
       .from(files)
       .leftJoin(conversations, eq(files.conversationId, conversations.id))
-      .where(eq(files.userId, clerkUserId));
+      .where(eq(files.userId, user.id));
 
     // Apply filters
-    const conditions = [eq(files.userId, clerkUserId)];
+    const conditions = [eq(files.userId, user.id)];
 
     // Search filter
     if (queryParams.search && queryParams.search.trim()) {

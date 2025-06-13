@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -81,6 +81,14 @@ export function FileAttachment({
   const [showPreview, setShowPreview] = useState(false);
   const [previewFileIndex, setPreviewFileIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Use ref to track current attachments and avoid stale closure issues
+  const attachmentsRef = useRef<AttachedFile[]>(attachments);
+
+  // Update ref whenever attachments prop changes
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith("image/")) return Image;
@@ -173,11 +181,12 @@ export function FileAttachment({
   const uploadFile = useCallback(
     async (attachment: AttachedFile, file: File) => {
       try {
-        // Helper function to update attachments
+        // Helper function to update attachments using current ref values
+        // This avoids stale closure issues when attachments array changes
         const updateAttachment = (
           updater: (a: AttachedFile) => AttachedFile
         ) => {
-          const updated = attachments.map((a) =>
+          const updated = attachmentsRef.current.map((a) =>
             a.id === attachment.id ? updater(a) : a
           );
           onAttachmentsChange(updated);
@@ -231,8 +240,8 @@ export function FileAttachment({
         const errorMessage =
           error instanceof Error ? error.message : "Upload failed";
 
-        // Update attachment with error
-        const updated = attachments.map((a) =>
+        // Update attachment with error using current ref values
+        const updated = attachmentsRef.current.map((a) =>
           a.id === attachment.id
             ? {
                 ...a,
@@ -245,7 +254,7 @@ export function FileAttachment({
         onAttachmentsChange(updated);
       }
     },
-    [attachments, conversationId, onAttachmentsChange]
+    [conversationId, onAttachmentsChange] // Removed attachments dependency to avoid stale closure
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

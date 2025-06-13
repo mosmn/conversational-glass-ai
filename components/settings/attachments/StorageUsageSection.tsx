@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,7 @@ import {
   Clock,
   BarChart3,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 interface StorageStats {
@@ -81,73 +83,37 @@ export function StorageUsageSection() {
   const { toast } = useToast();
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchStats = async () => {
+  const fetchStats = async (refresh = false) => {
+    if (refresh) setIsRefreshing(true);
+    else setIsLoading(true);
+
     try {
       const response = await fetch("/api/files/stats");
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.data) {
         setStats(result.data);
       } else {
-        // For development: show mock data if database not set up yet
-        console.log("Using mock data for storage stats");
-        setStats({
-          overview: {
-            totalFiles: 0,
-            totalSize: 0,
-            totalSizeFormatted: "0 Bytes",
-            quotaUsagePercent: 0,
-            quotaLimitGB: 5,
-            remainingBytes: 5 * 1024 * 1024 * 1024,
-            oldestFile: "",
-            newestFile: "",
-            avgFileSize: 0,
-            largestFile: 0,
-          },
-          byCategory: {
-            images: {
-              count: 0,
-              size: 0,
-              sizeFormatted: "0 Bytes",
-              percentage: 0,
-            },
-            pdfs: {
-              count: 0,
-              size: 0,
-              sizeFormatted: "0 Bytes",
-              percentage: 0,
-            },
-            texts: {
-              count: 0,
-              size: 0,
-              sizeFormatted: "0 Bytes",
-              percentage: 0,
-            },
-          },
-          cleanup: {
-            orphanedFiles: 0,
-            orphanedSize: 0,
-            orphanedSizeFormatted: "0 Bytes",
-            potentialSavings: "0 Bytes",
-          },
-          activity: {
-            thisMonth: {
-              files: 0,
-              size: 0,
-              sizeFormatted: "0 Bytes",
-            },
-            last30Days: {
-              files: 0,
-              size: 0,
-              sizeFormatted: "0 Bytes",
-            },
-          },
-        });
+        throw new Error(result.error || "Failed to fetch storage statistics");
       }
     } catch (error) {
       console.error("Error fetching storage stats:", error);
-      // For development: show mock data if API fails
+
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "Failed to load storage statistics. Please try again.",
+        variant: "destructive",
+      });
+
+      // Set empty stats on error
       setStats({
         overview: {
           totalFiles: 0,
@@ -202,6 +168,7 @@ export function StorageUsageSection() {
       });
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -291,9 +258,20 @@ export function StorageUsageSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-slate-400 text-center py-8">
-              <div className="mb-4">⚠️</div>
-              Failed to load storage statistics. Please refresh the page.
+            <div className="text-center py-8 space-y-4">
+              <div className="text-sm text-slate-400">
+                <div className="mb-4">⚠️</div>
+                Failed to load storage statistics.
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchStats()}
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -324,6 +302,9 @@ export function StorageUsageSection() {
             <span className="bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
               Storage Usage
             </span>
+            {isRefreshing && (
+              <RefreshCw className="h-4 w-4 text-teal-400 animate-spin" />
+            )}
           </CardTitle>
           <CardDescription className="text-slate-400 leading-relaxed">
             Monitor your file storage usage and quota
@@ -446,6 +427,22 @@ export function StorageUsageSection() {
                 {stats.activity.last30Days.sizeFormatted}
               </div>
             </div>
+          </div>
+
+          {/* Refresh Button */}
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => fetchStats(true)}
+              disabled={isRefreshing}
+              className="text-slate-400 hover:text-teal-400 hover:bg-teal-500/10"
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              Refresh Stats
+            </Button>
           </div>
 
           {/* Cleanup Opportunity */}
