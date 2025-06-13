@@ -145,8 +145,8 @@ function ChatSidebarComponent({
   return (
     <div
       className={`${
-        isCollapsed ? "w-16" : "w-130"
-      } flex-shrink-0 relative transition-all duration-500 ease-in-out`}
+        isCollapsed ? "w-16" : "w-80 lg:w-130"
+      } flex-shrink-0 relative transition-all duration-500 ease-in-out h-full`}
     >
       {/* Glassmorphic Background */}
       <div className="absolute inset-0 bg-slate-800/30 backdrop-blur-2xl border-r border-slate-700/30" />

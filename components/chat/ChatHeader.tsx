@@ -7,7 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Share, Settings, GitBranch } from "lucide-react";
+import { Share, Settings, GitBranch, Menu } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatHeaderProps {
@@ -18,6 +18,7 @@ interface ChatHeaderProps {
   lastSyncTime?: string;
   onShareClick: () => void;
   hasConversation: boolean;
+  onToggleSidebar: () => void;
 }
 
 export function ChatHeader({
@@ -28,32 +29,43 @@ export function ChatHeader({
   lastSyncTime,
   onShareClick,
   hasConversation,
+  onToggleSidebar,
 }: ChatHeaderProps) {
   const router = useRouter();
 
   return (
-    <div className="relative z-10 flex items-center justify-between p-6 border-b border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+    <div className="relative z-10 flex items-center justify-between p-3 sm:p-6 border-b border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
       {/* Subtle header glow */}
       <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5 pointer-events-none" />
 
-      <div className="relative flex items-center space-x-4 z-10">
-        <div className="flex items-center space-x-3">
-          <div className="w-1 h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full" />
-          <h2 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
+      <div className="relative flex items-center space-x-2 sm:space-x-4 z-10 min-w-0 flex-1">
+        {/* Mobile Menu Button - Always visible on mobile */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleSidebar}
+          className="lg:hidden hover:bg-slate-700/50 hover:text-emerald-400 transition-colors h-8 w-8 p-0 flex-shrink-0"
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+          <div className="w-1 h-6 sm:h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full flex-shrink-0" />
+          <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent truncate">
             {conversationTitle || "✨ New Conversation"}
           </h2>
         </div>
         {(conversationModel || selectedModel) && (
           <Badge
             variant="outline"
-            className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10 backdrop-blur-sm px-3 py-1 rounded-full font-medium"
+            className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10 backdrop-blur-sm px-2 sm:px-3 py-1 rounded-full font-medium text-xs sm:text-sm flex-shrink-0 hidden sm:flex"
           >
             🤖 {conversationModel || selectedModel}
           </Badge>
         )}
       </div>
 
-      <div className="relative flex items-center space-x-2 z-10">
+      <div className="relative flex items-center space-x-1 sm:space-x-2 z-10 flex-shrink-0">
         {/* Model Selector with Quick Guide */}
         <div className="flex items-center space-x-1">
           <ModelSelector
@@ -87,9 +99,9 @@ export function ChatHeader({
               size="sm"
               onClick={onShareClick}
               disabled={!hasConversation}
-              className="hover:bg-slate-700/50 hover:text-emerald-400 transition-colors"
+              className="hover:bg-slate-700/50 hover:text-emerald-400 transition-colors h-8 w-8 sm:h-10 sm:w-10 p-0"
             >
-              <Share className="h-4 w-4" />
+              <Share className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -103,9 +115,9 @@ export function ChatHeader({
               variant="ghost"
               size="sm"
               onClick={() => router.push("/settings")}
-              className="hover:bg-slate-700/50 hover:text-blue-400 transition-colors"
+              className="hover:bg-slate-700/50 hover:text-blue-400 transition-colors h-8 w-8 sm:h-10 sm:w-10 p-0"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>

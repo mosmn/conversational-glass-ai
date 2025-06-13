@@ -94,12 +94,12 @@ export function ChatInput({
   const isProcessing = isStreaming || isSearching || isTranscribing;
 
   return (
-    <div className="relative p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+    <div className="relative p-3 sm:p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
       {/* Input area glow */}
       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
         {/* File Attachments */}
         {showAttachments && (
           <FileAttachment
@@ -126,24 +126,24 @@ export function ChatInput({
             onChange={(e) => onInputChange(e.target.value)}
             onKeyPress={onKeyPress}
             placeholder="💬 Type your message... (⌘ + Enter to send)"
-            className="relative min-h-[70px] max-h-[200px] bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 pr-28 resize-none focus:text-white rounded-2xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10 text-base leading-relaxed p-5"
+            className="relative min-h-[50px] sm:min-h-[70px] max-h-[150px] sm:max-h-[200px] bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 pr-20 sm:pr-28 resize-none focus:text-white rounded-xl sm:rounded-2xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10 text-sm sm:text-base leading-relaxed p-3 sm:p-5"
             rows={1}
           />
 
-          <div className="absolute bottom-4 right-4 flex items-center space-x-2">
+          <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 flex items-center space-x-1 sm:space-x-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
                     showAttachments
                       ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
                       : "text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10"
                   }`}
                   onClick={onToggleAttachments}
                 >
-                  <Paperclip className="h-5 w-5" />
+                  <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -156,7 +156,7 @@ export function ChatInput({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
                     searchEnabled
                       ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
                       : "text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
@@ -165,9 +165,9 @@ export function ChatInput({
                   disabled={isSearching}
                 >
                   {isSearching ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent" />
+                    <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-400 border-t-transparent" />
                   ) : (
-                    <Globe className="h-5 w-5" />
+                    <Globe className="h-4 w-4 sm:h-5 sm:w-5" />
                   )}
                 </Button>
               </TooltipTrigger>

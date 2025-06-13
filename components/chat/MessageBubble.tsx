@@ -182,13 +182,17 @@ export function MessageBubble({
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} group`}>
-      <div className={`max-w-[80%] ${isUser ? "order-2" : "order-1"}`}>
+      <div
+        className={`max-w-[90%] sm:max-w-[80%] ${
+          isUser ? "order-2" : "order-1"
+        }`}
+      >
         <div
-          className={`flex items-start space-x-3 ${
+          className={`flex items-start space-x-2 sm:space-x-3 ${
             isUser ? "flex-row-reverse space-x-reverse" : ""
           }`}
         >
-          <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-slate-700/50 transition-all duration-300 hover:ring-emerald-500/50">
+          <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 ring-1 sm:ring-2 ring-slate-700/50 transition-all duration-300 hover:ring-emerald-500/50">
             {isUser && user?.imageUrl ? (
               <AvatarImage
                 src={user.imageUrl}

@@ -195,8 +195,8 @@ export function ModelSelector({
       <Button
         variant="outline"
         className={cn(
-          "border-slate-600 min-w-[200px] justify-between",
-          "text-white bg-slate-800/50 backdrop-blur-sm",
+          "border-slate-600 min-w-[120px] sm:min-w-[200px] justify-between",
+          "text-white bg-slate-800/50 backdrop-blur-sm text-xs sm:text-sm",
           className
         )}
         disabled
@@ -299,25 +299,30 @@ export function ModelSelector({
             className
           )}
         >
-          <div className="flex items-center space-x-3">
-            <div className="w-5 h-5 rounded-md flex items-center justify-center bg-slate-600/20">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-md flex items-center justify-center bg-slate-600/20 flex-shrink-0">
               <ModelIcon
-                className="h-3 w-3"
+                className="h-2.5 w-2.5 sm:h-3 sm:w-3"
                 size={12}
                 style={{ color: getProviderColor(currentModel.provider) }}
               />
             </div>
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">{currentModel.name}</span>
+            <div className="flex flex-col items-start min-w-0">
+              <span className="text-xs sm:text-sm font-medium truncate">
+                {currentModel.name}
+              </span>
               <div className="flex items-center space-x-1">
                 <categoryConfig.icon
-                  className={cn("h-2.5 w-2.5", categoryConfig.color)}
+                  className={cn(
+                    "h-2 w-2 sm:h-2.5 sm:w-2.5",
+                    categoryConfig.color
+                  )}
                 />
                 <span className="text-xs text-slate-400">
                   {categoryConfig.label}
                 </span>
                 {wasRestored && (
-                  <span className="text-xs text-emerald-400 animate-pulse">
+                  <span className="text-xs text-emerald-400 animate-pulse hidden sm:inline">
                     • Restored
                   </span>
                 )}
@@ -330,7 +335,7 @@ export function ModelSelector({
 
       <DropdownMenuContent
         align="end"
-        className="w-[400px] p-0 bg-slate-800 border-slate-700 shadow-xl"
+        className="w-[350px] sm:w-[400px] p-0 bg-slate-800 border-slate-700 shadow-xl"
       >
         {/* Header */}
         <div className="p-4 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700">
@@ -368,7 +373,7 @@ export function ModelSelector({
           />
         </div>
 
-        <div className="p-3 max-h-[500px] overflow-y-auto">
+        <div className="p-2 sm:p-3 max-h-[400px] sm:max-h-[500px] overflow-y-auto">
           {/* Search Results */}
           {searchTerm.trim() !== "" ? (
             <div className="space-y-1">

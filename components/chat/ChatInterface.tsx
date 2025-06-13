@@ -51,6 +51,7 @@ import { ChatInput } from "./ChatInput";
 import { useChatState } from "@/hooks/useChatState";
 import { useMessageHandling } from "@/hooks/useMessageHandling";
 import { useEnabledModels } from "@/hooks/useEnabledModels";
+import { useResponsive } from "@/hooks/useResponsive";
 
 interface Message {
   id: string;
@@ -133,6 +134,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const visualPrefs = useVisualPreferences();
   const [selectedModel, setSelectedModel] = useState<string>("");
   const { toast } = useToast();
+  const { isMobile } = useResponsive();
 
   // Auto-scroll refs
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     selectedModel,
     setSelectedModel,
   });
+
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    if (isMobile) {
+      chatState.setSidebarCollapsed(true);
+    }
+  }, [isMobile, chatState.setSidebarCollapsed]);
 
   // Check if user is at bottom of scroll
   const checkIfAtBottom = useCallback(() => {
@@ -688,19 +697,44 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-        {/* ChatSidebar Component */}
-        <ChatSidebar
-          isCollapsed={chatState.sidebarCollapsed}
-          onToggleCollapse={() =>
-            chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-          }
-          currentChatId={optimisticChatId || ""}
-          selectedModel={selectedModel}
-          onCreateNewChat={handleCreateNewChat}
-        />
+        {/* Mobile Sidebar Overlay - only show when sidebar is open on mobile */}
+        {!chatState.sidebarCollapsed && (
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 lg:hidden"
+            onClick={() => chatState.setSidebarCollapsed(true)}
+          />
+        )}
+
+        {/* ChatSidebar Component - Desktop: always visible, Mobile: conditional */}
+        <div className="hidden lg:block">
+          <ChatSidebar
+            isCollapsed={chatState.sidebarCollapsed}
+            onToggleCollapse={() =>
+              chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+            }
+            currentChatId={optimisticChatId || ""}
+            selectedModel={selectedModel}
+            onCreateNewChat={handleCreateNewChat}
+          />
+        </div>
+
+        {/* Mobile Sidebar - Only render when not collapsed */}
+        {!chatState.sidebarCollapsed && (
+          <div className="lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out">
+            <ChatSidebar
+              isCollapsed={false}
+              onToggleCollapse={() =>
+                chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+              }
+              currentChatId={optimisticChatId || ""}
+              selectedModel={selectedModel}
+              onCreateNewChat={handleCreateNewChat}
+            />
+          </div>
+        )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col relative">
+        <div className="flex-1 flex flex-col relative min-w-0">
           {/* Animated Background */}
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
@@ -717,6 +751,9 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             lastSyncTime={lastSyncTime || undefined}
             onShareClick={() => chatState.setShowShareModal(true)}
             hasConversation={!!conversation || messages.length > 0}
+            onToggleSidebar={() =>
+              chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+            }
           />
 
           {/* Messages Area */}
@@ -725,21 +762,21 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
 
             <ScrollArea
-              className="h-full px-6 py-8 relative z-10"
+              className="h-full px-3 sm:px-6 py-4 sm:py-8 relative z-10"
               ref={scrollAreaRef}
             >
               {messagesLoading ? (
-                <div className="space-y-6 max-w-4xl mx-auto">
+                <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
                   {[...Array(2)].map((_, i) => (
-                    <div key={i} className="space-y-4">
+                    <div key={i} className="space-y-3 sm:space-y-4">
                       <div className="flex justify-end">
-                        <div className="bg-slate-700/30 rounded-lg p-4 max-w-xs animate-pulse">
+                        <div className="bg-slate-700/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
                           <div className="h-4 bg-slate-600 rounded mb-2"></div>
                           <div className="h-4 bg-slate-600 rounded w-3/4"></div>
                         </div>
                       </div>
                       <div className="flex justify-start">
-                        <div className="bg-slate-800/30 rounded-lg p-4 max-w-xs animate-pulse">
+                        <div className="bg-slate-800/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
                           <div className="h-4 bg-slate-600 rounded mb-2"></div>
                           <div className="h-4 bg-slate-600 rounded w-2/3"></div>
                         </div>
@@ -754,7 +791,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   onPromptSelect={chatState.setInputValue}
                 />
               ) : (
-                <div className="space-y-6 max-w-4xl mx-auto">
+                <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
                   {hasMore && (
                     <div className="flex justify-center">
                       <Button
@@ -803,15 +840,16 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
           {/* Scroll to Bottom Button */}
           {!isAtBottom && messages.length > 0 && (
-            <div className="absolute bottom-24 right-6 z-20">
+            <div className="absolute bottom-20 sm:bottom-24 right-3 sm:right-6 z-20">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => scrollToBottomViewport(true, true)}
-                className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90 shadow-lg"
+                className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90 shadow-lg text-xs sm:text-sm px-2 sm:px-3"
               >
-                <ChevronDown className="h-4 w-4 mr-2" />
-                Scroll to bottom
+                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Scroll to bottom</span>
+                <span className="sm:hidden">Bottom</span>
               </Button>
             </div>
           )}
