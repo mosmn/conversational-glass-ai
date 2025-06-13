@@ -6,12 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -22,14 +23,12 @@ import {
   GitBranch,
   ChevronRight,
   ChevronDown,
-  MoreHorizontal,
   Pin,
   Star,
-  Edit3,
-  Archive,
   Trash2,
   ArrowUpRight,
   Zap,
+  AlertTriangle,
 } from "lucide-react";
 
 interface HierarchicalChat {
@@ -82,6 +81,7 @@ export function HierarchicalChatItem({
 }: HierarchicalChatItemProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(isActive || chat.hasChildren);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleClick = () => {
     router.push(`/chat/${chat.id}`);
@@ -95,6 +95,11 @@ export function HierarchicalChatItem({
     if (chat.parentConversationId && onNavigateToParent) {
       onNavigateToParent(chat.parentConversationId);
     }
+  };
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteDialog(false);
+    onDelete();
   };
 
   const formatDate = (dateString: string) => {
@@ -127,8 +132,8 @@ export function HierarchicalChatItem({
             <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-teal-400/60 to-teal-600/40 rounded-r" />
           )}
 
-          {/* Main content area with reserved space for menu */}
-          <div className="pr-10 w-full overflow-hidden">
+          {/* Main content area with reserved space for action buttons */}
+          <div className="pr-16 w-full overflow-hidden">
             {/* Title row with branch info */}
             <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
               {/* Expand/collapse button for conversations with branches */}
@@ -238,57 +243,53 @@ export function HierarchicalChatItem({
             </div>
           </div>
 
-          {/* Three-dot menu - positioned within bounds */}
-          <div className="absolute top-2 right-2 z-30">
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
+          {/* Action buttons on hover - positioned within bounds */}
+          <div className="absolute top-2 right-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+            {/* Pin/Unpin Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="group-hover:opacity-100 transition-opacity h-7 w-7 p-0 hover:bg-slate-600/50 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border border-slate-600/50 opacity-80 hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  <MoreHorizontal className="h-4 w-4 text-slate-200" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                side="bottom"
-                alignOffset={-10}
-                sideOffset={8}
-                className="w-44 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 shadow-2xl shadow-black/40 rounded-lg z-[9999]"
-                avoidCollisions={true}
-                collisionPadding={8}
-              >
-                <DropdownMenuItem
+                  className={`h-7 w-7 p-0 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border transition-all duration-200 ${
+                    isPinned
+                      ? "border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-400"
+                      : "border-slate-600/50 hover:bg-slate-600/50 text-slate-200"
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onPin();
                   }}
-                  className="flex items-center px-3 py-2 hover:bg-slate-700/50 cursor-pointer transition-colors duration-200"
                 >
-                  <Pin className="mr-2 h-4 w-4 text-emerald-400" />
-                  <span className="text-slate-200">
-                    {isPinned ? "Unpin" : "Pin"} Chat
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-slate-700/50 my-1" />
-                <DropdownMenuItem
+                  <Pin
+                    className={`h-3.5 w-3.5 ${isPinned ? "fill-current" : ""}`}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{isPinned ? "Unpin" : "Pin"} Chat</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Delete Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border border-slate-600/50 hover:bg-red-900/20 hover:border-red-500/50 text-slate-200 hover:text-red-400 transition-all duration-200"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm("Are you sure you want to delete this chat?")) {
-                      onDelete();
-                    }
+                    setShowDeleteDialog(true);
                   }}
-                  className="flex items-center px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 cursor-pointer transition-colors duration-200"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete Chat</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Delete Chat</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -340,6 +341,40 @@ export function HierarchicalChatItem({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="bg-slate-800/95 backdrop-blur-md border border-slate-700/50 shadow-2xl shadow-black/40">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-white">
+                <AlertTriangle className="h-5 w-5 text-red-400" />
+                Delete Conversation
+              </DialogTitle>
+              <DialogDescription className="text-slate-300">
+                Are you sure you want to delete "{chat.title}"? This action
+                cannot be undone and will permanently remove the conversation
+                and all its messages.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

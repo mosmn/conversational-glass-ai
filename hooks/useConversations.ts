@@ -19,6 +19,7 @@ interface UseConversationsReturn {
     conversationId: string,
     updates: Partial<Conversation>
   ) => void;
+  deleteConversation: (conversationId: string) => Promise<boolean>;
   refetchConversations: () => Promise<void>;
   hasMore: boolean;
   loadMore: () => Promise<void>;
@@ -117,6 +118,25 @@ export function useConversations(): UseConversationsReturn {
     []
   );
 
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    try {
+      setError(null);
+      const response = await apiClient.deleteConversation(conversationId);
+      if (response.success) {
+        setConversations((prev) =>
+          prev.filter((conv) => conv.id !== conversationId)
+        );
+        return true;
+      }
+      return false;
+    } catch (err) {
+      const apiError = err as APIError;
+      setError(apiError.error || "Failed to delete conversation");
+      console.error("Delete conversation error:", err);
+      return false;
+    }
+  }, []);
+
   // Stable refetch function that doesn't change
   const refetchConversations = useCallback(async () => {
     setPagination((prev) => ({ ...prev, offset: 0 }));
@@ -143,6 +163,7 @@ export function useConversations(): UseConversationsReturn {
     error,
     createConversation,
     updateConversation,
+    deleteConversation,
     refetchConversations,
     hasMore,
     loadMore,

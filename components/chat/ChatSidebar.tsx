@@ -42,6 +42,7 @@ function ChatSidebarComponent({
     conversations,
     loading: conversationsLoading,
     createConversation,
+    deleteConversation,
     refetchConversations,
   } = useConversations();
 
@@ -89,34 +90,44 @@ function ChatSidebarComponent({
   const handleDelete = useCallback(
     async (chatId: string) => {
       try {
-        toast({
-          title: "Chat Deleted",
-          description: "The conversation has been deleted",
-        });
+        // Use the hook's delete method
+        const success = await deleteConversation(chatId);
 
-        // Remove from preferences
-        removeFromPreferences(chatId);
+        if (success) {
+          toast({
+            title: "Chat Deleted",
+            description: "The conversation has been deleted",
+          });
 
-        // Refresh conversations
-        refetchConversations();
-        refetchHierarchical();
+          // Remove from preferences
+          removeFromPreferences(chatId);
 
-        // Navigate away if current chat is deleted
-        if (chatId === currentChatId) {
-          router.push("/chat");
+          // Refresh hierarchical conversations
+          refetchHierarchical();
+
+          // Navigate away if current chat is deleted
+          if (chatId === currentChatId) {
+            router.push("/chat");
+          }
+        } else {
+          throw new Error("Delete operation failed");
         }
       } catch (error) {
+        console.error("Delete conversation error:", error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to delete conversation",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to delete conversation",
         });
       }
     },
     [
+      deleteConversation,
       toast,
       removeFromPreferences,
-      refetchConversations,
       refetchHierarchical,
       currentChatId,
       router,
@@ -135,7 +146,7 @@ function ChatSidebarComponent({
   return (
     <div
       className={`${
-        isCollapsed ? "w-16" : "w-80"
+        isCollapsed ? "w-16" : "w-130"
       } flex-shrink-0 relative transition-all duration-500 ease-in-out`}
     >
       {/* Glassmorphic Background */}

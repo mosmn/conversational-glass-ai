@@ -327,6 +327,16 @@ class APIClient {
     });
   }
 
+  // Delete a conversation
+  async deleteConversation(conversationId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.fetchWithAuth(`/conversations/${conversationId}`, {
+      method: "DELETE",
+    });
+  }
+
   // Enhanced message retrieval with cursor-based pagination and real-time sync
   async getConversationMessages(
     conversationId: string,
