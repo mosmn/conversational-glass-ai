@@ -17,7 +17,7 @@ const cleanupSchema = z.object({
   ]),
   options: z
     .object({
-      days: z.number().min(1).max(365).optional(), // For delete-older-than
+      days: z.number().min(0).max(365).optional(), // For delete-older-than (0 = delete all)
       category: z.enum(["image", "pdf", "text"]).optional(), // For delete-by-category
       fileIds: z.array(z.string().uuid()).optional(), // For delete-by-ids
       dryRun: z.boolean().default(false), // Preview operation without deleting
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case "delete-older-than":
-        if (!days) {
+        if (days === undefined || days === null) {
           return NextResponse.json(
             {
               error: "Days parameter required for delete-older-than operation",
@@ -98,10 +98,16 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        operationName = `Delete Files Older Than ${days} Days`;
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - days);
-        conditions.push(lt(files.createdAt, cutoffDate));
+        operationName =
+          days === 0
+            ? "Delete All Files"
+            : `Delete Files Older Than ${days} Days`;
+        if (days > 0) {
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - days);
+          conditions.push(lt(files.createdAt, cutoffDate));
+        }
+        // If days === 0, we don't add any date condition, so all files are selected
         break;
 
       case "delete-by-category":

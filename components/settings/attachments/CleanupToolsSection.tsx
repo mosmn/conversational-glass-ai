@@ -56,7 +56,8 @@ interface CleanupOperation {
     | "duplicates"
     | "large_files"
     | "by_category"
-    | "custom";
+    | "custom"
+    | "all_files";
   status: "idle" | "running" | "completed" | "error";
   progress: number;
   deletedCount: number;
@@ -150,6 +151,10 @@ export function CleanupToolsSection() {
           // Handle custom cleanup with multiple parameters
           const customDays = parseInt(params.days || "90");
           result = await cleanupOldFiles(customDays);
+          break;
+        case "all_files":
+          // Delete all files by using 0 days (all files are older than 0 days)
+          result = await cleanupOldFiles(0);
           break;
         default:
           throw new Error(`Unknown cleanup type: ${type}`);
