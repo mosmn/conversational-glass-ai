@@ -10,7 +10,6 @@ import { SidebarHeader } from "@/components/chat/sidebar/SidebarHeader";
 import { NewChatButton } from "@/components/chat/sidebar/NewChatButton";
 import { SearchAndFilter } from "@/components/chat/sidebar/SearchAndFilter";
 import { ChatList } from "@/components/chat/sidebar/ChatList";
-import { UsageMeter } from "@/components/chat/sidebar/UsageMeter";
 import { UserProfile } from "@/components/chat/sidebar/UserProfile";
 
 interface ChatSidebarProps {
@@ -190,9 +189,6 @@ function ChatSidebarComponent({
               onNavigateToParent={handleNavigateToParent}
             />
 
-            {/* Usage Meter */}
-            <UsageMeter usage={usage} />
-
             {/* User Profile */}
             <UserProfile />
           </>
@@ -201,10 +197,6 @@ function ChatSidebarComponent({
     </div>
   );
 }
-
-// Memoize with default shallow comparison. This prevents excessive renders while
-// still allowing the component to update whenever *any* prop changes, which
-// covers edge-cases like title updates that previously weren't reflected.
 export const ChatSidebar = React.memo(ChatSidebarComponent);
 
 ChatSidebar.displayName = "ChatSidebar";

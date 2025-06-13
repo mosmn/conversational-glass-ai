@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Share, Settings, GitBranch } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
-import { ModelQuickGuide } from "./ModelQuickGuide";
 
 interface ChatHeaderProps {
   conversationTitle?: string;
@@ -61,7 +60,6 @@ export function ChatHeader({
             selectedModel={selectedModel}
             onModelChange={onModelChange}
           />
-          <ModelQuickGuide />
         </div>
 
         {/* Sync Status Indicator */}
