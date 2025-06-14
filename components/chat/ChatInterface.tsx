@@ -143,6 +143,8 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   // Track if user is at the bottom of scroll
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  // Track when a message was just sent to force auto-scroll
+  const [justSentMessage, setJustSentMessage] = useState(false);
 
   // Optimistic chat ID state for smoother transitions
   const [optimisticChatId, setOptimisticChatId] = useState<string | undefined>(
@@ -172,17 +174,31 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       if (viewport) {
         const { scrollTop, scrollHeight, clientHeight } = viewport;
         const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50; // 50px threshold
+        const wasAtBottom = isAtBottom;
         setIsAtBottom(isNearBottom);
+
+        // If user scrolled away from bottom, disable auto-scroll
+        if (wasAtBottom && !isNearBottom) {
+          setShouldAutoScroll(false);
+        }
+        // If user scrolled back to bottom, re-enable auto-scroll
+        else if (!wasAtBottom && isNearBottom) {
+          setShouldAutoScroll(true);
+        }
+
         return isNearBottom;
       }
     }
     return true;
-  }, []);
+  }, [isAtBottom]);
 
-  // Auto-scroll function with bottom detection
+  // Auto-scroll function with better user intent detection
   const scrollToBottomViewport = useCallback(
     (smooth = true, force = false) => {
-      if (scrollAreaRef.current && (force || isAtBottom || shouldAutoScroll)) {
+      if (
+        scrollAreaRef.current &&
+        (force || (isAtBottom && shouldAutoScroll) || justSentMessage)
+      ) {
         const viewport = scrollAreaRef.current.querySelector(
           "[data-radix-scroll-area-viewport]"
         );
@@ -195,7 +211,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         }
       }
     },
-    [isAtBottom, shouldAutoScroll]
+    [isAtBottom, shouldAutoScroll, justSentMessage]
   );
 
   // Update optimistic chat ID when prop changes
@@ -243,39 +259,99 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
 
-  // Auto-scroll when messages change
+  // Auto-scroll when NEW messages are added (only if user is at bottom or auto-scroll is enabled)
+  const previousMessageCount = useRef(0);
   useEffect(() => {
-    if (messages.length > 0) {
-      // Use a small delay to ensure the message is rendered
-      const timeoutId = setTimeout(() => {
-        scrollToBottomViewport(true);
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [messages.length, scrollToBottomViewport]);
+    if (messages.length > previousMessageCount.current && messages.length > 0) {
+      // Check if the newest message is from the user (just sent)
+      const newestMessage = messages[messages.length - 1];
+      const isUserMessage = newestMessage && newestMessage.role === "user";
 
-  // Auto-scroll when streaming state changes (start/stop)
+      // Always auto-scroll if:
+      // 1. User just sent a message (regardless of scroll position)
+      // 2. User is at bottom and auto-scroll is enabled
+      // 3. It's the first message
+      const shouldScroll =
+        isUserMessage ||
+        isAtBottom ||
+        shouldAutoScroll ||
+        previousMessageCount.current === 0 ||
+        justSentMessage;
+
+      if (shouldScroll) {
+        // Use a small delay to ensure the message is rendered
+        const timeoutId = setTimeout(() => {
+          scrollToBottomViewport(true);
+          // Reset the just sent message flag after scrolling
+          if (justSentMessage) {
+            setJustSentMessage(false);
+          }
+        }, 100);
+
+        // Update the previous count after attempting to scroll
+        previousMessageCount.current = messages.length;
+        return () => clearTimeout(timeoutId);
+      } else {
+        // Just update the count without scrolling
+        previousMessageCount.current = messages.length;
+      }
+    } else {
+      // Update count for any other changes (like message content updates)
+      previousMessageCount.current = messages.length;
+    }
+  }, [
+    messages.length,
+    scrollToBottomViewport,
+    isAtBottom,
+    shouldAutoScroll,
+    justSentMessage,
+  ]);
+
+  // Auto-scroll when streaming starts (only if user is at bottom)
   useEffect(() => {
-    if (isStreaming) {
-      // Scroll immediately when streaming starts
+    if (isStreaming && (isAtBottom || shouldAutoScroll || justSentMessage)) {
+      // Scroll immediately when streaming starts, but only if user is at bottom or just sent a message
       scrollToBottomViewport(true);
     }
-  }, [isStreaming, scrollToBottomViewport]);
+  }, [
+    isStreaming,
+    scrollToBottomViewport,
+    isAtBottom,
+    shouldAutoScroll,
+    justSentMessage,
+  ]);
 
-  // Auto-scroll during streaming (for content updates)
+  // Auto-scroll during streaming (for content updates) - only if user is at bottom
+  const lastMessageContentRef = useRef("");
   useEffect(() => {
-    if (isStreaming && messages.length > 0) {
-      // Get the last message content length to detect content changes
+    if (
+      isStreaming &&
+      messages.length > 0 &&
+      (isAtBottom || shouldAutoScroll || justSentMessage)
+    ) {
+      // Get the last message content to detect content changes
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.role === "assistant") {
-        // Scroll during streaming content updates
+      if (
+        lastMessage &&
+        lastMessage.role === "assistant" &&
+        lastMessage.content !== lastMessageContentRef.current
+      ) {
+        lastMessageContentRef.current = lastMessage.content;
+        // Scroll during streaming content updates, but less frequently
         const timeoutId = setTimeout(() => {
           scrollToBottomViewport(false); // Use instant scroll during streaming for better UX
-        }, 50);
+        }, 100); // Increased delay to reduce frequency
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [messages, isStreaming, scrollToBottomViewport]);
+  }, [
+    messages,
+    isStreaming,
+    scrollToBottomViewport,
+    isAtBottom,
+    shouldAutoScroll,
+    justSentMessage,
+  ]);
 
   // Set up scroll event listener to track user scroll position
   useEffect(() => {
@@ -298,6 +374,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   useEffect(() => {
     setShouldAutoScroll(true);
     setIsAtBottom(true);
+    // Reset refs when chat changes
+    previousMessageCount.current = 0;
+    lastMessageContentRef.current = "";
+    // Reset message sent flag
+    setJustSentMessage(false);
   }, [optimisticChatId]);
 
   // Auto-select a valid model if none is selected or current selection is invalid
@@ -365,6 +446,9 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     resetInput: () => void
   ) => {
     if (!inputValue.trim() && attachments.length === 0) return;
+
+    // Set flag to indicate message is being sent
+    setJustSentMessage(true);
 
     // If no chatId, create a new conversation and send the message directly
     if (!optimisticChatId) {

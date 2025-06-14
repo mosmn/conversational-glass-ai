@@ -36,22 +36,71 @@ export function MessageContent({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState<string | null>(null);
 
-  // Determine if content needs processing
+  // Intelligent processing check using synchronous patterns
   const requiresProcessing = useMemo(() => {
-    // Always process assistant messages to ensure markdown is rendered
-    if (!isUser) {
-      return true;
+    if (!content.trim() || isStreaming) return false;
+
+    // For user messages, only process if there's clear markdown/code content
+    if (isUser) {
+      // Check for obvious code patterns
+      const hasCode =
+        content.includes("```") ||
+        content.includes("`") ||
+        (content.includes("\n") && content.match(/^[ ]{4,}/m)); // Indented code blocks
+
+      // Check for other markdown patterns
+      const hasMarkdown =
+        content.includes("*") ||
+        content.includes("#") ||
+        content.includes("](") ||
+        content.includes("- ") ||
+        content.includes("1. ");
+
+      return hasCode || hasMarkdown;
     }
 
-    // For user messages, only process if there are obvious code patterns
-    const hasCodePatterns = content.includes("```") || content.includes("`");
-    return hasCodePatterns;
-  }, [content, isUser]);
+    // For assistant messages, use intelligent checks for processing needs
+    const hasCodeBlocks = content.includes("```");
+    const hasInlineCode = content.includes("`");
+    const hasMarkdown =
+      content.includes("*") ||
+      content.includes("#") ||
+      content.includes("](") ||
+      content.includes("- ") ||
+      content.includes("1. ") ||
+      content.includes("**") ||
+      content.includes("__") ||
+      content.includes("~~");
+
+    // Only process if there's actual formatted content
+    return hasCodeBlocks || hasInlineCode || hasMarkdown;
+  }, [content, isUser, isStreaming]);
+
+  // Determine processing type for better user feedback
+  const processingType = useMemo(() => {
+    if (!content.trim() || !requiresProcessing) return null;
+
+    const hasCodeBlocks = content.includes("```");
+    const hasInlineCode = content.includes("`") && !hasCodeBlocks;
+    const hasMarkdown =
+      content.includes("*") ||
+      content.includes("#") ||
+      content.includes("](") ||
+      content.includes("- ") ||
+      content.includes("1. ");
+
+    if (hasCodeBlocks) return "code";
+    if (hasInlineCode) return "inline-code";
+    if (hasMarkdown) return "markdown";
+
+    return "text";
+  }, [content, requiresProcessing]);
 
   // Process content when it changes and is not streaming
   useEffect(() => {
     if (!requiresProcessing || isStreaming || !content.trim()) {
       setProcessedContent(null);
+      setIsProcessing(false);
       return;
     }
 
@@ -62,11 +111,15 @@ export function MessageContent({
       setProcessingError(null);
 
       try {
+        // For assistant messages, always allow HTML for proper markdown rendering
+        // For user messages, only allow HTML if there's clear markdown content
+        const shouldAllowHtml = !isUser || allowHtml;
+
         const processed = await processContent(content, {
           enableHighlighting: true,
           showLineNumbers,
           maxCodeBlockHeight,
-          allowHtml,
+          allowHtml: shouldAllowHtml,
         });
 
         if (isMounted) {
@@ -100,6 +153,7 @@ export function MessageContent({
     showLineNumbers,
     maxCodeBlockHeight,
     allowHtml,
+    isUser,
   ]);
 
   // Show streaming content during streaming
@@ -113,19 +167,30 @@ export function MessageContent({
     );
   }
 
-  // Show processing state
-  if (requiresProcessing && isProcessing) {
+  // Show processing state with contextual messaging
+  if (isProcessing && processedContent === null) {
+    const processingMessage = (() => {
+      switch (processingType) {
+        case "code":
+          return "Formatting code...";
+        case "inline-code":
+          return "Highlighting syntax...";
+        case "markdown":
+          return "Rendering content...";
+        default:
+          return "Processing...";
+      }
+    })();
+
     return (
       <div className={cn("relative", className)}>
-        <MarkdownContent
-          content={content}
-          className="opacity-50"
-          allowHtml={allowHtml}
-        />
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800/20 rounded">
-          <div className="flex items-center space-x-2 text-sm text-slate-400">
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent" />
-            <span>Processing code...</span>
+        <div className="opacity-60">
+          <MarkdownContent content={content} allowHtml={!isUser || allowHtml} />
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-800/10 rounded">
+          <div className="flex items-center space-x-2 text-sm text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-full backdrop-blur-sm">
+            <div className="animate-spin rounded-full h-3 w-3 border-2 border-slate-400 border-t-transparent" />
+            <span>{processingMessage}</span>
           </div>
         </div>
       </div>
@@ -136,9 +201,9 @@ export function MessageContent({
   if (processingError) {
     return (
       <div className={className}>
-        <MarkdownContent content={content} allowHtml={allowHtml} />
+        <MarkdownContent content={content} allowHtml={!isUser || allowHtml} />
         <div className="mt-2 text-xs text-amber-400 opacity-75">
-          ⚠️ Code highlighting failed: {processingError}
+          ⚠️ Content processing failed: {processingError}
         </div>
       </div>
     );
@@ -153,17 +218,17 @@ export function MessageContent({
         className={className}
         showLineNumbers={showLineNumbers}
         maxCodeBlockHeight={maxCodeBlockHeight}
-        allowHtml={allowHtml}
+        allowHtml={!isUser || allowHtml}
       />
     );
   }
 
-  // Fallback to simple content
+  // Fallback to simple content - no unnecessary processing
   return (
     <MarkdownContent
       content={content}
       className={className}
-      allowHtml={allowHtml}
+      allowHtml={!isUser || allowHtml}
     />
   );
 }
@@ -254,7 +319,7 @@ export function EnhancedMessageBubble({
                   isUser={isUser}
                   showLineNumbers={false}
                   maxCodeBlockHeight="300px"
-                  allowHtml={false}
+                  allowHtml={!isUser} // Only allow HTML for assistant messages by default
                 />
               )}
             </div>

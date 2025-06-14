@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   Copy,
   ThumbsUp,
@@ -124,6 +125,8 @@ export function MessageBubble({
   onViewBranches,
 }: MessageBubbleProps) {
   const [isResuming, setIsResuming] = useState(false);
+  const { toast } = useToast();
+
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
@@ -160,6 +163,148 @@ export function MessageBubble({
       await onResumeStream(recoverableStream.streamId);
     } finally {
       setIsResuming(false);
+    }
+  };
+
+  // Handle copy message content
+  const handleCopyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast({
+        title: "Copied!",
+        description: "Message copied to clipboard",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy message to clipboard",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
+
+  // Handle share message
+  const handleShareMessage = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "AI Chat Message",
+          text: message.content,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Failed to share:", error);
+          // Fallback to copy
+          handleCopyMessage();
+        }
+      }
+    } else {
+      // Fallback to copy if share is not supported
+      handleCopyMessage();
+    }
+  };
+
+  // Handle thumbs up/down (placeholder for future implementation)
+  const handleThumbsUp = () => {
+    toast({
+      title: "Thanks for the feedback!",
+      description: "Your positive feedback has been noted",
+      duration: 2000,
+    });
+  };
+
+  const handleThumbsDown = () => {
+    toast({
+      title: "Thanks for the feedback!",
+      description: "Your feedback helps us improve",
+      duration: 2000,
+    });
+  };
+
+  // Handle download generated image
+  const handleDownloadImage = async () => {
+    if (!hasGeneratedImage || !message.metadata?.generatedImage?.url) return;
+
+    try {
+      const response = await fetch(message.metadata.generatedImage.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `generated-image-${message.metadata.generatedImage.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Downloaded!",
+        description: "Image saved to your downloads",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to download image:", error);
+      toast({
+        title: "Download failed",
+        description: "Could not download the image",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
+
+  // Handle share generated image
+  const handleShareImage = async () => {
+    if (!hasGeneratedImage || !message.metadata?.generatedImage) return;
+
+    const imageData = message.metadata.generatedImage;
+
+    if (navigator.share) {
+      try {
+        const response = await fetch(imageData.url);
+        const blob = await response.blob();
+        const file = new File([blob], `generated-image-${imageData.id}.png`, {
+          type: blob.type,
+        });
+
+        await navigator.share({
+          title: "AI Generated Image",
+          text: `Generated with ${imageData.model}: ${imageData.prompt}`,
+          files: [file],
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Failed to share image:", error);
+          // Fallback to copy URL
+          await navigator.clipboard.writeText(imageData.url);
+          toast({
+            title: "Image URL copied",
+            description: "Image URL copied to clipboard",
+            duration: 2000,
+          });
+        }
+      }
+    } else {
+      // Fallback to copy URL
+      try {
+        await navigator.clipboard.writeText(imageData.url);
+        toast({
+          title: "Image URL copied",
+          description: "Image URL copied to clipboard",
+          duration: 2000,
+        });
+      } catch (error) {
+        console.error("Failed to copy image URL:", error);
+        toast({
+          title: "Share failed",
+          description: "Could not share or copy image",
+          variant: "destructive",
+          duration: 2000,
+        });
+      }
     }
   };
 
@@ -252,7 +397,7 @@ export function MessageBubble({
                     isUser={isUser}
                     showLineNumbers={false}
                     maxCodeBlockHeight="300px"
-                    allowHtml={true}
+                    allowHtml={!isUser} // Only allow HTML for assistant messages
                   />
 
                   {/* Display generated image within the message bubble */}
@@ -296,6 +441,7 @@ export function MessageBubble({
                               size="sm"
                               variant="secondary"
                               className="text-xs"
+                              onClick={handleDownloadImage}
                             >
                               <Download className="h-3 w-3 mr-1" />
                               Download
@@ -304,6 +450,7 @@ export function MessageBubble({
                               size="sm"
                               variant="secondary"
                               className="text-xs"
+                              onClick={handleShareImage}
                             >
                               <Share className="h-3 w-3 mr-1" />
                               Share
@@ -495,16 +642,40 @@ export function MessageBubble({
                     size="sm"
                     className="h-6 w-6 p-0"
                   />
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={handleCopyMessage}
+                    title="Copy message"
+                  >
                     <Copy className="h-3 w-3" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={handleThumbsUp}
+                    title="Good response"
+                  >
                     <ThumbsUp className="h-3 w-3" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={handleThumbsDown}
+                    title="Poor response"
+                  >
                     <ThumbsDown className="h-3 w-3" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={handleShareMessage}
+                    title="Share message"
+                  >
                     <Share className="h-3 w-3" />
                   </Button>
                 </div>

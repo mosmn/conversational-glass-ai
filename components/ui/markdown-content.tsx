@@ -108,6 +108,15 @@ function renderPlainContent(
   allowHtml: boolean
 ): React.ReactNode {
   if (allowHtml) {
+    // If it's simple text without HTML, don't use dangerouslySetInnerHTML
+    if (!content.includes("<") && !content.includes("&")) {
+      return (
+        <div className="whitespace-pre-wrap break-words leading-relaxed">
+          {content}
+        </div>
+      );
+    }
+
     return (
       <div
         className="leading-relaxed"
