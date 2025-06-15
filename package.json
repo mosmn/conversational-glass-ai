@@ -107,6 +107,7 @@
     "svix": "^1.15.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.7.1",
     "vaul": "^1.1.2",
     "zod": "^3.24.1"
   },
@@ -122,7 +123,6 @@
     "jsdom": "^26.1.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.7.1",
     "typescript": "^5",
     "vitest": "^3.2.3"
   }
