@@ -336,7 +336,18 @@ export function usePersonalization() {
 
 export function useVisualPreferences() {
   const { preferences } = useUserPreferences();
-  return preferences.visual;
+  return {
+    boringTheme: preferences.visual.boringTheme,
+    hidePersonalInfo: preferences.visual.hidePersonalInfo,
+    disableThematicBreaks: preferences.visual.disableThematicBreaks,
+    statsForNerds: preferences.visual.statsForNerds,
+  };
+}
+
+// Helper hook for just the boring theme
+export function useBoringTheme() {
+  const { preferences } = useUserPreferences();
+  return preferences.visual.boringTheme;
 }
 
 export function useFontPreferences() {

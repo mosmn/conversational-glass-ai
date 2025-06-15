@@ -314,7 +314,16 @@ async function fetchGeminiModels(
 }
 
 // Convert messages to Gemini format
-function formatMessagesForGemini(messages: ChatMessage[]): {
+function formatMessagesForGemini(
+  messages: ChatMessage[],
+  model: AIModel,
+  personalization?: {
+    displayName?: string;
+    description?: string;
+    traits?: string[];
+    additionalInfo?: string;
+  }
+): {
   contents: any[];
   systemInstruction?: any;
 } {

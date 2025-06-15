@@ -421,25 +421,256 @@ button:disabled {
 
   /* Visual customization classes */
 
-  /* Boring theme - reduce animations and transparency */
+  /* Boring Theme - Make everything simple and minimal */
   .boring-theme * {
-    animation-duration: 0.1s !important;
-    transition-duration: 0.1s !important;
+    animation: none !important;
+    transition: none !important;
   }
 
-  .boring-theme .backdrop-blur-xl {
-    backdrop-filter: blur(4px) !important;
+  /* Apply grayscale filter to make everything black and white */
+  .boring-theme {
+    filter: grayscale(1) !important;
   }
 
-  .boring-theme .backdrop-blur-lg {
-    backdrop-filter: blur(2px) !important;
+  /* Override specific color classes to ensure black and white */
+  .boring-theme,
+  .boring-theme * {
+    /* Remove all colored backgrounds and make them grayscale */
+    background-image: none !important;
+  }
+
+  .boring-theme .backdrop-blur-xl,
+  .boring-theme .backdrop-blur-lg,
+  .boring-theme .backdrop-blur-md,
+  .boring-theme .backdrop-blur-sm,
+  .boring-theme .backdrop-blur,
+  .boring-theme [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
   }
 
   .boring-theme [class*="bg-gradient"] {
-    background: rgba(30, 41, 59, 0.8) !important;
+    background: #2d3748 !important;
+    background-image: none !important;
   }
 
-  /* Hide personal info */
+  /* Remove all glassmorphic effects */
+  .boring-theme .glass,
+  .boring-theme .glass-dark,
+  .boring-theme .conversation-flow {
+    background: #2d3748 !important;
+    backdrop-filter: none !important;
+    border: 1px solid #4a5568 !important;
+  }
+
+  /* Simplify card backgrounds to grayscale */
+  .boring-theme [class*="bg-slate-900"],
+  .boring-theme [class*="bg-slate-800"],
+  .boring-theme [class*="bg-slate-700"] {
+    background: #2d3748 !important;
+  }
+
+  .boring-theme [class*="bg-slate-600"] {
+    background: #4a5568 !important;
+  }
+
+  .boring-theme [class*="bg-slate-500"] {
+    background: #718096 !important;
+  }
+
+  /* Remove fancy border effects */
+  .boring-theme [class*="border-slate-700"],
+  .boring-theme [class*="border-slate-600"],
+  .boring-theme [class*="border-blue-"],
+  .boring-theme [class*="border-emerald-"],
+  .boring-theme [class*="border-purple-"],
+  .boring-theme [class*="border-amber-"] {
+    border-color: #4a5568 !important;
+  }
+
+  /* Make all text grayscale */
+  .boring-theme .bg-clip-text,
+  .boring-theme [class*="bg-gradient-to-r"],
+  .boring-theme [class*="text-blue-"],
+  .boring-theme [class*="text-emerald-"],
+  .boring-theme [class*="text-purple-"],
+  .boring-theme [class*="text-amber-"],
+  .boring-theme [class*="text-cyan-"],
+  .boring-theme [class*="text-green-"],
+  .boring-theme [class*="text-red-"],
+  .boring-theme [class*="text-yellow-"] {
+    background: none !important;
+    color: #e2e8f0 !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+  }
+
+  /* Make headings and important text white */
+  .boring-theme h1,
+  .boring-theme h2,
+  .boring-theme h3,
+  .boring-theme [class*="text-white"] {
+    color: #f7fafc !important;
+  }
+
+  /* Make secondary text gray */
+  .boring-theme [class*="text-slate-400"],
+  .boring-theme [class*="text-slate-500"],
+  .boring-theme [class*="text-gray-"] {
+    color: #a0aec0 !important;
+  }
+
+  /* Remove glow effects */
+  .boring-theme [class*="shadow-"],
+  .boring-theme [class*="drop-shadow"] {
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  /* Simplify hover effects */
+  .boring-theme *:hover {
+    transform: none !important;
+    scale: none !important;
+  }
+
+  /* Remove blob animations */
+  .boring-theme .animate-blob {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  /* Simplify button styles to black and white */
+  .boring-theme button {
+    background: #4a5568 !important;
+    border: 1px solid #718096 !important;
+    color: #f7fafc !important;
+  }
+
+  .boring-theme button:hover {
+    background: #718096 !important;
+  }
+
+  .boring-theme button:disabled {
+    background: #2d3748 !important;
+    color: #a0aec0 !important;
+    border-color: #4a5568 !important;
+  }
+
+  /* Make primary buttons distinguishable but still monochrome */
+  .boring-theme button[class*="bg-gradient"],
+  .boring-theme button[class*="bg-blue-"],
+  .boring-theme button[class*="bg-emerald-"] {
+    background: #1a202c !important;
+    border: 2px solid #f7fafc !important;
+    color: #f7fafc !important;
+  }
+
+  .boring-theme button[class*="bg-gradient"]:hover,
+  .boring-theme button[class*="bg-blue-"]:hover,
+  .boring-theme button[class*="bg-emerald-"]:hover {
+    background: #2d3748 !important;
+  }
+
+  /* Simplify cards to black and white */
+  .boring-theme [class*="Card"],
+  .boring-theme [data-radix-collection-item] {
+    background: #2d3748 !important;
+    border: 1px solid #4a5568 !important;
+    border-radius: 0.5rem !important;
+  }
+
+  /* Remove fancy scrollbars */
+  .boring-theme .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #4a5568 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Simplify code blocks */
+  .boring-theme .glassmorphic-code-block,
+  .boring-theme pre,
+  .boring-theme code {
+    background: #1a202c !important;
+    border: 1px solid #4a5568 !important;
+    color: #e2e8f0 !important;
+  }
+
+  /* Remove transform effects */
+  .boring-theme [class*="transform"],
+  .boring-theme [class*="rotate"],
+  .boring-theme [class*="scale"] {
+    transform: none !important;
+  }
+
+  /* Make all icons grayscale */
+  .boring-theme svg {
+    color: #a0aec0 !important;
+  }
+
+  /* Make input fields black and white */
+  .boring-theme input,
+  .boring-theme textarea,
+  .boring-theme select {
+    background: #2d3748 !important;
+    border: 1px solid #4a5568 !important;
+    color: #f7fafc !important;
+  }
+
+  .boring-theme input:focus,
+  .boring-theme textarea:focus,
+  .boring-theme select:focus {
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 0 0 1px #e2e8f0 !important;
+  }
+
+  /* Make switches/toggles black and white */
+  .boring-theme [role="switch"],
+  .boring-theme [data-state="checked"] {
+    background: #1a202c !important;
+  }
+
+  .boring-theme [data-state="unchecked"] {
+    background: #4a5568 !important;
+  }
+
+  /* Remove motion effects */
+  .boring-theme [class*="motion-"] {
+    animation: none !important;
+  }
+
+  /* Make badges and labels black and white */
+  .boring-theme [class*="Badge"],
+  .boring-theme [class*="badge"] {
+    background: #4a5568 !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #718096 !important;
+  }
+
+  /* Ensure toasts are also black and white */
+  .boring-theme [data-sonner-toast] {
+    background: #2d3748 !important;
+    border: 1px solid #4a5568 !important;
+    color: #e2e8f0 !important;
+  }
+
+  /* Make sure all interactive elements are still distinguishable */
+  .boring-theme [role="button"]:hover,
+  .boring-theme button:hover,
+  .boring-theme [class*="hover:"]:hover {
+    background: #4a5568 !important;
+  }
+
+  /* Disable transitions globally */
+  .boring-theme,
+  .boring-theme *,
+  .boring-theme *::before,
+  .boring-theme *::after {
+    transition-property: none !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    filter: inherit !important;
+  }
+
+  /* Hide personal info when enabled */
   .hide-personal-info [data-personal-info] {
     filter: blur(4px);
     pointer-events: none;

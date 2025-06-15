@@ -33,6 +33,12 @@ export interface StreamingOptions {
   maxTokens?: number;
   userId?: string;
   conversationId?: string;
+  personalization?: {
+    displayName?: string;
+    description?: string;
+    traits?: string[];
+    additionalInfo?: string;
+  };
 }
 
 // Enhanced file support capabilities

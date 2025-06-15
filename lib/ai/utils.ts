@@ -60,6 +60,81 @@ export function generateSystemPrompt(model: AIModel): SystemPromptTemplate {
   };
 }
 
+// Enhanced system prompt generation with user personalization
+export function generatePersonalizedSystemPrompt(
+  model: AIModel,
+  personalization?: {
+    displayName?: string;
+    description?: string;
+    traits?: string[];
+    additionalInfo?: string;
+  }
+): SystemPromptTemplate {
+  // Start with base personality prompt
+  const basePrompts = {
+    analytical: `You are ${model.name}, an analytical genius AI assistant with a logical, precise, and methodical thinking approach. You excel at technical discussions, problem-solving, and providing thorough, well-structured responses. Your personality is focused and geometric in nature.`,
+
+    balanced: `You are ${model.name}, a balanced and efficient AI assistant. You provide helpful, clear, and concise responses while maintaining a friendly and approachable tone. You're versatile and adaptable to various conversation topics.`,
+
+    "versatile-powerhouse": `You are ${model.name}, a versatile powerhouse AI assistant. You combine deep reasoning capabilities with practical wisdom. You're reliable, thorough, and excel at handling complex, multi-faceted problems. Your responses are comprehensive yet accessible.`,
+
+    "lightning-fast": `You are ${model.name}, a lightning-fast AI assistant optimized for quick, efficient responses. You provide concise, accurate answers while maintaining high quality. You excel at rapid problem-solving and getting straight to the point.`,
+
+    "efficient-genius": `You are ${model.name}, an efficient genius AI assistant. You deliver smart, compact responses that maximize insight per word. You're excellent at distilling complex concepts into clear, actionable insights.`,
+
+    "creative-virtuoso": `You are ${model.name}, a creative virtuoso AI assistant. You're sophisticated, thoughtful, and nuanced in your approach. You excel at creative tasks, artistic discussions, and bringing unique perspectives to conversations.`,
+
+    "futuristic-innovator": `You are ${model.name}, a futuristic innovator AI assistant. You're cutting-edge, adaptive, and lightning-fast. You excel at exploring new ideas, technological discussions, and pushing the boundaries of what's possible.`,
+  };
+
+  let prompt =
+    basePrompts[model.personality as keyof typeof basePrompts] ||
+    basePrompts.balanced;
+
+  // Add personalization if provided
+  if (personalization) {
+    const hasPersonalization =
+      personalization.displayName ||
+      personalization.description ||
+      (personalization.traits && personalization.traits.length > 0) ||
+      personalization.additionalInfo;
+
+    if (hasPersonalization) {
+      prompt += "\n\n## User Context & Personalization";
+
+      // Add display name
+      if (personalization.displayName) {
+        prompt += `\nUser's preferred name: ${personalization.displayName}`;
+      }
+
+      // Add user description/role
+      if (personalization.description) {
+        prompt += `\nUser's role/background: ${personalization.description}`;
+      }
+
+      // Add AI traits requested by user
+      if (personalization.traits && personalization.traits.length > 0) {
+        prompt += `\nAdditional traits to embody: ${personalization.traits.join(
+          ", "
+        )}`;
+      }
+
+      // Add additional context
+      if (personalization.additionalInfo) {
+        prompt += `\nAdditional context about the user:\n${personalization.additionalInfo}`;
+      }
+
+      prompt +=
+        "\n\nUse this information to personalize your responses appropriately. Address the user by their preferred name when natural, consider their background and role when providing advice, embody the requested traits in your communication style, and use the additional context to make your responses more relevant and helpful.";
+    }
+  }
+
+  return {
+    role: "system",
+    content: prompt,
+  };
+}
+
 // Detect provider from model ID (now dynamic!)
 export function getProviderFromModelId(modelId: ModelId): string {
   // OpenAI models
@@ -130,9 +205,17 @@ export function formatStreamingChunk(
 // Prepare messages with system prompt
 export function prepareMessagesWithSystemPrompt(
   messages: ChatMessage[],
-  model: AIModel
+  model: AIModel,
+  personalization?: {
+    displayName?: string;
+    description?: string;
+    traits?: string[];
+    additionalInfo?: string;
+  }
 ): ChatMessage[] {
-  const systemPrompt = generateSystemPrompt(model);
+  const systemPrompt = personalization
+    ? generatePersonalizedSystemPrompt(model, personalization)
+    : generateSystemPrompt(model);
 
   // Check if first message is already a system message
   if (messages.length > 0 && messages[0].role === "system") {

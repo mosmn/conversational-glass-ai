@@ -139,7 +139,16 @@ export const claudeModels: Record<ClaudeModelId, AIModel> = {
 };
 
 // Convert messages to Claude format
-function formatMessagesForClaude(messages: ChatMessage[]): {
+function formatMessagesForClaude(
+  messages: ChatMessage[],
+  model: AIModel,
+  personalization?: {
+    displayName?: string;
+    description?: string;
+    traits?: string[];
+    additionalInfo?: string;
+  }
+): {
   messages: any[];
   system: string;
 } {
@@ -192,6 +201,16 @@ function formatMessagesForClaude(messages: ChatMessage[]): {
     }
   }
 
+  // Generate personalized system prompt if personalization is provided
+  if (personalization && !systemMessage) {
+    const { generatePersonalizedSystemPrompt } = require("../utils");
+    const personalizedPrompt = generatePersonalizedSystemPrompt(
+      model,
+      personalization
+    );
+    systemMessage = personalizedPrompt.content;
+  }
+
   return { messages: claudeMessages, system: systemMessage };
 }
 
@@ -223,8 +242,11 @@ async function* createClaudeStreamingCompletion(
     );
   }
 
-  const { messages: claudeMessages, system } =
-    formatMessagesForClaude(messages);
+  const { messages: claudeMessages, system } = formatMessagesForClaude(
+    messages,
+    model,
+    options.personalization
+  );
 
   const requestBody = {
     model: modelId,

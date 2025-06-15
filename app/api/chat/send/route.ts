@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user in database
+    // Find user in database and get personalization data
     const [user] = await db
       .select()
       .from(users)
@@ -118,6 +118,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    // Extract personalization data from user preferences
+    const personalization = user.preferences?.personalization || {};
 
     // Verify conversation ownership
     const [conversation] = await db
@@ -371,6 +374,7 @@ export async function POST(request: NextRequest) {
             {
               userId: user.id, // Pass database user ID for BYOK lookup
               conversationId,
+              personalization, // Pass user personalization data
             }
           );
 

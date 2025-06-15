@@ -25,92 +25,42 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface VisualSettings {
-  boringTheme: boolean;
-  hidePersonalInfo: boolean;
-  disableThematicBreaks: boolean;
-  statsForNerds: boolean;
-}
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 
 export function VisualCustomizationSection() {
   const { toast } = useToast();
-  const [visualSettings, setVisualSettings] = useState<VisualSettings>({
-    boringTheme: false,
-    hidePersonalInfo: false,
-    disableThematicBreaks: false,
-    statsForNerds: false,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const { preferences, updatePreferences, isLoading } = useUserPreferences();
   const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
-  // Load current visual settings
-  useEffect(() => {
-    const fetchVisualSettings = async () => {
-      try {
-        const response = await fetch("/api/user/preferences");
-        const result = await response.json();
+  const visualSettings = preferences.visual;
 
-        if (result.success && result.data.visual) {
-          setVisualSettings(result.data.visual);
-        }
-      } catch (error) {
-        console.error("Error fetching visual settings:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load visual settings",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchVisualSettings();
-  }, [toast]);
-
-  // Track changes
-  useEffect(() => {
-    setHasChanges(true);
-  }, [visualSettings]);
-
-  const handleSave = async () => {
-    setIsSaving(true);
+  const handleToggle = async (
+    key: keyof typeof visualSettings,
+    value: boolean
+  ) => {
     try {
-      const response = await fetch("/api/user/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visual: visualSettings,
-        }),
+      setIsSaving(true);
+      await updatePreferences({
+        visual: {
+          ...visualSettings,
+          [key]: value,
+        },
       });
 
-      const result = await response.json();
-
-      if (result.success) {
-        setHasChanges(false);
-        toast({
-          title: "Saved! ✨",
-          description: "Your visual customization settings have been updated",
-        });
-      } else {
-        throw new Error(result.error || "Failed to save");
-      }
+      toast({
+        title: "Updated! ✨",
+        description: "Your visual setting has been updated",
+      });
     } catch (error) {
-      console.error("Error saving visual settings:", error);
+      console.error("Error updating visual setting:", error);
       toast({
         title: "Error",
-        description: "Failed to save visual settings",
+        description: "Failed to update visual setting",
         variant: "destructive",
       });
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const updateSetting = (key: keyof VisualSettings, value: boolean) => {
-    setVisualSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   if (isLoading) {
@@ -159,28 +109,29 @@ export function VisualCustomizationSection() {
 
   const settingsConfig = [
     {
-      key: "boringTheme" as keyof VisualSettings,
+      key: "boringTheme" as keyof typeof visualSettings,
       icon: Palette,
       title: "Boring Theme",
-      description: "Tone down glassmorphic effects for a more minimal look",
+      description:
+        "Remove all colors, animations, and fancy effects for ultra-minimal UI",
       color: "blue",
     },
     {
-      key: "hidePersonalInfo" as keyof VisualSettings,
+      key: "hidePersonalInfo" as keyof typeof visualSettings,
       icon: visualSettings.hidePersonalInfo ? EyeOff : Eye,
       title: "Hide Personal Information",
       description: "Hide your name and profile details from the interface",
       color: "amber",
     },
     {
-      key: "disableThematicBreaks" as keyof VisualSettings,
+      key: "disableThematicBreaks" as keyof typeof visualSettings,
       icon: Zap,
       title: "Disable Thematic Breaks",
       description: "Remove visual separators and thematic elements",
       color: "emerald",
     },
     {
-      key: "statsForNerds" as keyof VisualSettings,
+      key: "statsForNerds" as keyof typeof visualSettings,
       icon: BarChart3,
       title: "Stats for Nerds",
       description: "Show detailed metrics like tokens/sec, response time, etc.",
@@ -288,7 +239,7 @@ export function VisualCustomizationSection() {
                         <Switch
                           checked={isEnabled}
                           onCheckedChange={(checked) =>
-                            updateSetting(setting.key, checked)
+                            handleToggle(setting.key, checked)
                           }
                           className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-blue-600 data-[state=checked]:to-cyan-600"
                         />
@@ -314,18 +265,27 @@ export function VisualCustomizationSection() {
                   Customization Tips
                 </div>
                 <div className="text-xs text-slate-500 leading-relaxed">
-                  • Boring Theme reduces animations and transparency effects
+                  • Boring Theme makes everything black & white instantly
                   <br />
                   • Stats for Nerds shows technical details in chat messages
-                  <br />• Changes apply immediately across the application
+                  <br />• All changes apply immediately without saving
+                  {visualSettings.boringTheme && (
+                    <>
+                      <br />
+                      <br />
+                      <span className="text-amber-400 font-medium">
+                        ⚫ Boring Theme Active - Black & White Mode Enabled!
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Save Button */}
+          {/* Auto-save status */}
           <motion.div
-            className="flex items-center justify-between pt-6 border-t border-slate-700/50"
+            className="flex items-center justify-center pt-4 border-t border-slate-700/50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.5 }}
@@ -334,35 +294,6 @@ export function VisualCustomizationSection() {
               <Sparkles className="h-3 w-3" />
               <span>Visual changes apply immediately</span>
             </div>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                onClick={handleSave}
-                disabled={!hasChanges || isSaving}
-                className={cn(
-                  "rounded-xl font-semibold transition-all duration-300",
-                  hasChanges
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0 shadow-lg hover:shadow-blue-500/25"
-                    : "bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed"
-                )}
-              >
-                {isSaving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : hasChanges ? (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Saved
-                  </>
-                )}
-              </Button>
-            </motion.div>
           </motion.div>
         </CardContent>
       </Card>

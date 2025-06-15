@@ -472,8 +472,12 @@ export class GroqProvider implements AIProvider {
       throw new AIProviderError(`Model '${modelId}' not found`, this.name);
     }
 
-    // Prepare messages with system prompt
-    const preparedMessages = prepareMessagesWithSystemPrompt(messages, model);
+    // Prepare messages with system prompt and personalization
+    const preparedMessages = prepareMessagesWithSystemPrompt(
+      messages,
+      model,
+      options.personalization
+    );
 
     // Convert messages to Groq format
     const groqMessages = await this.formatMessagesForGroq(

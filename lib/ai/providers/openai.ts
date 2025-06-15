@@ -239,7 +239,11 @@ export class OpenAIProvider implements AIProvider {
     }
 
     // Convert multimodal messages to OpenAI format
-    const openaiMessages = await this.formatMessagesForOpenAI(messages, model);
+    const openaiMessages = await this.formatMessagesForOpenAI(
+      messages,
+      model,
+      options
+    );
 
     // Validate token limits
     const tokenValidation = validateTokenLimits(
@@ -347,7 +351,8 @@ export class OpenAIProvider implements AIProvider {
   // Format messages for OpenAI API with multimodal support
   private async formatMessagesForOpenAI(
     messages: ChatMessage[],
-    model: AIModel
+    model: AIModel,
+    options: StreamingOptions = {}
   ): Promise<any[]> {
     const openaiMessages: any[] = [];
 
@@ -390,8 +395,12 @@ export class OpenAIProvider implements AIProvider {
       }
     }
 
-    // Apply system prompt handling
-    return prepareMessagesWithSystemPrompt(openaiMessages, model);
+    // Apply system prompt handling with personalization
+    return prepareMessagesWithSystemPrompt(
+      openaiMessages,
+      model,
+      options.personalization
+    );
   }
 
   // Test connection to OpenAI
