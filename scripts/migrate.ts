@@ -9,10 +9,13 @@ import { join } from "path";
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
 if (!DATABASE_URL) {
-  console.error(
-    "❌ DATABASE_URL or POSTGRES_URL environment variable is required"
+  console.log(
+    "⚠️  DATABASE_URL or POSTGRES_URL not found - skipping migration"
   );
-  process.exit(1);
+  console.log(
+    "This is normal for local development builds without database setup"
+  );
+  process.exit(0);
 }
 
 async function runMigrations() {
