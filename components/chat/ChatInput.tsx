@@ -125,7 +125,7 @@ export function ChatInput({
             value={inputValue}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyPress={onKeyPress}
-            placeholder="💬 Type your message... (⌘ + Enter to send)"
+            placeholder="Type your message... (⌘ + Enter to send)"
             className="relative min-h-[50px] sm:min-h-[70px] max-h-[150px] sm:max-h-[200px] bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 pr-20 sm:pr-28 resize-none focus:text-white rounded-xl sm:rounded-2xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10 text-sm sm:text-base leading-relaxed p-3 sm:p-5"
             rows={1}
           />

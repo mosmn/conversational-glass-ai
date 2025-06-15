@@ -6,6 +6,7 @@ import { conversations } from "@/lib/db/schema";
 import { ConversationQueries } from "@/lib/db/queries";
 import { getCurrentDbUser } from "@/lib/db/clerk-utils";
 import { generateShareId, validateShareId } from "@/lib/db/utils";
+import { generateShareUrl } from "@/lib/utils/url";
 
 // Request validation schema for sharing settings
 const shareSettingsSchema = z.object({
@@ -89,9 +90,7 @@ export async function POST(
         enabled: updatedConversation.isShared,
         shareId: updatedConversation.shareId,
         shareUrl: updatedConversation.shareId
-          ? `${
-              process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-            }/shared/${updatedConversation.shareId}`
+          ? generateShareUrl(updatedConversation.shareId)
           : null,
       },
     });
@@ -156,9 +155,7 @@ export async function GET(
         enabled: sharingStatus.isShared,
         shareId: sharingStatus.shareId,
         shareUrl: sharingStatus.shareId
-          ? `${
-              process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-            }/shared/${sharingStatus.shareId}`
+          ? generateShareUrl(sharingStatus.shareId)
           : null,
       },
     });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ConversationQueries } from "@/lib/db/queries";
 import { getCurrentDbUser } from "@/lib/db/clerk-utils";
+import { getBaseUrl } from "@/lib/utils/url";
 
 // Request validation schema
 const exportRequestSchema = z.object({
@@ -198,7 +199,7 @@ function generateMarkdownExport(
     if (conversation.isShared) {
       lines.push(`**Share ID:** ${conversation.shareId}`);
       lines.push(
-        `**Share URL:** ${process.env.NEXT_PUBLIC_APP_URL}/shared/${conversation.shareId}`
+        `**Share URL:** ${getBaseUrl()}/shared/${conversation.shareId}`
       );
     }
   }

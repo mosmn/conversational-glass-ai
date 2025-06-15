@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicConversationView } from "@/components/chat/PublicConversationView";
 import { validateShareId } from "@/lib/db/utils";
+import { getBaseUrl } from "@/lib/utils/url";
 
 interface PageProps {
   params: Promise<{ shareId: string }>;
@@ -10,15 +11,10 @@ interface PageProps {
 // Fetch conversation data on the server for SEO and meta tags
 async function getSharedConversation(shareId: string) {
   try {
-    const response = await fetch(
-      `${
-        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-      }/api/shared/${shareId}`,
-      {
-        // No authentication required for public endpoint
-        cache: "no-store", // Always fetch fresh data for shared conversations
-      }
-    );
+    const response = await fetch(`${getBaseUrl()}/api/shared/${shareId}`, {
+      // No authentication required for public endpoint
+      cache: "no-store", // Always fetch fresh data for shared conversations
+    });
 
     if (!response.ok) {
       return null;
@@ -71,7 +67,7 @@ export async function generateMetadata(props: {
       title,
       description,
       type: "article",
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/shared/${shareId}`,
+      url: `${getBaseUrl()}/shared/${shareId}`,
       siteName: "Conversational Glass AI",
       images: [
         {
