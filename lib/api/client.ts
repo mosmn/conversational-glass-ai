@@ -1,6 +1,8 @@
 // API Client for Conversational Glass AI
 // Handles all backend communication with proper error handling and TypeScript types
 
+import { loggers } from "@/lib/utils/logger";
+
 export interface APIError {
   error: string;
   details?: {
@@ -511,11 +513,12 @@ class APIClient {
     const url = `${this.baseURL}/api/chat/send`;
 
     // CRITICAL DEBUG: Log the model being sent to API
-    console.log("🌐 APIClient.sendMessageStream - Request details:");
-    console.log("  🤖 Model in request:", data.model);
-    console.log("  💬 Conversation ID:", data.conversationId);
-    console.log("  📝 Content length:", data.content.length);
-    console.log("  📎 Attachments:", data.attachments?.length || 0);
+    loggers.apiRequest("POST", "/chat/send", undefined);
+    loggers.aiRequest(
+      data.model.split("/")[0] || "unknown",
+      data.model,
+      undefined
+    );
 
     const response = await fetch(url, {
       method: "POST",
@@ -569,7 +572,13 @@ class APIClient {
                 return;
               }
             } catch (error) {
-              console.error("Failed to parse chunk:", error);
+              loggers.apiError(
+                "POST",
+                "/chat/send",
+                `Failed to parse chunk: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              );
               // Continue processing other chunks
             }
           }

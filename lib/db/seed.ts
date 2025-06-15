@@ -5,9 +5,10 @@ import {
   messages,
   conversationArtifacts,
 } from "./schema";
+import { dbLogger, loggers } from "@/lib/utils/logger";
 
 async function seed() {
-  console.log("🌱 Starting database seed...");
+  dbLogger.info("🌱 Starting database seed...");
 
   try {
     // Sample user data (this would typically be created via Clerk webhook)

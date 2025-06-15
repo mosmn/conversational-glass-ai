@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { z } from "zod";
 import crypto from "crypto";
+import { storageLogger } from "@/lib/utils/logger";
 
 // Environment validation for IBM COS
 const ibmCosEnvSchema = z.object({
@@ -53,18 +54,22 @@ try {
   isIBMCosConfigured = useHMACAuth || useAPIKeyAuth;
 
   if (isIBMCosConfigured) {
-    console.log(
+    storageLogger.info(
       `IBM COS configuration detected (using ${
         useHMACAuth ? "HMAC" : "API Key"
       } auth) - will attempt cloud storage with local fallback`
     );
   } else {
-    console.log("IBM COS configuration incomplete - using local storage only");
+    storageLogger.info(
+      "IBM COS configuration incomplete - using local storage only"
+    );
   }
 } catch (error) {
-  console.warn(
-    "IBM COS configuration error, using local storage fallback:",
-    error
+  storageLogger.warn(
+    "IBM COS configuration error, using local storage fallback",
+    {
+      error: error instanceof Error ? error.message : String(error),
+    }
   );
 }
 
@@ -85,7 +90,7 @@ if (isIBMCosConfigured && ibmCosEnv) {
           base: 300,
         },
       });
-      console.log(
+      storageLogger.info(
         "IBM COS client initialized successfully with HMAC authentication"
       );
     } else {
@@ -100,12 +105,14 @@ if (isIBMCosConfigured && ibmCosEnv) {
           base: 300,
         },
       });
-      console.log(
+      storageLogger.info(
         "IBM COS client initialized successfully with API Key authentication"
       );
     }
   } catch (error) {
-    console.error("Failed to initialize IBM COS client:", error);
+    storageLogger.error("Failed to initialize IBM COS client", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     cosClient = null;
     isIBMCosConfigured = false;
   }

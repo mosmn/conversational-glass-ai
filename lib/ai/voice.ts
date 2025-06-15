@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import { voiceLogger, loggers } from "@/lib/utils/logger";
 
 // Voice recording and transcription utilities
 export interface VoiceRecordingState {
@@ -112,7 +113,9 @@ export class VoiceRecorder {
       // Start animation loop
       this.startVolumeAnalysis();
     } catch (error) {
-      console.warn("Audio analysis setup failed:", error);
+      voiceLogger.warn("Audio analysis setup failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -276,7 +279,9 @@ export async function transcribeAudio(
       confidence: 1.0, // Groq doesn't provide confidence scores
     };
   } catch (error) {
-    console.error("Transcription error:", error);
+    voiceLogger.error("Transcription error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     let errorMessage = "Failed to transcribe audio";
 
@@ -527,7 +532,9 @@ export async function textToSpeech(
       model: modelUsed,
     };
   } catch (error) {
-    console.error("Text-to-speech error:", error);
+    voiceLogger.error("Text-to-speech error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     const errorMessage =
       error instanceof Error ? error.message : "Failed to generate speech";

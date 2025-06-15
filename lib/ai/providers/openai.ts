@@ -19,6 +19,7 @@ import {
   prepareMessagesWithSystemPrompt,
   createErrorResponse,
 } from "../utils";
+import { aiLogger, loggers } from "@/lib/utils/logger";
 import { BYOKManager } from "./byok-manager";
 import {
   TEXT_ONLY_FILE_SUPPORT,
@@ -293,7 +294,11 @@ export class OpenAIProvider implements AIProvider {
         }
       }
     } catch (error) {
-      console.error("OpenAI streaming error:", error);
+      loggers.aiError(
+        "openai",
+        modelId,
+        error instanceof Error ? error : String(error)
+      );
 
       const errorMessage = this.handleError(error);
       yield {
@@ -410,7 +415,11 @@ export class OpenAIProvider implements AIProvider {
       });
       return true;
     } catch (error) {
-      console.error("OpenAI connection test failed:", error);
+      loggers.aiError(
+        "openai",
+        "connection-test",
+        error instanceof Error ? error : String(error)
+      );
       return false;
     }
   }

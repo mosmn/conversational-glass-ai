@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserQueries } from "./queries";
 import type { User } from "./schema";
+import { authLogger, loggers } from "@/lib/utils/logger";
 
 /**
  * Get or create user in our database from Clerk session
@@ -29,7 +30,9 @@ export async function getCurrentDbUser(): Promise<User | null> {
 
     return dbUser;
   } catch (error) {
-    console.error("Error getting current database user:", error);
+    authLogger.error("Error getting current database user", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -63,11 +66,11 @@ export async function handleClerkWebhook(eventType: string, data: any) {
     case "user.deleted":
       // In most cases, you might want to soft delete or anonymize instead of hard delete
       // For now, we'll just log it
-      console.log(`User ${data.id} was deleted from Clerk`);
+      authLogger.info("User deleted from Clerk", { userId: data.id });
       break;
 
     default:
-      console.log(`Unhandled webhook event: ${eventType}`);
+      authLogger.warn("Unhandled webhook event", { eventType });
   }
 }
 
@@ -79,7 +82,9 @@ export async function getClerkUserId(): Promise<string | null> {
     const { userId } = await auth();
     return userId;
   } catch (error) {
-    console.error("Error getting Clerk user ID:", error);
+    authLogger.error("Error getting Clerk user ID", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
