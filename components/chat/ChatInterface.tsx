@@ -800,7 +800,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+      <div
+        className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"
+        style={{
+          height: "100vh",
+          minHeight: "100vh",
+          maxHeight: "100vh",
+        }}
+      >
         {/* Mobile Sidebar Overlay - only show when sidebar is open on mobile */}
         {!chatState.sidebarCollapsed && (
           <div
@@ -843,32 +850,36 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
-          {/* Header */}
-          <ChatHeader
-            conversationTitle={
-              conversation?.title ||
-              (messages.length > 0 ? "🔥 Chat Session" : "✨ New Conversation")
-            }
-            conversationModel={conversation?.model}
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-            lastSyncTime={lastSyncTime || undefined}
-            onShareClick={() => chatState.setShowShareModal(true)}
-            hasConversation={!!conversation || messages.length > 0}
-            onToggleSidebar={() =>
-              chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-            }
-            onNewChat={handleCreateNewChat}
-            sidebarCollapsed={chatState.sidebarCollapsed}
-          />
+          {/* Header - Fixed on mobile */}
+          <div className="sticky top-0 lg:relative lg:top-auto z-30 bg-slate-900/95 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none">
+            <ChatHeader
+              conversationTitle={
+                conversation?.title ||
+                (messages.length > 0
+                  ? "🔥 Chat Session"
+                  : "✨ New Conversation")
+              }
+              conversationModel={conversation?.model}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+              lastSyncTime={lastSyncTime || undefined}
+              onShareClick={() => chatState.setShowShareModal(true)}
+              hasConversation={!!conversation || messages.length > 0}
+              onToggleSidebar={() =>
+                chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+              }
+              onNewChat={handleCreateNewChat}
+              sidebarCollapsed={chatState.sidebarCollapsed}
+            />
+          </div>
 
-          {/* Messages Area */}
+          {/* Messages Area - Takes remaining space between fixed header and input */}
           <div className="flex-1 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800/10 to-transparent" />
             <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
 
             <ScrollArea
-              className="h-full px-3 sm:px-6 py-4 sm:py-8 relative z-10"
+              className="h-full px-3 sm:px-6 py-4 sm:py-8 pb-6 lg:pb-8 relative z-10"
               ref={scrollAreaRef}
             >
               {messagesLoading ? (
@@ -943,9 +954,9 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             </ScrollArea>
           </div>
 
-          {/* Scroll to Bottom Button */}
+          {/* Scroll to Bottom Button - Position adjusted for mobile */}
           {!isAtBottom && messages.length > 0 && (
-            <div className="absolute bottom-20 sm:bottom-24 right-3 sm:right-6 z-20">
+            <div className="absolute bottom-32 sm:bottom-36 lg:bottom-20 right-3 sm:right-6 z-20">
               <Button
                 variant="outline"
                 size="sm"
@@ -959,49 +970,51 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             </div>
           )}
 
-          {/* Input Area */}
-          <ChatInput
-            inputValue={chatState.inputValue}
-            onInputChange={chatState.setInputValue}
-            onSendMessage={() =>
-              handleSendMessageWithCreation(
-                chatState.inputValue,
-                chatState.attachments,
-                chatState.searchEnabled,
-                chatState.setIsSearching,
-                chatState.resetInput
-              )
-            }
-            onKeyPress={handleKeyPress}
-            attachments={chatState.attachments}
-            onAttachmentsChange={chatState.setAttachments}
-            showAttachments={chatState.showAttachments}
-            onToggleAttachments={() =>
-              chatState.setShowAttachments(!chatState.showAttachments)
-            }
-            searchEnabled={chatState.searchEnabled}
-            onToggleSearch={() =>
-              chatState.setSearchEnabled(!chatState.searchEnabled)
-            }
-            isSearching={chatState.isSearching}
-            isStreaming={isStreaming}
-            onPauseStream={() => {
-              if (optimisticChatId) {
-                messageHandling.handlePauseStream(
-                  isStreaming,
-                  canPauseStream,
-                  chatState.isSearching,
-                  pauseStream,
+          {/* Input Area - Fixed on mobile */}
+          <div className="sticky bottom-0 lg:relative lg:bottom-auto z-30 bg-slate-900/95 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none">
+            <ChatInput
+              inputValue={chatState.inputValue}
+              onInputChange={chatState.setInputValue}
+              onSendMessage={() =>
+                handleSendMessageWithCreation(
+                  chatState.inputValue,
+                  chatState.attachments,
+                  chatState.searchEnabled,
                   chatState.setIsSearching,
-                  triggerDetection
-                );
+                  chatState.resetInput
+                )
               }
-            }}
-            conversationId={optimisticChatId || ""}
-            selectedModel={selectedModel}
-            textareaRef={chatState.textareaRef}
-            modelName={models.find((m) => m.id === selectedModel)?.name}
-          />
+              onKeyPress={handleKeyPress}
+              attachments={chatState.attachments}
+              onAttachmentsChange={chatState.setAttachments}
+              showAttachments={chatState.showAttachments}
+              onToggleAttachments={() =>
+                chatState.setShowAttachments(!chatState.showAttachments)
+              }
+              searchEnabled={chatState.searchEnabled}
+              onToggleSearch={() =>
+                chatState.setSearchEnabled(!chatState.searchEnabled)
+              }
+              isSearching={chatState.isSearching}
+              isStreaming={isStreaming}
+              onPauseStream={() => {
+                if (optimisticChatId) {
+                  messageHandling.handlePauseStream(
+                    isStreaming,
+                    canPauseStream,
+                    chatState.isSearching,
+                    pauseStream,
+                    chatState.setIsSearching,
+                    triggerDetection
+                  );
+                }
+              }}
+              conversationId={optimisticChatId || ""}
+              selectedModel={selectedModel}
+              textareaRef={chatState.textareaRef}
+              modelName={models.find((m) => m.id === selectedModel)?.name}
+            />
+          </div>
         </div>
       </div>
 
