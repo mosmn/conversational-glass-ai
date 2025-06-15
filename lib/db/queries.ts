@@ -962,8 +962,24 @@ export class MessageQueries {
       .orderBy(messages.branchDepth, messages.branchOrder, messages.createdAt);
 
     // Build tree structure
-    const messageMap = new Map();
-    const rootMessages: any[] = [];
+    interface MessageTreeNode {
+      id: string;
+      role: "user" | "assistant" | "system";
+      content: string;
+      model?: string;
+      parentId?: string | null;
+      branchName?: string;
+      branchDepth?: number;
+      branchOrder?: number;
+      createdAt: Date;
+      updatedAt: Date;
+      children: MessageTreeNode[];
+      messageCount: number;
+      metadata?: Record<string, unknown>;
+    }
+
+    const messageMap = new Map<string, MessageTreeNode>();
+    const rootMessages: MessageTreeNode[] = [];
 
     // First pass: create nodes
     allMessages.forEach((msg) => {
@@ -979,17 +995,23 @@ export class MessageQueries {
       if (msg.parentId) {
         const parent = messageMap.get(msg.parentId);
         if (parent) {
-          parent.children.push(messageMap.get(msg.id));
+          const child = messageMap.get(msg.id);
+          if (child) {
+            parent.children.push(child);
+          }
         }
       } else {
-        rootMessages.push(messageMap.get(msg.id));
+        const node = messageMap.get(msg.id);
+        if (node) {
+          rootMessages.push(node);
+        }
       }
     });
 
     // Third pass: calculate message counts
-    const calculateMessageCount = (node: any): number => {
+    const calculateMessageCount = (node: MessageTreeNode): number => {
       let count = 1; // Count self
-      node.children.forEach((child: any) => {
+      node.children.forEach((child: MessageTreeNode) => {
         count += calculateMessageCount(child);
       });
       node.messageCount = count;

@@ -182,20 +182,25 @@ async function uploadToIBMCos(
       result.Location ||
       `${ibmCosEnv.IBM_COS_ENDPOINT}/${ibmCosEnv.IBM_COS_BUCKET_NAME}/${filePath}`
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("IBM COS upload error:", error);
 
     // Provide more specific error messages for common issues
     let errorMessage = "Failed to upload file to IBM Cloud Object Storage";
 
-    if (error.code === "AccessDenied") {
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
+
+    if (errorCode === "AccessDenied") {
       errorMessage =
         "IBM COS Access Denied - check API key permissions and bucket access";
-    } else if (error.code === "NoSuchBucket") {
+    } else if (errorCode === "NoSuchBucket") {
       errorMessage = "IBM COS bucket not found - verify bucket name and region";
-    } else if (error.code === "InvalidAccessKeyId") {
+    } else if (errorCode === "InvalidAccessKeyId") {
       errorMessage = "IBM COS invalid API key - check your credentials";
-    } else if (error.code === "SignatureDoesNotMatch") {
+    } else if (errorCode === "SignatureDoesNotMatch") {
       errorMessage =
         "IBM COS authentication failed - verify API key and endpoint";
     }

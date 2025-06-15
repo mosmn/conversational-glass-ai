@@ -26,7 +26,18 @@ export class FileProcessor {
       type: string;
       url: string;
       extractedText?: string;
-      metadata?: any;
+      metadata?: {
+        width?: number;
+        height?: number;
+        pages?: number;
+        wordCount?: number;
+        duration?: number;
+        hasImages?: boolean;
+        author?: string;
+        language?: string;
+        category?: string;
+        readingTime?: number;
+      };
       category?: string;
     }>,
     model: AIModel,
@@ -84,7 +95,18 @@ export class FileProcessor {
       type: string;
       url: string;
       extractedText?: string;
-      metadata?: any;
+      metadata?: {
+        width?: number;
+        height?: number;
+        pages?: number;
+        wordCount?: number;
+        duration?: number;
+        hasImages?: boolean;
+        author?: string;
+        language?: string;
+        category?: string;
+        readingTime?: number;
+      };
       category?: string;
     },
     model: AIModel,
@@ -95,7 +117,9 @@ export class FileProcessor {
       name: file.name,
       size: file.size,
       type: file.type,
-      category: (file.category as any) || categorizeFile(file.type),
+      category:
+        (file.category as "image" | "document" | "text" | "audio" | "video") ||
+        categorizeFile(file.type),
       url: file.url,
       extractedText: file.extractedText,
       metadata: file.metadata,
@@ -292,7 +316,20 @@ export class FileProcessor {
     messageContent: MessageContent[],
     processedFiles: ProcessedFile[],
     model: AIModel
-  ): any {
+  ): Array<{
+    parts: Array<{
+      text?: string;
+      inline_data?: {
+        mime_type: string;
+        data: string;
+      };
+      file_data?: {
+        mime_type: string;
+        file_uri: string;
+      };
+    }>;
+    role?: "user" | "model";
+  }> {
     // Gemini uses a different format - we'll return the parts directly
     const parts: any[] = [];
 
@@ -344,7 +381,18 @@ export class FileProcessor {
       type: string;
       size: number;
       extractedText?: string;
-      metadata?: any;
+      metadata?: {
+        width?: number;
+        height?: number;
+        pages?: number;
+        wordCount?: number;
+        duration?: number;
+        hasImages?: boolean;
+        author?: string;
+        language?: string;
+        category?: string;
+        readingTime?: number;
+      };
     }>
   ): string {
     if (files.length === 0) return content;

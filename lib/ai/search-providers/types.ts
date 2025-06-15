@@ -101,7 +101,14 @@ export class SearchProviderError extends Error {
 // Search result processing and formatting utilities
 export interface SearchResultProcessor {
   formatResults: (
-    rawResults: any[],
+    rawResults: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+      date?: string;
+      score?: number;
+      metadata?: Record<string, unknown>;
+    }>,
     provider: SearchProviderId
   ) => SearchResult[];
   extractSnippet: (content: string, maxLength?: number) => string;

@@ -3,7 +3,14 @@
 
 export interface APIError {
   error: string;
-  details?: any;
+  details?: {
+    code?: string | number;
+    statusCode?: number;
+    timestamp?: Date;
+    requestId?: string;
+    retryAfter?: number;
+    context?: Record<string, unknown>;
+  };
   status: number;
 }
 
@@ -11,7 +18,11 @@ export interface APIResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
-  details?: any;
+  details?: {
+    requestId?: string;
+    timestamp?: Date;
+    metadata?: Record<string, unknown>;
+  };
 }
 
 export interface Conversation {
@@ -169,7 +180,16 @@ export interface ModelsResponse {
     configured: number;
     available: number;
     models: number;
-    providers: Record<string, any>;
+    providers: Record<
+      string,
+      {
+        name: string;
+        configured: boolean;
+        modelCount: number;
+        status: "active" | "inactive" | "error";
+        lastChecked?: Date;
+      }
+    >;
   };
   recommendations: {
     default: Model;
@@ -314,7 +334,22 @@ class APIClient {
     model?: string;
     initialMessage?: {
       content: string;
-      attachments?: any[];
+      attachments?: Array<{
+        id: string;
+        name: string;
+        size: number;
+        type: string;
+        url: string;
+        extractedText?: string;
+        thumbnailUrl?: string;
+        metadata?: {
+          width?: number;
+          height?: number;
+          pages?: number;
+          wordCount?: number;
+          hasImages?: boolean;
+        };
+      }>;
     };
   }): Promise<{
     conversation: Conversation;
@@ -546,11 +581,80 @@ class APIClient {
   }
 
   // User Preferences API (placeholder for future implementation)
-  async getUserPreferences(): Promise<any> {
+  async getUserPreferences(): Promise<{
+    theme: "light" | "dark" | "system";
+    language: string;
+    defaultModel: string;
+    modelSettings: Record<
+      string,
+      {
+        temperature: number;
+        maxTokens: number;
+        enabled: boolean;
+      }
+    >;
+    ui: {
+      showTokenCounts: boolean;
+      showTimestamps: boolean;
+      enableSounds: boolean;
+      compactMode: boolean;
+    };
+    privacy: {
+      shareUsageData: boolean;
+      allowAnalytics: boolean;
+    };
+  }> {
     return this.fetchWithAuth("/user/preferences");
   }
 
-  async updateUserPreferences(preferences: any): Promise<any> {
+  async updateUserPreferences(preferences: {
+    theme?: "light" | "dark" | "system";
+    language?: string;
+    defaultModel?: string;
+    modelSettings?: Record<
+      string,
+      {
+        temperature?: number;
+        maxTokens?: number;
+        enabled?: boolean;
+      }
+    >;
+    ui?: {
+      showTokenCounts?: boolean;
+      showTimestamps?: boolean;
+      enableSounds?: boolean;
+      compactMode?: boolean;
+    };
+    privacy?: {
+      shareUsageData?: boolean;
+      allowAnalytics?: boolean;
+    };
+  }): Promise<{
+    success: boolean;
+    preferences: {
+      theme: "light" | "dark" | "system";
+      language: string;
+      defaultModel: string;
+      modelSettings: Record<
+        string,
+        {
+          temperature: number;
+          maxTokens: number;
+          enabled: boolean;
+        }
+      >;
+      ui: {
+        showTokenCounts: boolean;
+        showTimestamps: boolean;
+        enableSounds: boolean;
+        compactMode: boolean;
+      };
+      privacy: {
+        shareUsageData: boolean;
+        allowAnalytics: boolean;
+      };
+    };
+  }> {
     return this.fetchWithAuth("/user/preferences", {
       method: "PUT",
       body: JSON.stringify(preferences),

@@ -7,7 +7,20 @@ import { streamPersistence } from "./persistence";
 declare global {
   interface Window {
     clearChatStorage: () => void;
-    getChatStorageStats: () => any;
+    getChatStorageStats: () => {
+      totalSize: number;
+      messageCount: number;
+      fileCount: number;
+      oldestEntry: Date;
+      newestEntry: Date;
+      byType: Record<
+        string,
+        {
+          count: number;
+          size: number;
+        }
+      >;
+    };
     forceChatStorageCleanup: () => void;
   }
 }
@@ -40,7 +53,20 @@ function clearChatStorage(): void {
 /**
  * Get storage statistics (accessible via console)
  */
-function getChatStorageStats(): any {
+function getChatStorageStats(): {
+  totalSize: number;
+  messageCount: number;
+  fileCount: number;
+  oldestEntry: Date;
+  newestEntry: Date;
+  byType: Record<
+    string,
+    {
+      count: number;
+      size: number;
+    }
+  >;
+} {
   try {
     const stats = streamPersistence.getStorageStats();
     const formatted = {

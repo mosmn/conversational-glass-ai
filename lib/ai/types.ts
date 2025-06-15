@@ -4,8 +4,18 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string | MessageContent[];
   name?: string;
-  function_call?: any;
-  tool_calls?: any;
+  function_call?: {
+    name: string;
+    arguments: string;
+  };
+  tool_calls?: {
+    id: string;
+    type: "function";
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }[];
 }
 
 export interface StreamingChunk {
@@ -350,8 +360,55 @@ export interface FileProcessingResult {
 
 // Provider-specific message formatting types
 export interface ProviderMessageFormat {
-  openai: any; // OpenAI message format
-  gemini: any; // Gemini content format
-  claude: any; // Claude message format
+  openai: {
+    role: "system" | "user" | "assistant" | "tool";
+    content:
+      | string
+      | Array<{
+          type: "text" | "image_url";
+          text?: string;
+          image_url?: {
+            url: string;
+            detail?: "low" | "high" | "auto";
+          };
+        }>;
+    name?: string;
+    tool_calls?: Array<{
+      id: string;
+      type: "function";
+      function: {
+        name: string;
+        arguments: string;
+      };
+    }>;
+  }[];
+  gemini: Array<{
+    parts: Array<{
+      text?: string;
+      inline_data?: {
+        mime_type: string;
+        data: string;
+      };
+      file_data?: {
+        mime_type: string;
+        file_uri: string;
+      };
+    }>;
+    role?: "user" | "model";
+  }>;
+  claude: Array<{
+    role: "user" | "assistant";
+    content:
+      | string
+      | Array<{
+          type: "text" | "image";
+          text?: string;
+          source?: {
+            type: "base64";
+            media_type: string;
+            data: string;
+          };
+        }>;
+  }>;
   fallback: string; // Text-only fallback
 }
