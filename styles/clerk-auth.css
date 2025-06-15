@@ -14,6 +14,200 @@
   display: none !important;
 }
 
+/* Sign Out Button - AGGRESSIVE OVERRIDE FOR VISIBILITY */
+/* Target every possible Clerk sign out button selector */
+.cl-signOutButton,
+.cl-signOutButton button,
+button[data-testid="sign-out-button"],
+[data-testid="sign-out-button"],
+button[type="button"]:has(svg):has([data-testid]),
+button:has(svg[data-testid="sign-out"]),
+div[role="menuitem"] button,
+[data-clerk-element="signOutButton"],
+.cl-userButton__signOutButton,
+.cl-userButtonPopoverCard button:last-child,
+.cl-dropdownMenuItem button,
+div[data-slot="sign-out"] button,
+button[aria-label*="sign out" i],
+button[aria-label*="log out" i],
+button:has(svg + *):contains("Sign out"),
+button:has(svg + *):contains("Log out") {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  padding: 0.375rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+  color: rgb(248, 113, 113) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0.125rem !important;
+  transition: all 200ms ease-in-out !important;
+  cursor: pointer !important;
+  outline: none !important;
+  text-decoration: none !important;
+}
+
+/* Hover states */
+.cl-signOutButton:hover,
+.cl-signOutButton button:hover,
+button[data-testid="sign-out-button"]:hover,
+[data-testid="sign-out-button"]:hover,
+button[type="button"]:has(svg):has([data-testid]):hover,
+button:has(svg[data-testid="sign-out"]):hover,
+div[role="menuitem"] button:hover,
+[data-clerk-element="signOutButton"]:hover,
+.cl-userButton__signOutButton:hover,
+.cl-userButtonPopoverCard button:last-child:hover,
+.cl-dropdownMenuItem button:hover,
+div[data-slot="sign-out"] button:hover,
+button[aria-label*="sign out" i]:hover,
+button[aria-label*="log out" i]:hover {
+  background: rgba(185, 28, 28, 0.2) !important;
+  background-color: rgba(185, 28, 28, 0.2) !important;
+  color: rgb(252, 165, 165) !important;
+}
+
+/* Focus states */
+.cl-signOutButton:focus,
+.cl-signOutButton button:focus,
+button[data-testid="sign-out-button"]:focus,
+[data-testid="sign-out-button"]:focus,
+button[type="button"]:has(svg):has([data-testid]):focus,
+button:has(svg[data-testid="sign-out"]):focus,
+div[role="menuitem"] button:focus,
+[data-clerk-element="signOutButton"]:focus,
+.cl-userButton__signOutButton:focus,
+.cl-userButtonPopoverCard button:last-child:focus,
+.cl-dropdownMenuItem button:focus,
+div[data-slot="sign-out"] button:focus,
+button[aria-label*="sign out" i]:focus,
+button[aria-label*="log out" i]:focus {
+  background: rgba(185, 28, 28, 0.2) !important;
+  background-color: rgba(185, 28, 28, 0.2) !important;
+  color: rgb(252, 165, 165) !important;
+}
+
+/* SVG icons */
+.cl-signOutButton svg,
+.cl-signOutButton button svg,
+button[data-testid="sign-out-button"] svg,
+[data-testid="sign-out-button"] svg,
+button[type="button"]:has(svg):has([data-testid]) svg,
+button:has(svg[data-testid="sign-out"]) svg,
+div[role="menuitem"] button svg,
+[data-clerk-element="signOutButton"] svg,
+.cl-userButton__signOutButton svg,
+.cl-userButtonPopoverCard button:last-child svg,
+.cl-dropdownMenuItem button svg,
+div[data-slot="sign-out"] button svg,
+button[aria-label*="sign out" i] svg,
+button[aria-label*="log out" i] svg {
+  width: 1rem !important;
+  height: 1rem !important;
+  pointer-events: none !important;
+  flex-shrink: 0 !important;
+  color: rgb(248, 113, 113) !important;
+  fill: rgb(248, 113, 113) !important;
+  stroke: rgb(248, 113, 113) !important;
+}
+
+/* Nuclear option - target ALL nested elements */
+.cl-signOutButton *,
+.cl-signOutButton button *,
+button[data-testid="sign-out-button"] *,
+[data-testid="sign-out-button"] *,
+button[type="button"]:has(svg):has([data-testid]) *,
+div[role="menuitem"] button *,
+[data-clerk-element="signOutButton"] *,
+.cl-userButton__signOutButton *,
+.cl-userButtonPopoverCard button:last-child *,
+.cl-dropdownMenuItem button *,
+div[data-slot="sign-out"] button *,
+button[aria-label*="sign out" i] *,
+button[aria-label*="log out" i] * {
+  color: rgb(248, 113, 113) !important;
+  fill: rgb(248, 113, 113) !important;
+  stroke: rgb(248, 113, 113) !important;
+}
+
+/* Super aggressive universal targeting for any button containing "sign out" text */
+button:contains("Sign out"),
+button:contains("Log out"),
+*:contains("Sign out") button,
+*:contains("Log out") button {
+  color: rgb(248, 113, 113) !important;
+}
+
+/* Target dropdown menu items with sign out */
+[role="menuitem"]:contains("Sign out"),
+[role="menuitem"]:contains("Log out"),
+.cl-dropdownMenuItem:contains("Sign out"),
+.cl-dropdownMenuItem:contains("Log out") {
+  color: rgb(248, 113, 113) !important;
+}
+
+/* Last resort - target any element with sign out related content */
+*[class*="signOut"],
+*[class*="sign-out"],
+*[class*="logout"],
+*[class*="log-out"] {
+  color: rgb(248, 113, 113) !important;
+}
+
+/* TARGET THE ACTUAL BUTTON STRUCTURE FROM THE DOM */
+button[component="SignOutButton"],
+button[role="menuitem"][component="SignOutButton"],
+button[role="menuitem"]:has(svg.lucide-log-out),
+button.relative.flex.cursor-default,
+button[tabindex="-1"][role="menuitem"],
+button[data-orientation="vertical"][role="menuitem"],
+button[data-radix-collection-item][role="menuitem"] {
+  color: rgb(248, 113, 113) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+button[component="SignOutButton"]:hover,
+button[role="menuitem"][component="SignOutButton"]:hover,
+button[role="menuitem"]:has(svg.lucide-log-out):hover,
+button.relative.flex.cursor-default:hover,
+button[tabindex="-1"][role="menuitem"]:hover,
+button[data-orientation="vertical"][role="menuitem"]:hover,
+button[data-radix-collection-item][role="menuitem"]:hover {
+  color: rgb(252, 165, 165) !important;
+  background: rgba(185, 28, 28, 0.2) !important;
+  background-color: rgba(185, 28, 28, 0.2) !important;
+}
+
+/* Target the SVG specifically */
+button[component="SignOutButton"] svg,
+button[role="menuitem"][component="SignOutButton"] svg,
+button[role="menuitem"] svg.lucide-log-out,
+button.relative.flex.cursor-default svg,
+button[tabindex="-1"][role="menuitem"] svg,
+button[data-orientation="vertical"][role="menuitem"] svg,
+button[data-radix-collection-item][role="menuitem"] svg,
+svg.lucide.lucide-log-out {
+  color: rgb(248, 113, 113) !important;
+  stroke: rgb(248, 113, 113) !important;
+  fill: none !important;
+}
+
+button[component="SignOutButton"]:hover svg,
+button[role="menuitem"][component="SignOutButton"]:hover svg,
+button[role="menuitem"]:has(svg.lucide-log-out):hover svg,
+button.relative.flex.cursor-default:hover svg,
+button[tabindex="-1"][role="menuitem"]:hover svg,
+button[data-orientation="vertical"][role="menuitem"]:hover svg,
+button[data-radix-collection-item][role="menuitem"]:hover svg,
+svg.lucide.lucide-log-out:hover {
+  color: rgb(252, 165, 165) !important;
+  stroke: rgb(252, 165, 165) !important;
+}
+
 /* Root container styling - clean centering */
 .cl-rootBox {
   margin: 0 auto !important;
