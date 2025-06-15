@@ -10,9 +10,5 @@
     "env": {
       "NEXT_TELEMETRY_DISABLED": "1"
     }
-  },
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "POSTGRES_URL": "@postgres_url"
   }
 }
