@@ -1,0 +1,18 @@
+{
+  "buildCommand": "npm run build:vercel",
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "installCommand": "npm install --include=optional",
+  "build": {
+    "env": {
+      "NEXT_TELEMETRY_DISABLED": "1"
+    }
+  },
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "POSTGRES_URL": "@postgres_url"
+  }
+}

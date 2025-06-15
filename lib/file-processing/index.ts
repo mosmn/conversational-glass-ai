@@ -1,5 +1,4 @@
 import pdf from "pdf-parse";
-import sharp from "sharp";
 import { fileTypeFromBuffer } from "file-type";
 
 export interface ProcessedFileData {
@@ -44,6 +43,8 @@ export async function generateImageThumbnail(
   originalHeight: number;
 }> {
   try {
+    // Dynamic import to avoid build-time issues
+    const sharp = (await import("sharp")).default;
     const image = sharp(buffer);
     const metadata = await image.metadata();
 
@@ -62,7 +63,25 @@ export async function generateImageThumbnail(
     };
   } catch (error) {
     console.error("Image thumbnail generation error:", error);
-    throw new Error("Failed to generate image thumbnail");
+
+    // If Sharp fails, try to get basic metadata without processing
+    try {
+      const sharp = (await import("sharp")).default;
+      const metadata = await sharp(buffer).metadata();
+      return {
+        thumbnail: buffer, // Return original as fallback
+        originalWidth: metadata.width || 0,
+        originalHeight: metadata.height || 0,
+      };
+    } catch (metadataError) {
+      console.error("Failed to get image metadata:", metadataError);
+      // Final fallback - return original buffer
+      return {
+        thumbnail: buffer,
+        originalWidth: 0,
+        originalHeight: 0,
+      };
+    }
   }
 }
 
