@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChatInterface } from "@/components/chat/ChatInterface";
+import { ChatInterface } from "../../../components/chat/ChatInterface";
 
 interface UnifiedChatPageProps {
   params: Promise<{ id?: string[] }>;

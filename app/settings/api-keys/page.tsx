@@ -2,18 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "../../../components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useToast } from "@/components/ui/use-toast";
+} from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
+import { Skeleton } from "../../../components/ui/skeleton";
+import { Alert, AlertDescription } from "../../../components/ui/alert";
+import { useToast } from "../../../components/ui/use-toast";
 import {
   Key,
   Plus,
@@ -34,8 +34,8 @@ import {
   Cpu,
   ExternalLink,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { AddApiKeyModal } from "@/components/settings/AddApiKeyModal";
+import { cn } from "../../../lib/utils";
+import { AddApiKeyModal } from "../../../components/settings/AddApiKeyModal";
 
 // Types
 interface ApiKey {
