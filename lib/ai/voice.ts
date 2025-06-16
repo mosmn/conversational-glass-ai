@@ -392,9 +392,10 @@ export const ARABIC_VOICES = [
   "Nasser-PlayAI",
 ] as const;
 
-// Estimate token count (rough approximation: 1 token ≈ 4 characters)
+// Conservative estimate: Groq counts roughly one character as one token for TTS.
+// Return raw character length so we do not exceed token quota.
 function estimateTokenCount(text: string): number {
-  return Math.ceil(text.length / 4);
+  return text.length;
 }
 
 // Split text into chunks that fit within token limits
@@ -475,21 +476,21 @@ export async function textToSpeech(
       throw new Error("Text too long. Maximum length is 10,000 characters.");
     }
 
-    // Check if text needs to be chunked for rate limits
+    // Strip hidden reasoning / thinking blocks before any further processing
+    text = stripThinking(text);
+
+    // Check if text needs to be truncated to stay within Groq limits (~3,600 tokens)
+    const MAX_TOKENS_PER_REQUEST = 3400; // leave headroom
     const estimatedTokens = estimateTokenCount(text);
-    const maxTokensPerRequest = 1000; // Conservative limit to avoid rate limits
 
-    if (estimatedTokens > maxTokensPerRequest) {
-      // For now, truncate very long text with a user-friendly message
-      const truncatedText = text.substring(0, maxTokensPerRequest * 4);
+    if (estimatedTokens > MAX_TOKENS_PER_REQUEST) {
+      const truncatedText =
+        text.substring(0, MAX_TOKENS_PER_REQUEST) +
+        "… (text truncated for audio)";
       console.warn(
-        `Text truncated for TTS: ${text.length} -> ${truncatedText.length} characters`
+        `TTS input truncated: ${text.length} -> ${truncatedText.length} chars`
       );
-
-      return textToSpeech(
-        truncatedText + "... (text truncated for audio generation)",
-        options
-      );
+      text = truncatedText;
     }
 
     const startTime = Date.now();
@@ -604,4 +605,12 @@ export async function getAvailableVoices(): Promise<{
 // Check if text-to-speech is supported
 export function isTTSSupported(): boolean {
   return typeof window !== "undefined" && typeof Audio !== "undefined";
+}
+
+export function stripThinking(text: string): string {
+  // Remove fenced ```thinking``` or ```thought``` blocks
+  text = text.replace(/```(?:thinking|thought)[\s\S]*?```/gi, "");
+  // Remove <think>...</think> or <thinking>...</thinking> tags
+  text = text.replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, "");
+  return text.trim();
 }
