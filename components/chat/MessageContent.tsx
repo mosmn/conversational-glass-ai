@@ -11,6 +11,7 @@ import {
 } from "@/lib/content/markdown-processor";
 import type { ProcessedContent } from "@/lib/content/markdown-processor";
 import { cn } from "@/lib/utils";
+import { ThinkingBlock } from "./ThinkingBlock";
 
 interface MessageContentProps {
   content: string;

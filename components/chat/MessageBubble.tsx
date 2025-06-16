@@ -23,6 +23,7 @@ import { InlineImageGeneration } from "./InlineImageGeneration";
 import { SimpleBranchButton } from "./SimpleBranchButton";
 import { ConversationalGlassLogoMini } from "@/components/ConversationalGlassLogo";
 import { QuickTTSButton } from "./TextToSpeechButton";
+import { ThinkingBlock } from "./ThinkingBlock";
 
 interface Message {
   id: string;
@@ -166,10 +167,36 @@ export function MessageBubble({
     }
   };
 
-  // Handle copy message content
+  // Detect and extract optional "thinking" block embedded in assistant messages.
+  // The thinking block is expected to be enclosed in a fenced code block labelled
+  // ```thinking or ```thought. The extracted content will be rendered via the
+  // <ThinkingBlock> component and removed from the main answer.
+  let thinkingContent: string | null = null;
+  let displayContent = message.content;
+
+  if (!isUser && typeof message.content === "string") {
+    // 1) Fenced code block style ```thinking\n ... ```
+    const fencedRegex = /```(?:thinking|thought)[\t ]*[\r\n]+([\s\S]*?)```/i;
+    // 2) XML-style tag <think> ... </think> or <thinking> ... </thinking>
+    const tagRegex = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/i;
+
+    let match = message.content.match(fencedRegex);
+    if (match) {
+      thinkingContent = match[1].trim();
+      displayContent = message.content.replace(match[0], "").trim();
+    } else {
+      match = message.content.match(tagRegex);
+      if (match) {
+        thinkingContent = match[1].trim();
+        displayContent = message.content.replace(match[0], "").trim();
+      }
+    }
+  }
+
+  // Handle copy message content (use displayContent so we don't copy hidden thinking block)
   const handleCopyMessage = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(displayContent);
       toast({
         title: "Copied!",
         description: "Message copied to clipboard",
@@ -375,6 +402,15 @@ export function MessageBubble({
           </Avatar>
 
           <div className={`flex-1 ${isUser ? "text-right" : "text-left"}`}>
+            {/* Thinking block (collapsed by default) */}
+            {thinkingContent && (
+              <ThinkingBlock
+                content={thinkingContent}
+                defaultVisible={isStreaming}
+                className="mb-2"
+              />
+            )}
+
             <div
               className={`inline-block p-4 rounded-2xl ${
                 hasError
@@ -385,198 +421,197 @@ export function MessageBubble({
               }`}
             >
               {hasError ? (
-                <div className="flex items-center text-current">
+                <div className="flex items-center">
                   <span className="mr-2">⚠️</span>
                   {message.error || "Failed to generate response"}
                 </div>
               ) : (
-                <>
-                  <MessageContent
-                    content={message.content}
-                    isStreaming={isStreaming}
-                    isUser={isUser}
-                    showLineNumbers={false}
-                    maxCodeBlockHeight="300px"
-                    allowHtml={!isUser} // Only allow HTML for assistant messages
-                  />
-
-                  {/* Display generated image within the message bubble */}
-                  {hasGeneratedImage && (
-                    <div className="border-t border-white/10 pt-3 mt-3">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-blue-400" />
-                            <span className="text-sm font-medium">
-                              Generated Image
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {message.metadata?.generatedImage?.provider}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-slate-400">
-                            <Clock className="h-3 w-3" />
-                            {message.metadata?.generatedImage?.metadata.generationTime.toFixed(
-                              1
-                            )}
-                            s
-                            <DollarSign className="h-3 w-3 ml-2" />$
-                            {message.metadata?.generatedImage?.metadata.estimatedCost.toFixed(
-                              3
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="relative group/image rounded-lg overflow-hidden">
-                          <img
-                            src={message.metadata?.generatedImage?.url || ""}
-                            alt={
-                              message.metadata?.generatedImage?.prompt ||
-                              "Generated image"
-                            }
-                            className="w-full rounded-lg"
-                          />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="text-xs"
-                              onClick={handleDownloadImage}
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              Download
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="text-xs"
-                              onClick={handleShareImage}
-                            >
-                              <Share className="h-3 w-3 mr-1" />
-                              Share
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
-                          <div>
-                            <span className="font-medium">Model:</span>{" "}
-                            {message.metadata?.generatedImage?.model}
-                          </div>
-                          <div>
-                            <span className="font-medium">Size:</span>{" "}
-                            {
-                              message.metadata?.generatedImage
-                                ?.generationSettings?.size
-                            }
-                          </div>
-                          <div>
-                            <span className="font-medium">Style:</span>{" "}
-                            {
-                              message.metadata?.generatedImage
-                                ?.generationSettings?.style
-                            }
-                          </div>
-                          <div>
-                            <span className="font-medium">Quality:</span>{" "}
-                            {
-                              message.metadata?.generatedImage
-                                ?.generationSettings?.quality
-                            }
-                          </div>
-                        </div>
-
-                        {message.metadata?.generatedImage?.revisedPrompt &&
-                          message.metadata.generatedImage.revisedPrompt !==
-                            message.metadata.generatedImage.prompt && (
-                            <div className="space-y-1">
-                              <div className="text-xs font-medium text-slate-300">
-                                AI Revised Prompt:
-                              </div>
-                              <div className="text-xs text-slate-400 italic">
-                                "{message.metadata.generatedImage.revisedPrompt}
-                                "
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Display attachments within the message bubble */}
-                  {hasAttachments && (
-                    <MessageAttachments
-                      attachments={message.metadata!.attachments!}
-                      isUser={isUser}
-                      className={
-                        message.content.trim() || hasGeneratedImage
-                          ? "border-t border-white/10 pt-3 mt-3"
-                          : ""
-                      }
-                    />
-                  )}
-
-                  {/* Inline Resume UI */}
-                  {canResume && (
-                    <div className="border-t border-amber-500/20 pt-3 mt-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                          <span className="text-sm text-amber-300">
-                            Stream interrupted
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500/30 text-amber-400 text-xs"
-                          >
-                            {Math.round(recoverableStream.progress)}% complete
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={handleInlineResume}
-                            disabled={isResuming || isRecoveryLoading}
-                            className="bg-amber-600/20 text-amber-400 border-amber-500/30 hover:bg-amber-600/30 text-xs"
-                          >
-                            {isResuming ? (
-                              <>
-                                <RefreshCw className="h-3 w-3 animate-spin mr-1" />
-                                Resuming...
-                              </>
-                            ) : (
-                              <>
-                                <Play className="h-3 w-3 mr-1" />
-                                Resume
-                              </>
-                            )}
-                          </Button>
-                          {onDiscardStream && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                onDiscardStream(recoverableStream.streamId)
-                              }
-                              disabled={isResuming || isRecoveryLoading}
-                              className="text-red-400 hover:text-red-300 hover:bg-red-600/10 text-xs"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
+                <MessageContent
+                  content={displayContent}
+                  isStreaming={isStreaming}
+                  isUser={isUser}
+                  showLineNumbers={false}
+                  maxCodeBlockHeight="300px"
+                  allowHtml={!isUser} // Only allow HTML for assistant messages by default
+                />
               )}
             </div>
 
+            {/* Display generated image within the message bubble */}
+            {hasGeneratedImage && (
+              <div className="border-t border-white/10 pt-3 mt-3">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-blue-400" />
+                      <span className="text-sm font-medium">
+                        Generated Image
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {message.metadata?.generatedImage?.provider}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-slate-400">
+                      <Clock className="h-3 w-3" />
+                      {message.metadata?.generatedImage?.metadata.generationTime.toFixed(
+                        1
+                      )}
+                      s
+                      <DollarSign className="h-3 w-3 ml-2" />$
+                      {message.metadata?.generatedImage?.metadata.estimatedCost.toFixed(
+                        3
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="relative group/image rounded-lg overflow-hidden">
+                    <img
+                      src={message.metadata?.generatedImage?.url || ""}
+                      alt={
+                        message.metadata?.generatedImage?.prompt ||
+                        "Generated image"
+                      }
+                      className="w-full rounded-lg"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-xs"
+                        onClick={handleDownloadImage}
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-xs"
+                        onClick={handleShareImage}
+                      >
+                        <Share className="h-3 w-3 mr-1" />
+                        Share
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                    <div>
+                      <span className="font-medium">Model:</span>{" "}
+                      {message.metadata?.generatedImage?.model}
+                    </div>
+                    <div>
+                      <span className="font-medium">Size:</span>{" "}
+                      {
+                        message.metadata?.generatedImage?.generationSettings
+                          ?.size
+                      }
+                    </div>
+                    <div>
+                      <span className="font-medium">Style:</span>{" "}
+                      {
+                        message.metadata?.generatedImage?.generationSettings
+                          ?.style
+                      }
+                    </div>
+                    <div>
+                      <span className="font-medium">Quality:</span>{" "}
+                      {
+                        message.metadata?.generatedImage?.generationSettings
+                          ?.quality
+                      }
+                    </div>
+                  </div>
+
+                  {message.metadata?.generatedImage?.revisedPrompt &&
+                    message.metadata.generatedImage.revisedPrompt !==
+                      message.metadata.generatedImage.prompt && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-slate-300">
+                          AI Revised Prompt:
+                        </div>
+                        <div className="text-xs text-slate-400 italic">
+                          "{message.metadata.generatedImage.revisedPrompt}"
+                        </div>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {/* Display attachments within the message bubble */}
+            {hasAttachments && (
+              <MessageAttachments
+                attachments={message.metadata!.attachments!}
+                isUser={isUser}
+                className={
+                  message.content.trim() || hasGeneratedImage
+                    ? "border-t border-white/10 pt-3 mt-3"
+                    : ""
+                }
+              />
+            )}
+
+            {/* Inline Resume UI */}
+            {canResume && (
+              <div className="border-t border-amber-500/20 pt-3 mt-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                    <span className="text-sm text-amber-300">
+                      Stream interrupted
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/30 text-amber-400 text-xs"
+                    >
+                      {Math.round(recoverableStream.progress)}% complete
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleInlineResume}
+                      disabled={isResuming || isRecoveryLoading}
+                      className="bg-amber-600/20 text-amber-400 border-amber-500/30 hover:bg-amber-600/30 text-xs"
+                    >
+                      {isResuming ? (
+                        <>
+                          <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                          Resuming...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3 w-3 mr-1" />
+                          Resume
+                        </>
+                      )}
+                    </Button>
+                    {onDiscardStream && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          onDiscardStream(recoverableStream.streamId)
+                        }
+                        disabled={isResuming || isRecoveryLoading}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-600/10 text-xs"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Metadata & Quick Actions */}
             <div
               className={`flex items-center justify-between mt-2 text-xs text-slate-400 ${
                 isUser ? "flex-row-reverse" : "flex-row"
               }`}
             >
+              {/* Left / Right aligned info */}
               <div className="flex items-center space-x-2">
                 <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
 
@@ -623,6 +658,7 @@ export function MessageBubble({
                 )}
               </div>
 
+              {/* Processing time & model */}
               <div className="flex items-center space-x-2">
                 {message.metadata?.processingTime && (
                   <span
@@ -635,10 +671,11 @@ export function MessageBubble({
                 {message.model && <span>• {message.model}</span>}
               </div>
 
+              {/* Hover actions (assistant only) */}
               {!isUser && !hasError && (
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <QuickTTSButton
-                    text={message.content}
+                    text={displayContent}
                     size="sm"
                     className="h-6 w-6 p-0"
                   />
@@ -681,24 +718,6 @@ export function MessageBubble({
                 </div>
               )}
             </div>
-
-            {/* Inline Image Generation Widget */}
-            {isUser &&
-              showInlineImageGeneration &&
-              !isStreaming &&
-              !hasError &&
-              !hasGeneratedImage && (
-                <div className="mt-3">
-                  <InlineImageGeneration
-                    prompt={message.content}
-                    conversationId={conversationId}
-                    messageId={message.id}
-                    onImageGenerated={onImageGenerated}
-                    autoDetect={true}
-                    className="max-w-md"
-                  />
-                </div>
-              )}
           </div>
         </div>
       </div>
