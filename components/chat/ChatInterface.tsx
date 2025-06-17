@@ -730,6 +730,50 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     router.push("/chat");
   };
 
+  // Handle retry message functionality
+  const handleRetryMessage = async (messageId: string) => {
+    if (!optimisticChatId) {
+      throw new Error("No conversation ID available for retry");
+    }
+
+    try {
+      console.log("🔄 Retrying message:", {
+        messageId,
+        conversationId: optimisticChatId,
+        currentModel: selectedModel,
+      });
+
+      // Use the current selected model
+      const modelToUse = selectedModel || "llama-3.1-8b-instant";
+
+      // Send the retry request to the dedicated retry API
+      const response = await fetch("/api/chat/retry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId: optimisticChatId,
+          messageId,
+          model: modelToUse,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Retry failed: ${errorData}`);
+      }
+
+      console.log("✅ Retry request sent successfully");
+
+      // The API will handle updating the message via streaming,
+      // and the UI will automatically update via the existing useChat hook
+    } catch (error) {
+      console.error("❌ Failed to retry message:", error);
+      throw error; // Re-throw so the MessageBubble can handle the error display
+    }
+  };
+
   // Quick actions for welcome screen
   const quickActions = [
     {
@@ -952,6 +996,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       isRecoveryLoading={isRecoveryLoading}
                       onCreateBranch={chatState.handleCreateBranch}
                       onViewBranches={chatState.handleViewBranches}
+                      onRetryMessage={handleRetryMessage}
                     />
                   ))}
 

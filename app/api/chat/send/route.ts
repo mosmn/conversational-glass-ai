@@ -52,6 +52,7 @@ const sendMessageSchema = z.object({
       })
     )
     .optional(),
+  retryMessageId: z.string().optional(), // Optional ID of assistant message to replace during retry
 });
 
 export async function POST(request: NextRequest) {
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    const { conversationId, content, model, attachments } =
+    const { conversationId, content, model, attachments, retryMessageId } =
       sendMessageSchema.parse(body);
 
     // Validate that we have either content or attachments
@@ -156,43 +157,119 @@ export async function POST(request: NextRequest) {
         .where(eq(conversations.id, conversationId));
     }
 
-    // Save user message to database immediately
-    const userMessage = await MessageQueries.addMessage({
-      conversationId,
-      userId: user.id,
-      role: "user",
-      content,
-      model: null, // User messages don't have a model
-      tokenCount: estimateTokens(content),
-      metadata: {
-        streamingComplete: true,
-        regenerated: false,
-        attachments: attachments?.map((att) => ({
-          type:
-            att.category ||
-            (att.type.split("/")[0] as "image" | "pdf" | "text"),
-          url: att.url,
-          filename: att.name,
-          size: att.size,
-          extractedText: att.extractedText, // Store extracted text for historical access
-          metadata: att.metadata, // Store metadata like pages, dimensions, etc.
-        })),
-      },
-    });
+    // Handle retry logic
+    let userMessage;
+    let assistantMessage;
 
-    // Create placeholder assistant message for streaming
-    const assistantMessage = await MessageQueries.addMessage({
-      conversationId,
-      userId: user.id,
-      role: "assistant",
-      content: "",
-      model,
-      tokenCount: 0,
-      metadata: {
-        streamingComplete: false,
-        regenerated: false,
-      },
-    });
+    if (retryMessageId) {
+      // For retry, we don't create a new user message - we reuse the existing one
+      // and replace the assistant message
+      console.log(
+        `🔄 Retry mode: Replacing assistant message ${retryMessageId}`
+      );
+
+      // Find the existing assistant message
+      const existingMessages = await MessageQueries.getConversationMessages(
+        conversationId,
+        user.id,
+        100 // Get enough messages to find the context
+      );
+
+      const assistantMessageIndex = existingMessages.messages.findIndex(
+        (msg) => msg.id === retryMessageId && msg.role === "assistant"
+      );
+
+      if (assistantMessageIndex === -1) {
+        return NextResponse.json(
+          { error: "Assistant message to retry not found" },
+          { status: 404 }
+        );
+      }
+
+      // Find the user message that preceded this assistant message
+      let precedingUserMessage = null;
+      for (let i = assistantMessageIndex - 1; i >= 0; i--) {
+        if (existingMessages.messages[i].role === "user") {
+          precedingUserMessage = existingMessages.messages[i];
+          break;
+        }
+      }
+
+      if (!precedingUserMessage) {
+        return NextResponse.json(
+          { error: "No user message found to retry" },
+          { status: 400 }
+        );
+      }
+
+      // Use the existing user message
+      userMessage = precedingUserMessage;
+
+      // Update the assistant message to start fresh
+      await MessageQueries.updateMessage(retryMessageId, user.id, {
+        content: "",
+        model,
+        tokenCount: 0,
+        metadata: {
+          streamingComplete: false,
+          regenerated: true, // Mark as regenerated
+        },
+      });
+
+      // Use the existing assistant message
+      assistantMessage = {
+        id: retryMessageId,
+        role: "assistant",
+        content: "",
+        model,
+        tokenCount: 0,
+        metadata: {
+          streamingComplete: false,
+          regenerated: true,
+        },
+      };
+
+      console.log(`🔄 Retry setup complete for message ${retryMessageId}`);
+    } else {
+      // Normal message flow - create new messages
+      // Save user message to database immediately
+      userMessage = await MessageQueries.addMessage({
+        conversationId,
+        userId: user.id,
+        role: "user",
+        content,
+        model: null, // User messages don't have a model
+        tokenCount: estimateTokens(content),
+        metadata: {
+          streamingComplete: true,
+          regenerated: false,
+          attachments: attachments?.map((att) => ({
+            type:
+              att.category ||
+              (att.type.split("/")[0] as "image" | "pdf" | "text"),
+            url: att.url,
+            filename: att.name,
+            size: att.size,
+            extractedText: att.extractedText, // Store extracted text for historical access
+            metadata: att.metadata, // Store metadata like pages, dimensions, etc.
+          })),
+        },
+      });
+
+      // Create placeholder assistant message for streaming
+      assistantMessage = await MessageQueries.addMessage({
+        conversationId,
+        userId: user.id,
+        role: "assistant",
+        content: "",
+        model,
+        tokenCount: 0,
+        metadata: {
+          streamingComplete: false,
+          regenerated: false,
+        },
+      });
+    }
 
     // Get conversation history for context
     const conversationHistory = await MessageQueries.getConversationMessages(

@@ -5,9 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Copy,
-  ThumbsUp,
-  ThumbsDown,
-  Share,
   Clock,
   DollarSign,
   Download,
@@ -16,6 +13,8 @@ import {
   X,
   User,
   Sparkles,
+  RotateCcw,
+  Share,
 } from "lucide-react";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
@@ -110,6 +109,7 @@ interface MessageBubbleProps {
     model?: string | null;
   }) => void;
   onViewBranches?: () => void;
+  onRetryMessage?: (messageId: string) => Promise<void>;
 }
 
 export function MessageBubble({
@@ -124,8 +124,10 @@ export function MessageBubble({
   isRecoveryLoading = false,
   onCreateBranch,
   onViewBranches,
+  onRetryMessage,
 }: MessageBubbleProps) {
   const [isResuming, setIsResuming] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const { toast } = useToast();
 
   const isUser = message.role === "user";
@@ -164,6 +166,32 @@ export function MessageBubble({
       await onResumeStream(recoverableStream.streamId);
     } finally {
       setIsResuming(false);
+    }
+  };
+
+  // Handle retry message
+  const handleRetryMessage = async () => {
+    if (!onRetryMessage || isUser || isStreaming || isRetrying) return;
+
+    setIsRetrying(true);
+    try {
+      await onRetryMessage(message.id);
+      toast({
+        title: "Retry successful",
+        description: "Generating a new response...",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to retry message:", error);
+      toast({
+        title: "Retry failed",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -211,44 +239,6 @@ export function MessageBubble({
         duration: 2000,
       });
     }
-  };
-
-  // Handle share message
-  const handleShareMessage = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "AI Chat Message",
-          text: message.content,
-        });
-      } catch (error) {
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Failed to share:", error);
-          // Fallback to copy
-          handleCopyMessage();
-        }
-      }
-    } else {
-      // Fallback to copy if share is not supported
-      handleCopyMessage();
-    }
-  };
-
-  // Handle thumbs up/down (placeholder for future implementation)
-  const handleThumbsUp = () => {
-    toast({
-      title: "Thanks for the feedback!",
-      description: "Your positive feedback has been noted",
-      duration: 2000,
-    });
-  };
-
-  const handleThumbsDown = () => {
-    toast({
-      title: "Thanks for the feedback!",
-      description: "Your feedback helps us improve",
-      duration: 2000,
-    });
   };
 
   // Handle download generated image
@@ -698,28 +688,13 @@ export function MessageBubble({
                     size="sm"
                     variant="ghost"
                     className="h-6 w-6 p-0"
-                    onClick={handleThumbsUp}
-                    title="Good response"
+                    onClick={handleRetryMessage}
+                    disabled={isRetrying || isStreaming}
+                    title={isRetrying ? "Retrying..." : "Retry message"}
                   >
-                    <ThumbsUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={handleThumbsDown}
-                    title="Poor response"
-                  >
-                    <ThumbsDown className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={handleShareMessage}
-                    title="Share message"
-                  >
-                    <Share className="h-3 w-3" />
+                    <RotateCcw
+                      className={`h-3 w-3 ${isRetrying ? "animate-spin" : ""}`}
+                    />
                   </Button>
                 </div>
               )}
