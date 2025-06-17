@@ -1,5 +1,6 @@
 // Search API Route - Handle web search requests
-// POST /api/search
+// POST /api/search - Perform web search
+// POST /api/search/optimize-query - Generate optimized search query using AI
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -7,7 +8,6 @@ import { z } from "zod";
 import { SearchManager } from "@/lib/ai/search-providers/search-manager";
 import { SearchProviderError } from "@/lib/ai/search-providers/types";
 import { getAuthenticatedUserId } from "@/lib/utils/auth";
-
 // Validation schema for search requests
 const searchRequestSchema = z.object({
   query: z.string().min(1).max(500),
@@ -35,6 +35,25 @@ const searchRequestSchema = z.object({
   conversationId: z.string().uuid().optional(),
   messageId: z.string().uuid().optional(),
   useCache: z.boolean().optional().default(true),
+  // New fields for AI-optimized search
+  conversationContext: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+        timestamp: z.string().optional(),
+      })
+    )
+    .optional(),
+  optimizeQuery: z.boolean().optional().default(true),
+  // Pre-optimized query (if optimization was done separately)
+  optimizedQuery: z.string().optional(),
+  queryOptimization: z
+    .object({
+      optimizedQuery: z.string(),
+      reasoning: z.string(),
+    })
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -74,7 +93,56 @@ export async function POST(request: NextRequest) {
       conversationId,
       messageId,
       useCache,
+      conversationContext,
+      optimizeQuery,
+      optimizedQuery,
+      queryOptimization,
     } = validatedData;
+
+    let searchQuery = query;
+    let finalQueryOptimization = queryOptimization;
+
+    // Use pre-optimized query if provided
+    if (optimizedQuery) {
+      searchQuery = optimizedQuery;
+    }
+    // Otherwise, optimize query if requested and context is available
+    else if (
+      optimizeQuery &&
+      conversationContext &&
+      conversationContext.length > 0
+    ) {
+      try {
+        const optimizationResponse = await fetch(
+          `${
+            process.env.NEXTAUTH_URL || "http://localhost:3000"
+          }/api/search/optimize-query`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${clerkUserId}`, // Pass auth for internal call
+            },
+            body: JSON.stringify({
+              userQuery: query,
+              conversationContext,
+              searchType,
+            }),
+          }
+        );
+
+        if (optimizationResponse.ok) {
+          const optimizationData = await optimizationResponse.json();
+          if (optimizationData.success) {
+            searchQuery = optimizationData.data.optimizedQuery;
+            finalQueryOptimization = optimizationData.data;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to optimize query:", error);
+        // Continue with original query
+      }
+    }
 
     // Prepare search options
     const searchOptions = {
@@ -100,19 +168,26 @@ export async function POST(request: NextRequest) {
 
     // Perform search
     const startTime = Date.now();
-    const searchResponse = await SearchManager.search(query, searchOptions);
+    const searchResponse = await SearchManager.search(
+      searchQuery,
+      searchOptions
+    );
     const totalTime = Date.now() - startTime;
 
-    // Add performance metrics
+    // Add performance metrics and optimization info
     const response = {
       success: true,
       data: {
         ...searchResponse,
+        originalQuery: query,
+        searchQuery: searchQuery,
+        queryOptimization: finalQueryOptimization,
         metadata: {
           ...searchResponse.metadata,
           totalRequestTime: totalTime,
           cacheUsed: searchResponse.cached,
           provider: searchResponse.provider,
+          queryWasOptimized: !!finalQueryOptimization,
         },
       },
     };

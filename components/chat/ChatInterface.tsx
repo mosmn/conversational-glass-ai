@@ -436,6 +436,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     chatId: optimisticChatId || "", // Pass empty string when no chatId
     selectedModel,
     sendMessage,
+    messages, // Pass current messages for conversation context
   });
 
   // Modified message handling for initial chat creation

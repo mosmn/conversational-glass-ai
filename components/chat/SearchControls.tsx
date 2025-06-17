@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,7 +10,6 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -54,10 +52,22 @@ interface SearchControlsProps {
   className?: string;
 }
 
+const DEFAULT_SETTINGS: SearchSettings = {
+  maxResults: 10,
+  language: "en",
+  region: "us",
+  dateFilter: "all",
+  safeSearch: "moderate",
+  includeImages: false,
+  includeVideos: false,
+  provider: "auto",
+  searchType: "general",
+};
+
 export function SearchControls({
   settings,
   onSettingsChange,
-  availableProviders,
+  availableProviders = [],
   className,
 }: SearchControlsProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -73,34 +83,12 @@ export function SearchControls({
   };
 
   const resetToDefaults = () => {
-    onSettingsChange({
-      maxResults: 10,
-      language: "en",
-      region: "us",
-      dateFilter: "all",
-      safeSearch: "moderate",
-      includeImages: false,
-      includeVideos: false,
-      provider: "auto",
-      searchType: "general",
-    });
+    onSettingsChange(DEFAULT_SETTINGS);
   };
 
   const getActiveSettingsCount = () => {
-    const defaults: SearchSettings = {
-      maxResults: 10,
-      language: "en",
-      region: "us",
-      dateFilter: "all",
-      safeSearch: "moderate",
-      includeImages: false,
-      includeVideos: false,
-      provider: "auto",
-      searchType: "general",
-    };
-
     return Object.entries(settings).filter(
-      ([key, value]) => defaults[key as keyof SearchSettings] !== value
+      ([key, value]) => DEFAULT_SETTINGS[key as keyof SearchSettings] !== value
     ).length;
   };
 
@@ -112,7 +100,7 @@ export function SearchControls({
         <Button
           variant="outline"
           size="sm"
-          className={`relative bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50 ${className}`}
+          className={`relative bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50 text-slate-300 ${className}`}
         >
           <Settings className="h-4 w-4 mr-2" />
           Search Settings
@@ -145,7 +133,7 @@ export function SearchControls({
             </Button>
           </div>
 
-          <Separator className="bg-slate-700/50" />
+          <div className="h-px bg-slate-700/50" />
 
           {/* Search Provider */}
           <div className="space-y-2">
@@ -155,7 +143,9 @@ export function SearchControls({
             </Label>
             <Select
               value={settings.provider}
-              onValueChange={(value) => updateSetting("provider", value as any)}
+              onValueChange={(value) =>
+                updateSetting("provider", value as SearchSettings["provider"])
+              }
             >
               <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
                 <SelectValue />
@@ -168,14 +158,12 @@ export function SearchControls({
                     value={provider.id}
                     disabled={!provider.isConfigured}
                   >
-                    <div className="flex items-center gap-2">
-                      {provider.name}
-                      {!provider.isConfigured && (
-                        <Badge variant="outline" className="text-xs">
-                          Not configured
-                        </Badge>
-                      )}
-                    </div>
+                    {provider.name}
+                    {!provider.isConfigured && (
+                      <span className="ml-2 text-xs text-slate-500">
+                        (Not configured)
+                      </span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -201,7 +189,35 @@ export function SearchControls({
             </div>
           </div>
 
-          {/* Time Filter */}
+          {/* Language */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Language
+            </Label>
+            <Select
+              value={settings.language}
+              onValueChange={(value) => updateSetting("language", value)}
+            >
+              <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="es">Spanish</SelectItem>
+                <SelectItem value="fr">French</SelectItem>
+                <SelectItem value="de">German</SelectItem>
+                <SelectItem value="it">Italian</SelectItem>
+                <SelectItem value="pt">Portuguese</SelectItem>
+                <SelectItem value="ru">Russian</SelectItem>
+                <SelectItem value="zh">Chinese</SelectItem>
+                <SelectItem value="ja">Japanese</SelectItem>
+                <SelectItem value="ko">Korean</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date Filter */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-300 flex items-center gap-2">
               <Clock className="h-4 w-4" />
@@ -210,74 +226,23 @@ export function SearchControls({
             <Select
               value={settings.dateFilter}
               onValueChange={(value) =>
-                updateSetting("dateFilter", value as any)
+                updateSetting(
+                  "dateFilter",
+                  value as SearchSettings["dateFilter"]
+                )
               }
             >
               <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value="all">Any time</SelectItem>
-                <SelectItem value="day">Past 24 hours</SelectItem>
-                <SelectItem value="week">Past week</SelectItem>
-                <SelectItem value="month">Past month</SelectItem>
-                <SelectItem value="year">Past year</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="day">Past Day</SelectItem>
+                <SelectItem value="week">Past Week</SelectItem>
+                <SelectItem value="month">Past Month</SelectItem>
+                <SelectItem value="year">Past Year</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          {/* Language & Region */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-300">
-                Language
-              </Label>
-              <Select
-                value={settings.language}
-                onValueChange={(value) => updateSetting("language", value)}
-              >
-                <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="it">Italian</SelectItem>
-                  <SelectItem value="pt">Portuguese</SelectItem>
-                  <SelectItem value="ja">Japanese</SelectItem>
-                  <SelectItem value="ko">Korean</SelectItem>
-                  <SelectItem value="zh">Chinese</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-300">
-                Region
-              </Label>
-              <Select
-                value={settings.region}
-                onValueChange={(value) => updateSetting("region", value)}
-              >
-                <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="us">United States</SelectItem>
-                  <SelectItem value="uk">United Kingdom</SelectItem>
-                  <SelectItem value="ca">Canada</SelectItem>
-                  <SelectItem value="au">Australia</SelectItem>
-                  <SelectItem value="de">Germany</SelectItem>
-                  <SelectItem value="fr">France</SelectItem>
-                  <SelectItem value="es">Spain</SelectItem>
-                  <SelectItem value="it">Italy</SelectItem>
-                  <SelectItem value="jp">Japan</SelectItem>
-                  <SelectItem value="br">Brazil</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           {/* Search Type */}
@@ -289,7 +254,10 @@ export function SearchControls({
             <Select
               value={settings.searchType}
               onValueChange={(value) =>
-                updateSetting("searchType", value as any)
+                updateSetting(
+                  "searchType",
+                  value as SearchSettings["searchType"]
+                )
               }
             >
               <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
@@ -297,8 +265,8 @@ export function SearchControls({
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
                 <SelectItem value="general">General Web</SelectItem>
-                <SelectItem value="news">News Articles</SelectItem>
-                <SelectItem value="academic">Academic Papers</SelectItem>
+                <SelectItem value="news">News</SelectItem>
+                <SelectItem value="academic">Academic</SelectItem>
                 <SelectItem value="shopping">Shopping</SelectItem>
               </SelectContent>
             </Select>
@@ -313,7 +281,10 @@ export function SearchControls({
             <Select
               value={settings.safeSearch}
               onValueChange={(value) =>
-                updateSetting("safeSearch", value as any)
+                updateSetting(
+                  "safeSearch",
+                  value as SearchSettings["safeSearch"]
+                )
               }
             >
               <SelectTrigger className="bg-slate-700/30 border-slate-600/50">
@@ -332,55 +303,31 @@ export function SearchControls({
             <Label className="text-sm font-medium text-slate-300">
               Include Media
             </Label>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Image className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-300">Images</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-slate-400 flex items-center gap-2">
+                  <Image className="h-3 w-3" />
+                  Images
+                </Label>
+                <Switch
+                  checked={settings.includeImages}
+                  onCheckedChange={(checked) =>
+                    updateSetting("includeImages", checked)
+                  }
+                />
               </div>
-              <Switch
-                checked={settings.includeImages}
-                onCheckedChange={(checked) =>
-                  updateSetting("includeImages", checked)
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Video className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-300">Videos</span>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-slate-400 flex items-center gap-2">
+                  <Video className="h-3 w-3" />
+                  Videos
+                </Label>
+                <Switch
+                  checked={settings.includeVideos}
+                  onCheckedChange={(checked) =>
+                    updateSetting("includeVideos", checked)
+                  }
+                />
               </div>
-              <Switch
-                checked={settings.includeVideos}
-                onCheckedChange={(checked) =>
-                  updateSetting("includeVideos", checked)
-                }
-              />
-            </div>
-          </div>
-
-          <Separator className="bg-slate-700/50" />
-
-          {/* Current Settings Summary */}
-          <div className="text-xs text-slate-400 space-y-1">
-            <div>
-              Provider:{" "}
-              <span className="text-slate-300">{settings.provider}</span>
-            </div>
-            <div>
-              Results:{" "}
-              <span className="text-slate-300">{settings.maxResults}</span>
-            </div>
-            <div>
-              Time:{" "}
-              <span className="text-slate-300">{settings.dateFilter}</span>
-            </div>
-            <div>
-              Region:{" "}
-              <span className="text-slate-300">
-                {settings.region.toUpperCase()}
-              </span>
             </div>
           </div>
         </div>

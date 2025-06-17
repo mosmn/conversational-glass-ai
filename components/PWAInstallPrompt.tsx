@@ -138,56 +138,56 @@ export function PWAInstallPrompt() {
       : null;
 
   // Show debug controls in development or with debug param
-  if (debugMode && !isInstalled) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-        <div
-          className={cn(
-            "glass-card p-4 rounded-2xl border border-blue-500/30",
-            "backdrop-blur-xl bg-blue-900/80 shadow-2xl"
-          )}
-        >
-          <div className="text-blue-100 text-sm space-y-3">
-            <div className="font-semibold">🐛 PWA Debug Panel</div>
+  // if (debugMode && !isInstalled) {
+  //   return (
+  //     <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+  //       <div
+  //         className={cn(
+  //           "glass-card p-4 rounded-2xl border border-blue-500/30",
+  //           "backdrop-blur-xl bg-blue-900/80 shadow-2xl"
+  //         )}
+  //       >
+  //         <div className="text-blue-100 text-sm space-y-3">
+  //           <div className="font-semibold">🐛 PWA Debug Panel</div>
 
-            <div className="space-y-1 text-xs">
-              <div>Prompt Available: {deferredPrompt ? "✅" : "❌"}</div>
-              <div>Previously Dismissed: {isDismissed ? "✅" : "❌"}</div>
-              <div>Show Timer: {showPrompt ? "✅" : "⏳"}</div>
-              <div>Is Standalone: {isInstalled ? "✅" : "❌"}</div>
-            </div>
+  //           <div className="space-y-1 text-xs">
+  //             <div>Prompt Available: {deferredPrompt ? "✅" : "❌"}</div>
+  //             <div>Previously Dismissed: {isDismissed ? "✅" : "❌"}</div>
+  //             <div>Show Timer: {showPrompt ? "✅" : "⏳"}</div>
+  //             <div>Is Standalone: {isInstalled ? "✅" : "❌"}</div>
+  //           </div>
 
-            <div className="flex gap-2">
-              {deferredPrompt && (
-                <Button
-                  onClick={handleInstallClick}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <Download className="w-3 h-3 mr-1" />
-                  Install Now
-                </Button>
-              )}
+  //           <div className="flex gap-2">
+  //             {deferredPrompt && (
+  //               <Button
+  //                 onClick={handleInstallClick}
+  //                 size="sm"
+  //                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
+  //               >
+  //                 <Download className="w-3 h-3 mr-1" />
+  //                 Install Now
+  //               </Button>
+  //             )}
 
-              <Button
-                onClick={handleReset}
-                size="sm"
-                variant="outline"
-                className="text-blue-100 border-blue-400 hover:bg-blue-800"
-              >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                Reset
-              </Button>
-            </div>
+  //             <Button
+  //               onClick={handleReset}
+  //               size="sm"
+  //               variant="outline"
+  //               className="text-blue-100 border-blue-400 hover:bg-blue-800"
+  //             >
+  //               <RefreshCw className="w-3 h-3 mr-1" />
+  //               Reset
+  //             </Button>
+  //           </div>
 
-            <div className="text-xs text-blue-300">
-              Add <code>?pwa-debug</code> to URL for debug mode
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  //           <div className="text-xs text-blue-300">
+  //             Add <code>?pwa-debug</code> to URL for debug mode
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Normal install prompt
   if (isInstalled || isDismissed || !showPrompt || !deferredPrompt) {

@@ -82,33 +82,39 @@ export function useEnhancedSearch({
 
   // Load settings and history from localStorage
   useEffect(() => {
-    const savedSettings = localStorage.getItem("search-settings");
-    if (savedSettings) {
-      try {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
-      } catch (error) {
-        console.warn("Failed to load search settings:", error);
+    try {
+      const savedSettings = localStorage.getItem("search-settings");
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
       }
-    }
 
-    const savedHistory = localStorage.getItem("search-history");
-    if (savedHistory) {
-      try {
-        setSearchHistory(JSON.parse(savedHistory));
-      } catch (error) {
-        console.warn("Failed to load search history:", error);
+      const savedHistory = localStorage.getItem("search-history");
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory);
+        setSearchHistory(Array.isArray(parsed) ? parsed : []);
       }
+    } catch (error) {
+      console.warn("Failed to load search settings or history:", error);
     }
   }, []);
 
   // Save settings to localStorage
   useEffect(() => {
-    localStorage.setItem("search-settings", JSON.stringify(settings));
+    try {
+      localStorage.setItem("search-settings", JSON.stringify(settings));
+    } catch (error) {
+      console.warn("Failed to save search settings:", error);
+    }
   }, [settings]);
 
   // Save history to localStorage
   useEffect(() => {
-    localStorage.setItem("search-history", JSON.stringify(searchHistory));
+    try {
+      localStorage.setItem("search-history", JSON.stringify(searchHistory));
+    } catch (error) {
+      console.warn("Failed to save search history:", error);
+    }
   }, [searchHistory]);
 
   // Fetch available providers
@@ -125,16 +131,25 @@ export function useEnhancedSearch({
       }
     } catch (error) {
       console.warn("Failed to fetch search providers:", error);
+      setAvailableProviders([]);
     }
   };
 
   const performSearch = useCallback(
     async (query: string, customSettings?: Partial<SearchSettings>) => {
-      if (!query.trim()) return;
+      if (!query.trim()) {
+        toast({
+          title: "Empty Query",
+          description: "Please enter a search query.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const searchSettings = { ...settings, ...customSettings };
       setIsSearching(true);
       setCurrentQuery(query);
+      setCurrentResults([]);
 
       try {
         const searchResponse = await fetch("/api/search", {
@@ -159,12 +174,19 @@ export function useEnhancedSearch({
           }),
         });
 
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
+        if (!searchResponse.ok) {
+          throw new Error(
+            `Search failed: ${searchResponse.status} ${searchResponse.statusText}`
+          );
+        }
 
-          if (searchData.success && searchData.data?.results) {
-            const results = searchData.data.results;
-            setCurrentResults(results);
+        const searchData = await searchResponse.json();
+
+        if (searchData.success && searchData.data?.results) {
+          const results = searchData.data.results || [];
+          setCurrentResults(results);
+
+          if (results.length > 0) {
             setShowResultsPreview(true);
 
             // Update search history
@@ -197,24 +219,21 @@ export function useEnhancedSearch({
               title: "🔍 Search Complete",
               description: `Found ${results.length} results for "${query}"`,
             });
-
-            return {
-              results,
-              query: searchData.data.query,
-              provider: searchData.data.provider,
-              totalResults: results.length,
-              processingTime: searchData.data.metadata?.totalRequestTime || 0,
-              suggestions: searchData.data.suggestions,
-              relatedQueries: searchData.data.relatedQueries,
-            };
           } else {
-            throw new Error("No results found");
+            toast({
+              title: "No Results Found",
+              description: "No results found for your search query.",
+              variant: "destructive",
+            });
+            setShowResultsPreview(false);
           }
         } else {
-          const errorData = await searchResponse.json();
-          throw new Error(errorData.error || "Search failed");
+          throw new Error(
+            searchData.error || "Search failed - no results returned"
+          );
         }
       } catch (error) {
+        console.error("Search error:", error);
         const errorMessage =
           error instanceof Error ? error.message : "Search failed";
 
@@ -228,7 +247,8 @@ export function useEnhancedSearch({
           onError(errorMessage);
         }
 
-        throw error;
+        setCurrentResults([]);
+        setShowResultsPreview(false);
       } finally {
         setIsSearching(false);
       }
@@ -236,50 +256,43 @@ export function useEnhancedSearch({
     [settings, toast, onError]
   );
 
+  const updateSettings = useCallback((newSettings: SearchSettings) => {
+    setSettings(newSettings);
+  }, []);
+
   const useSelectedResults = useCallback(
     (selectedResults: SearchResult[]) => {
-      if (onSearchComplete) {
+      if (onSearchComplete && selectedResults.length > 0) {
         onSearchComplete(selectedResults, currentQuery);
       }
       setShowResultsPreview(false);
-
-      toast({
-        title: "✅ Results Selected",
-        description: `Using ${selectedResults.length} search results`,
-      });
+      setCurrentResults([]);
     },
-    [onSearchComplete, currentQuery, toast]
+    [onSearchComplete, currentQuery]
   );
 
   const useAllResults = useCallback(() => {
-    useSelectedResults(currentResults);
-  }, [currentResults, useSelectedResults]);
+    if (onSearchComplete && currentResults.length > 0) {
+      onSearchComplete(currentResults, currentQuery);
+    }
+    setShowResultsPreview(false);
+    setCurrentResults([]);
+  }, [onSearchComplete, currentResults, currentQuery]);
 
   const cancelSearch = useCallback(() => {
+    setIsSearching(false);
     setShowResultsPreview(false);
     setCurrentResults([]);
     setCurrentQuery("");
   }, []);
 
   const refineSearch = useCallback(
-    async (newQuery: string) => {
+    (newQuery: string) => {
       setShowResultsPreview(false);
-      await performSearch(newQuery);
+      performSearch(newQuery);
     },
     [performSearch]
   );
-
-  const clearSearchHistory = useCallback(() => {
-    setSearchHistory([]);
-    toast({
-      title: "🗑️ History Cleared",
-      description: "Search history has been cleared",
-    });
-  }, [toast]);
-
-  const updateSettings = useCallback((newSettings: SearchSettings) => {
-    setSettings(newSettings);
-  }, []);
 
   return {
     // State
@@ -294,15 +307,10 @@ export function useEnhancedSearch({
 
     // Actions
     performSearch,
+    updateSettings,
     useSelectedResults,
     useAllResults,
     cancelSearch,
     refineSearch,
-    clearSearchHistory,
-    updateSettings,
-
-    // Computed values
-    hasResults: currentResults.length > 0,
-    isConfigured: availableProviders.some((p) => p.isConfigured),
   };
 }
