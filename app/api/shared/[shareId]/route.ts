@@ -98,7 +98,7 @@ export async function GET(
       createdAt: conversation.createdAt.toISOString(),
       lastActivity:
         transformedMessages.length > 0
-          ? transformedMessages[0].timestamp
+          ? transformedMessages[transformedMessages.length - 1].timestamp // Last message (newest) since messages are now in chronological order
           : conversation.createdAt.toISOString(),
     };
 

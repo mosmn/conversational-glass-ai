@@ -149,7 +149,7 @@ export class ConversationQueries {
       ),
       with: {
         messages: {
-          orderBy: [desc(messages.createdAt)],
+          orderBy: [desc(messages.createdAt)], // Keep existing order for main chat (gets reversed in frontend)
           with: {
             user: {
               columns: {
@@ -254,7 +254,7 @@ export class ConversationQueries {
       ),
       with: {
         messages: {
-          orderBy: [desc(messages.createdAt)],
+          orderBy: [messages.createdAt], // Order by oldest first for correct chronological display
           with: {
             user: {
               columns: {

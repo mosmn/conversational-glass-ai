@@ -423,13 +423,18 @@ export function PublicConversationView({
                                 <div className="flex items-center space-x-2">
                                   {message.metadata?.processingTime && (
                                     <span
-                                      title={`Processing time: ${message.metadata.processingTime}s`}
+                                      title={`Processing time: ${message.metadata.processingTime}ms`}
                                     >
                                       ⚡{" "}
-                                      {(
-                                        message.metadata.processingTime / 1000
-                                      ).toFixed(1)}
-                                      s
+                                      {typeof message.metadata
+                                        .processingTime === "number" &&
+                                      message.metadata.processingTime > 1000
+                                        ? (
+                                            message.metadata.processingTime /
+                                            1000
+                                          ).toFixed(1) + "s"
+                                        : message.metadata.processingTime +
+                                          "ms"}
                                     </span>
                                   )}
                                   {message.model && (
