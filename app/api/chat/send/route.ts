@@ -29,6 +29,23 @@ const sendMessageSchema = z.object({
     .uuid("Invalid conversation ID format. Please use a valid UUID."),
   content: z.string().max(10000),
   model: z.string().min(1, "Model ID is required"),
+  displayContent: z.string().max(10000).optional(), // Original user content for display (used when content is search-enhanced)
+  searchResults: z
+    .array(
+      z.object({
+        title: z.string(),
+        url: z.string(),
+        snippet: z.string(),
+        publishedDate: z.string().optional(),
+        provider: z.string(),
+        score: z.number().optional(),
+        favicon: z.string().optional(),
+      })
+    )
+    .nullable()
+    .optional(), // Search results to store with assistant message; can be null or undefined
+  searchQuery: z.string().optional(), // Original search query
+  searchProvider: z.string().optional(), // Search provider used
   attachments: z
     .array(
       z.object({
@@ -68,8 +85,29 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    const { conversationId, content, model, attachments, retryMessageId } =
-      sendMessageSchema.parse(body);
+
+    // ------------------------------------------------------------------
+    // Defensive guard: clients may include explicit `null` for optional
+    // search-related fields when web search is disabled. Although the Zod
+    // schema now allows null, older compiled code or downstream logic may
+    // still expect these fields to be undefined. To ensure robust
+    // handling we strip out any null values here before validation.
+    // ------------------------------------------------------------------
+    if (body.searchResults === null) delete body.searchResults;
+    if (body.searchQuery === null) delete body.searchQuery;
+    if (body.searchProvider === null) delete body.searchProvider;
+
+    const {
+      conversationId,
+      content,
+      model,
+      displayContent,
+      attachments,
+      retryMessageId,
+      searchResults,
+      searchQuery,
+      searchProvider,
+    } = sendMessageSchema.parse(body);
 
     // Validate that we have either content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) {
@@ -233,16 +271,22 @@ export async function POST(request: NextRequest) {
     } else {
       // Normal message flow - create new messages
       // Save user message to database immediately
+      // Use displayContent if provided (for search-enhanced messages), otherwise use content
+      const userDisplayContent = displayContent || content;
       userMessage = await MessageQueries.addMessage({
         conversationId,
         userId: user.id,
         role: "user",
-        content,
+        content: userDisplayContent, // Always save the original user content for display
         model: null, // User messages don't have a model
-        tokenCount: estimateTokens(content),
+        tokenCount: estimateTokens(userDisplayContent),
         metadata: {
           streamingComplete: true,
           regenerated: false,
+          // Store enhanced content separately if search was used
+          ...(displayContent && displayContent !== content
+            ? { enhancedContent: content }
+            : {}),
           attachments: attachments?.map((att) => ({
             type:
               att.category ||
@@ -250,10 +294,11 @@ export async function POST(request: NextRequest) {
             url: att.url,
             filename: att.name,
             size: att.size,
-            extractedText: att.extractedText, // Store extracted text for historical access
+            // Cast to any to avoid strict metadata typing issues
+            extractedText: (att as any).extractedText, // Store extracted text for historical access
             metadata: att.metadata, // Store metadata like pages, dimensions, etc.
           })),
-        },
+        } as any,
       });
 
       // Create placeholder assistant message for streaming
@@ -394,19 +439,22 @@ export async function POST(request: NextRequest) {
         if (msg.metadata.attachments.length > 0) {
           messageWithFiles += "\n\nPreviously attached files:";
 
-          for (const att of msg.metadata.attachments) {
+          // Cast attachments to any to access extended properties safely
+          const histAttachments = msg.metadata.attachments as any[];
+
+          for (const att of histAttachments) {
             messageWithFiles += `\n📎 ${att.filename}`;
             if (att.type) {
               messageWithFiles += ` (${att.type})`;
             }
 
             // If we have stored extracted text in metadata, use it
-            if (att.extractedText) {
+            if ((att as any).extractedText) {
               const maxLength = 1000;
               const truncatedText =
-                att.extractedText.length > maxLength
-                  ? att.extractedText.substring(0, maxLength) + "..."
-                  : att.extractedText;
+                (att as any).extractedText.length > maxLength
+                  ? (att as any).extractedText.substring(0, maxLength) + "..."
+                  : (att as any).extractedText;
               messageWithFiles += `\nContent: ${truncatedText}`;
             }
           }
@@ -418,7 +466,15 @@ export async function POST(request: NextRequest) {
           content: messageWithFiles,
         });
       }
-      // Regular message without files
+      // NEW: Use enhanced content generated by web search if available
+      else if ((msg.metadata as any)?.enhancedContent) {
+        chatMessages.push({
+          role: msg.role as "system" | "user" | "assistant",
+          // Prefer the enhancedContent (includes web search context) for the AI model
+          content: (msg.metadata as any).enhancedContent,
+        });
+      }
+      // Regular message without files or enhanced content
       else {
         chatMessages.push({
           role: msg.role as "system" | "user" | "assistant",
@@ -481,7 +537,7 @@ export async function POST(request: NextRequest) {
                   streamingComplete: false,
                   regenerated: false,
                   error: true,
-                },
+                } as any,
               });
 
               controller.close();
@@ -547,7 +603,15 @@ export async function POST(request: NextRequest) {
               processingTime: (Date.now() - startTime) / 1000,
               provider: provider.name,
               model: aiModel.name,
-            },
+              // Include search results if provided
+              ...(searchResults && searchResults.length > 0
+                ? {
+                    searchResults,
+                    searchQuery,
+                    searchProvider,
+                  }
+                : {}),
+            } as any,
           });
 
           // Generate title if this is the first meaningful exchange
@@ -558,7 +622,7 @@ export async function POST(request: NextRequest) {
           );
 
           // Send final completion chunk (only if controller is still open)
-          const completionChunk = {
+          const completionChunk: any = {
             type: "completed",
             finished: true,
             messageId: assistantMessage.id,
@@ -567,6 +631,11 @@ export async function POST(request: NextRequest) {
             processingTime: (Date.now() - startTime) / 1000,
             titleGenerated: shouldGenerateTitle,
           };
+          if (searchResults && searchResults.length > 0) {
+            completionChunk.searchResults = searchResults;
+            completionChunk.searchQuery = searchQuery;
+            completionChunk.searchProvider = searchProvider;
+          }
 
           try {
             controller.enqueue(
@@ -591,7 +660,7 @@ export async function POST(request: NextRequest) {
               streamingComplete: false,
               regenerated: false,
               error: true,
-            },
+            } as any,
           });
 
           const errorChunk = {

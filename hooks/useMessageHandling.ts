@@ -7,7 +7,10 @@ interface UseMessageHandlingProps {
     content: string,
     model: string,
     attachments: any[],
-    displayContent?: string
+    displayContent?: string,
+    searchResults?: any[],
+    searchQuery?: string,
+    searchProvider?: string
   ) => Promise<void>;
   messages?: Array<{
     id: string;
@@ -137,19 +140,9 @@ ${searchContext}
 
 USER QUESTION: ${query}
 
-Please synthesize the information from the search results to provide an accurate, up-to-date response. Include relevant citations and sources where appropriate.`;
+Please synthesize the information from the search results to provide an accurate, up-to-date response. When referencing information from the search results, please include citations using the format [1], [2], etc. corresponding to the numbered sources above. This helps users verify the information and explore the sources further.`;
 
-          // Show user what search query was actually used
-          const searchInfo =
-            queryOptimization && queryOptimization.optimizedQuery !== query
-              ? `🔍 Web search completed using optimized query: "${searchQuery}"\n💭 Optimization reasoning: ${queryOptimization.reasoning}\n📊 Found ${searchResults.length} relevant results`
-              : `🔍 Web search completed - found ${searchResults.length} relevant results`;
-
-          toast({
-            title: "🔍 Web Search Complete",
-            description: searchInfo,
-            duration: 5000,
-          });
+          // Search completed successfully - no toast notification needed
 
           return {
             enhancedContent,
@@ -158,30 +151,17 @@ Please synthesize the information from the search results to provide an accurate
             queryOptimization,
           };
         } else {
-          toast({
-            title: "🔍 No Search Results",
-            description: "No relevant results found for your query",
-            variant: "destructive",
-          });
+          // No search results found - continue without search
           return { enhancedContent: query, searchResults: null };
         }
       } else {
         console.error("Search API error:", searchResponse.statusText);
-        toast({
-          title: "🔍 Search Failed",
-          description:
-            "Unable to perform web search. Continuing without search.",
-          variant: "destructive",
-        });
+        // Search failed - continue without search
         return { enhancedContent: query, searchResults: null };
       }
     } catch (searchError) {
       console.error("Search error:", searchError);
-      toast({
-        title: "🔍 Search Error",
-        description: "Search failed. Continuing without search.",
-        variant: "destructive",
-      });
+      // Search error - continue without search
       return { enhancedContent: query, searchResults: null };
     }
   };
@@ -230,12 +210,18 @@ Please synthesize the information from the search results to provide an accurate
 
       console.log("🚀 About to call sendMessage with model:", selectedModel);
 
-      // Use the original user query as display content, but send the search-enhanced content to AI
+      // Build optional search parameters only when we actually have results
+      const hasSearchResults =
+        Array.isArray(searchResults) && searchResults.length > 0;
+
       await sendMessage(
         enhancedContent,
         selectedModel,
         messageAttachments,
-        content // Always pass the original user query as display content
+        content, // Always pass the original user query as display content
+        hasSearchResults ? (searchResults as any[]) : undefined,
+        hasSearchResults ? searchQuery || content : undefined,
+        hasSearchResults ? searchResults?.[0]?.provider || "unknown" : undefined
       );
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -281,18 +267,18 @@ ${searchContext}
 
 USER QUESTION: ${content}
 
-Please synthesize the information from the search results to provide an accurate, up-to-date response. Include relevant citations and sources where appropriate.`;
+Please synthesize the information from the search results to provide an accurate, up-to-date response. When referencing information from the search results, please include citations using the format [1], [2], etc. corresponding to the numbered sources above. This helps users verify the information and explore the sources further.`;
 
-      toast({
-        title: "🔍 Using Search Results",
-        description: `Sending message with ${searchResults.length} search results`,
-      });
+      // Using search results - no toast notification needed
 
       await sendMessage(
         enhancedContent,
         selectedModel,
         messageAttachments,
-        content // Original user query as display content
+        content, // Original user query as display content
+        searchResults, // Pass search results to be stored with assistant message
+        content, // Use content as search query since this is manual search
+        searchResults?.[0]?.provider || "unknown" // Pass the search provider
       );
     } catch (error) {
       console.error("Failed to send message with search results:", error);

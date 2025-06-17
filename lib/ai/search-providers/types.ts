@@ -31,9 +31,11 @@ export interface SearchResult {
   domain: string;
   publishedDate?: string;
   score?: number;
+  provider: string; // Added to satisfy chat API schema requirements
   favicon?: string;
   images?: string[];
   metadata?: {
+    provider?: string;
     author?: string;
     language?: string;
     category?: string;

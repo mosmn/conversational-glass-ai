@@ -146,6 +146,7 @@ function formatSerperResults(
       domain,
       publishedDate: result.date,
       score: (100 - result.position) / 100, // Convert position to score (higher position = lower score)
+      provider: "serper", // Add provider field directly to satisfy chat API schema
       favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
       metadata: {
         provider: "serper",
@@ -327,7 +328,7 @@ async function searchSerper(
           used: data.credits || 0,
           limit:
             keyConfig.quotaInfo?.limit || serperCapabilities.pricing!.freeQuota,
-          resetTime: keyConfig.quotaInfo?.resetDate,
+          resetTime: keyConfig.quotaInfo?.resetTime || new Date().toISOString(),
         },
       },
     };

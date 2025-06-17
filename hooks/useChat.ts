@@ -31,7 +31,10 @@ interface UseChatReturn {
     content: string,
     model: string,
     attachments?: any[],
-    displayContent?: string
+    displayContent?: string,
+    searchResults?: any[],
+    searchQuery?: string,
+    searchProvider?: string
   ) => Promise<void>;
   refetchMessages: () => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -207,7 +210,10 @@ export function useChat(conversationId: string): UseChatReturn {
       content: string,
       model: string,
       attachments?: any[],
-      displayContent?: string
+      displayContent?: string,
+      searchResults?: any[],
+      searchQuery?: string,
+      searchProvider?: string
     ) => {
       if (!conversationId || isStreaming) return;
 
@@ -316,6 +322,10 @@ export function useChat(conversationId: string): UseChatReturn {
             conversationId,
             content,
             model,
+            displayContent, // Pass displayContent for search-enhanced messages
+            searchResults, // Pass search results to be stored with assistant message
+            searchQuery, // Pass search query used
+            searchProvider, // Pass search provider used
             attachments,
           },
           abortControllerRef.current.signal
@@ -464,6 +474,13 @@ export function useChat(conversationId: string): UseChatReturn {
                       metadata: {
                         streamingComplete: true,
                         processingTime: chunk.processingTime,
+                        ...(chunk.searchResults
+                          ? {
+                              searchResults: chunk.searchResults,
+                              searchQuery: chunk.searchQuery,
+                              searchProvider: chunk.searchProvider,
+                            }
+                          : {}),
                       },
                     },
                   ];

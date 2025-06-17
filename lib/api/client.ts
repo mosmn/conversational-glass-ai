@@ -212,6 +212,18 @@ export interface SendMessageRequest {
   conversationId: string;
   content: string;
   model: string;
+  displayContent?: string; // Original user content for display (when content is search-enhanced)
+  searchResults?: Array<{
+    title: string;
+    url: string;
+    snippet: string;
+    publishedDate?: string;
+    provider: string;
+    score?: number;
+    favicon?: string;
+  }>; // Search results to store with assistant message
+  searchQuery?: string; // Original search query
+  searchProvider?: string; // Search provider used
   attachments?: Array<{
     id: string;
     name: string;
@@ -243,6 +255,9 @@ export interface StreamChunk {
   totalTokens?: number;
   processingTime?: number;
   titleGenerated?: boolean;
+  searchResults?: Array<any>;
+  searchQuery?: string;
+  searchProvider?: string;
 }
 
 // Enhanced message sync interfaces
@@ -520,12 +535,18 @@ class APIClient {
       undefined
     );
 
+    // Remove null values to avoid validation errors when web search is disabled
+    const payload: Record<string, any> = { ...data };
+    if (payload.searchResults == null) delete payload.searchResults;
+    if (payload.searchQuery == null) delete payload.searchQuery;
+    if (payload.searchProvider == null) delete payload.searchProvider;
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       signal, // Add abort signal support
     });
 

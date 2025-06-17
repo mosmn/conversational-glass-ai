@@ -229,6 +229,18 @@ export const messages = pgTable(
         processingTime?: number;
         regenerated?: boolean;
         parentMessageId?: string;
+        // Search results from web search
+        searchResults?: Array<{
+          title: string;
+          url: string;
+          snippet: string;
+          publishedDate?: string;
+          provider: string;
+          score?: number;
+          favicon?: string;
+        }>;
+        searchQuery?: string; // Original search query used
+        searchProvider?: string; // Provider used for search
         // Branching metadata
         branchingMetadata?: {
           branchId?: string;

@@ -124,6 +124,7 @@ function formatTavilyResults(
       domain,
       publishedDate: result.published_date,
       score: result.score,
+      provider: "tavily", // Add provider field directly to satisfy chat API schema
       favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
       metadata: {
         provider: "tavily",

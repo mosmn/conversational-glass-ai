@@ -23,6 +23,7 @@ import { SimpleBranchButton } from "./SimpleBranchButton";
 import { ConversationalGlassLogoMini } from "@/components/ConversationalGlassLogo";
 import { QuickTTSButton } from "./TextToSpeechButton";
 import { ThinkingBlock } from "./ThinkingBlock";
+import { SearchReferences } from "./SearchReferences";
 
 interface Message {
   id: string;
@@ -77,6 +78,18 @@ interface Message {
     };
     imageGenerationDetected?: boolean;
     suggestedImagePrompts?: string[];
+    // Search results from web search
+    searchResults?: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+      publishedDate?: string;
+      provider: string;
+      score?: number;
+      favicon?: string;
+    }>;
+    searchQuery?: string; // Original search query used
+    searchProvider?: string; // Provider used for search
     branchingMetadata?: {
       branchId?: string;
       branchName?: string;
@@ -136,6 +149,9 @@ export function MessageBubble({
   const hasAttachments =
     message.metadata?.attachments && message.metadata.attachments.length > 0;
   const hasGeneratedImage = message.metadata?.generatedImage;
+  const hasSearchResults =
+    message.metadata?.searchResults &&
+    message.metadata.searchResults.length > 0;
 
   // Simple check: Is this an interrupted assistant message?
   const isInterrupted =
@@ -542,6 +558,20 @@ export function MessageBubble({
                 isUser={isUser}
                 className={
                   message.content.trim() || hasGeneratedImage
+                    ? "border-t border-white/10 pt-3 mt-3"
+                    : ""
+                }
+              />
+            )}
+
+            {/* Display search references for assistant messages */}
+            {!isUser && hasSearchResults && (
+              <SearchReferences
+                searchResults={message.metadata!.searchResults!}
+                searchQuery={message.metadata?.searchQuery}
+                searchProvider={message.metadata?.searchProvider}
+                className={
+                  message.content.trim() || hasGeneratedImage || hasAttachments
                     ? "border-t border-white/10 pt-3 mt-3"
                     : ""
                 }

@@ -28,3 +28,4 @@ export { FilePreview } from "./FilePreview";
 export { SearchResultsPreview } from "./SearchResultsPreview";
 export { SearchControls } from "./SearchControls";
 export { EnhancedSearchInput } from "./EnhancedSearchInput";
+export { SearchReferences } from "./SearchReferences";
