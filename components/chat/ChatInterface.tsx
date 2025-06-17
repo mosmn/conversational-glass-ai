@@ -1039,6 +1039,16 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   chatState.resetInput
                 )
               }
+              onSendMessageWithSearch={(content, searchResults) => {
+                if (optimisticChatId) {
+                  messageHandling.handleSendMessageWithSearch(
+                    content,
+                    searchResults,
+                    chatState.attachments,
+                    chatState.resetInput
+                  );
+                }
+              }}
               onKeyPress={handleKeyPress}
               attachments={chatState.attachments}
               onAttachmentsChange={chatState.setAttachments}

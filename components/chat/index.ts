@@ -23,3 +23,8 @@ export { FileProcessingStatus } from "./FileProcessingStatus";
 export { ModelCompatibilityAlert } from "./ModelCompatibilityAlert";
 export { MessageAttachments } from "./MessageAttachments";
 export { FilePreview } from "./FilePreview";
+
+// Enhanced Search Components
+export { SearchResultsPreview } from "./SearchResultsPreview";
+export { SearchControls } from "./SearchControls";
+export { EnhancedSearchInput } from "./EnhancedSearchInput";

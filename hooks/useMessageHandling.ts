@@ -151,6 +151,67 @@ Please synthesize the information from the search results to provide an accurate
     }
   };
 
+  const handleSendMessageWithSearch = async (
+    content: string,
+    searchResults: any[],
+    attachments: any[] = [],
+    resetInput?: () => void
+  ) => {
+    if (!content.trim() || !chatId) return;
+
+    const messageAttachments = attachments.filter(
+      (a) => a.status === "uploaded"
+    );
+
+    console.log("🐛 DEBUG - handleSendMessageWithSearch:");
+    console.log("  🔍 Search results:", searchResults.length);
+    console.log("  📎 Attachments:", messageAttachments.length);
+    console.log("  🤖 Selected model:", selectedModel);
+
+    if (resetInput) resetInput();
+
+    try {
+      // Format search results for AI context
+      const searchContext = searchResults
+        .map(
+          (result: any, index: number) =>
+            `[${index + 1}] ${result.title}\nURL: ${result.url}\nContent: ${
+              result.snippet
+            }\nPublished: ${result.publishedDate || "N/A"}\n`
+        )
+        .join("\n");
+
+      const enhancedContent = `Based on the following web search results, please provide a comprehensive answer to my question.
+
+WEB SEARCH RESULTS:
+${searchContext}
+
+USER QUESTION: ${content}
+
+Please synthesize the information from the search results to provide an accurate, up-to-date response. Include relevant citations and sources where appropriate.`;
+
+      toast({
+        title: "🔍 Using Search Results",
+        description: `Sending message with ${searchResults.length} search results`,
+      });
+
+      await sendMessage(
+        enhancedContent,
+        selectedModel,
+        messageAttachments,
+        content // Original user query as display content
+      );
+    } catch (error) {
+      console.error("Failed to send message with search results:", error);
+      toast({
+        title: "Failed to send message",
+        description:
+          "There was an error sending your message with search results",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePauseStream = (
     isStreaming: boolean,
     canPauseStream: boolean,
@@ -201,6 +262,7 @@ Please synthesize the information from the search results to provide an accurate
 
   return {
     handleSendMessage,
+    handleSendMessageWithSearch,
     handlePauseStream,
   };
 }

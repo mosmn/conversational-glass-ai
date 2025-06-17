@@ -6,9 +6,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Paperclip, Globe, Mic, Send, Square, StopCircle } from "lucide-react";
+import {
+  Paperclip,
+  Globe,
+  Mic,
+  Send,
+  Square,
+  StopCircle,
+  Search,
+} from "lucide-react";
 import { FileAttachment } from "./FileAttachment";
+import { SearchResultsPreview } from "./SearchResultsPreview";
+import { SearchControls } from "./SearchControls";
+import { EnhancedSearchInput } from "./EnhancedSearchInput";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { useEnhancedSearch } from "@/hooks/useEnhancedSearch";
 import { useToast } from "@/hooks/use-toast";
 
 interface ChatInputProps {
@@ -29,6 +41,7 @@ interface ChatInputProps {
   selectedModel: string;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   modelName?: string;
+  onSendMessageWithSearch?: (content: string, searchResults: any[]) => void;
 }
 
 export function ChatInput({
@@ -49,10 +62,38 @@ export function ChatInput({
   selectedModel,
   textareaRef,
   modelName,
+  onSendMessageWithSearch,
 }: ChatInputProps) {
   const { toast } = useToast();
   const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [showManualSearch, setShowManualSearch] = useState(false);
+  const [manualSearchQuery, setManualSearchQuery] = useState("");
   const buttonContainerRef = useRef<HTMLDivElement>(null);
+
+  // Enhanced search functionality
+  const {
+    performSearch,
+    currentResults,
+    showResultsPreview,
+    settings,
+    updateSettings,
+    searchHistory,
+    suggestions,
+    availableProviders,
+    useSelectedResults,
+    useAllResults,
+    cancelSearch,
+    refineSearch,
+    isSearching: isEnhancedSearching,
+  } = useEnhancedSearch({
+    onSearchComplete: (results, query) => {
+      if (onSendMessageWithSearch) {
+        onSendMessageWithSearch(query, results);
+      }
+      setShowManualSearch(false);
+      setManualSearchQuery("");
+    },
+  });
 
   // Auto-resize textarea functionality
   useEffect(() => {
@@ -112,11 +153,12 @@ export function ChatInput({
   });
 
   const canSend = inputValue.trim() || attachments.length > 0;
-  const isProcessing = isStreaming || isSearching || isTranscribing;
+  const isProcessing =
+    isStreaming || isSearching || isTranscribing || isEnhancedSearching;
 
   // Calculate dynamic padding based on number of visible buttons
   const getButtonCount = () => {
-    let count = 3; // attachments, search, send/stop
+    let count = 4; // attachments, search, manual search, send/stop
     if (isVoiceSupported) count += 1; // voice button
     return count;
   };
@@ -131,6 +173,46 @@ export function ChatInput({
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
       <div className="max-w-4xl mx-auto space-y-2 sm:space-y-3 lg:space-y-4">
+        {/* Enhanced Manual Search */}
+        {showManualSearch && (
+          <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-4 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                <Search className="h-4 w-4 text-blue-400" />
+                Manual Web Search
+              </h3>
+              <div className="flex items-center gap-2">
+                <SearchControls
+                  settings={settings}
+                  onSettingsChange={updateSettings}
+                  availableProviders={availableProviders}
+                  className="text-xs"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowManualSearch(false)}
+                  className="h-6 w-6 p-0 text-slate-400 hover:text-white"
+                >
+                  ×
+                </Button>
+              </div>
+            </div>
+
+            <EnhancedSearchInput
+              value={manualSearchQuery}
+              onChange={setManualSearchQuery}
+              onSearch={performSearch}
+              onClear={() => setManualSearchQuery("")}
+              suggestions={suggestions}
+              recentSearches={searchHistory}
+              isLoading={isEnhancedSearching}
+              placeholder="Search the web for information..."
+              className="w-full"
+            />
+          </div>
+        )}
+
         {/* File Attachments */}
         {showAttachments && (
           <FileAttachment
@@ -211,6 +293,35 @@ export function ChatInput({
                   {searchEnabled
                     ? "🔍 Web search enabled - will search before responding"
                     : "🌐 Enable web search for real-time information"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg transition-all duration-300 backdrop-blur-sm border border-slate-700/50 hover:border-slate-600/70 touch-manipulation shrink-0 ${
+                    showManualSearch
+                      ? "text-purple-400 bg-purple-500/10 border-purple-500/30"
+                      : "text-slate-400 hover:text-purple-400 hover:bg-purple-500/10"
+                  }`}
+                  onClick={() => setShowManualSearch(!showManualSearch)}
+                  disabled={isEnhancedSearching}
+                >
+                  {isEnhancedSearching ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 border-2 border-purple-400 border-t-transparent" />
+                  ) : (
+                    <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {showManualSearch
+                    ? "🔍 Manual search panel open - search before sending message"
+                    : "🔍 Open manual search - search the web independently"}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -349,6 +460,24 @@ export function ChatInput({
           </div>
         </div>
       </div>
+
+      {/* Search Results Preview Modal */}
+      {showResultsPreview && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <SearchResultsPreview
+            results={currentResults}
+            query={manualSearchQuery}
+            provider={currentResults[0]?.metadata?.provider || "unknown"}
+            processingTime={0}
+            totalResults={currentResults.length}
+            suggestions={suggestions.map((s) => s.query)}
+            onSelectResults={useSelectedResults}
+            onRefineSearch={refineSearch}
+            onUseAllResults={useAllResults}
+            onCancel={cancelSearch}
+          />
+        </div>
+      )}
     </div>
   );
 }

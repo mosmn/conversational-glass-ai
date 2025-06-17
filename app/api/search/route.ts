@@ -12,13 +12,26 @@ import { getAuthenticatedUserId } from "@/lib/utils/auth";
 const searchRequestSchema = z.object({
   query: z.string().min(1).max(500),
   maxResults: z.number().min(1).max(50).optional().default(10),
-  language: z.string().optional(),
-  region: z.string().optional(),
-  dateFilter: z.enum(["day", "week", "month", "year", "all"]).optional(),
-  safeSearch: z.enum(["strict", "moderate", "off"]).optional(),
+  language: z.string().optional().default("en"),
+  region: z.string().optional().default("us"),
+  dateFilter: z
+    .enum(["day", "week", "month", "year", "all"])
+    .optional()
+    .default("all"),
+  safeSearch: z
+    .enum(["strict", "moderate", "off"])
+    .optional()
+    .default("moderate"),
   includeImages: z.boolean().optional().default(false),
   includeVideos: z.boolean().optional().default(false),
-  provider: z.enum(["tavily", "serper", "brave"]).optional(),
+  provider: z
+    .enum(["tavily", "serper", "brave", "auto"])
+    .optional()
+    .default("auto"),
+  searchType: z
+    .enum(["general", "news", "academic", "shopping"])
+    .optional()
+    .default("general"),
   conversationId: z.string().uuid().optional(),
   messageId: z.string().uuid().optional(),
   useCache: z.boolean().optional().default(true),
@@ -57,6 +70,7 @@ export async function POST(request: NextRequest) {
       includeImages,
       includeVideos,
       provider,
+      searchType,
       conversationId,
       messageId,
       useCache,
@@ -71,10 +85,11 @@ export async function POST(request: NextRequest) {
       safeSearch,
       includeImages,
       includeVideos,
+      searchType,
       userId: internalUserId,
       conversationId,
       messageId,
-      preferredProvider: provider,
+      preferredProvider: provider === "auto" ? undefined : provider,
       timeoutMs: 30000, // 30 second timeout
     };
 
