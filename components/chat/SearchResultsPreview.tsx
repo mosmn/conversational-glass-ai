@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,8 +46,8 @@ interface SearchResultsPreviewProps {
   totalResults?: number;
   suggestions?: string[];
   onSelectResults: (selectedResults: SearchResult[]) => void;
+  onAddContext: (selectedResults: SearchResult[]) => void;
   onRefineSearch?: (newQuery: string) => void;
-  onUseAllResults: () => void;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -54,8 +60,8 @@ export function SearchResultsPreview({
   totalResults = 0,
   suggestions = [],
   onSelectResults,
+  onAddContext,
   onRefineSearch,
-  onUseAllResults,
   onCancel,
   isLoading = false,
 }: SearchResultsPreviewProps) {
@@ -86,9 +92,9 @@ export function SearchResultsPreview({
     setExpandedResults(newExpanded);
   };
 
-  const handleUseSelected = () => {
+  const handleAddContext = () => {
     const selected = results.filter((r) => selectedResults.has(r.id));
-    onSelectResults(selected);
+    onAddContext(selected);
   };
 
   const getQualityColor = (score: number) => {
@@ -127,7 +133,7 @@ export function SearchResultsPreview({
   }
 
   return (
-    <Card className="w-full max-w-5xl mx-auto bg-slate-800/95 border-slate-700/50 backdrop-blur-sm shadow-2xl">
+    <Card className="w-full max-w-5xl mx-auto bg-slate-800/95 border-slate-700/50 backdrop-blur-sm shadow-2xl max-h-[90vh] flex flex-col">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
@@ -180,9 +186,9 @@ export function SearchResultsPreview({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Search Results */}
-        <ScrollArea className="h-[500px] pr-4">
+      <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
+        {/* Scrollable area for results + suggestions */}
+        <ScrollArea className="flex-1 min-h-0 p-6 pr-4 space-y-4">
           <div className="space-y-3">
             {results.map((result, index) => {
               const isSelected = selectedResults.has(result.id);
@@ -300,64 +306,56 @@ export function SearchResultsPreview({
               );
             })}
           </div>
-        </ScrollArea>
 
-        {/* Search Suggestions */}
-        {suggestions.length > 0 && onRefineSearch && (
-          <div className="space-y-3">
-            <div className="h-px bg-slate-700/50" />
-            <div>
-              <h4 className="text-sm font-medium text-slate-300 mb-3">
-                Related searches:
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((suggestion, index) => (
-                  <Button
-                    key={index}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onRefineSearch(suggestion)}
-                    className="h-8 px-3 text-xs bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50 text-slate-300"
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
+          {/* Search Suggestions */}
+          {suggestions.length > 0 && onRefineSearch && (
+            <div className="space-y-3 pt-4">
+              <div className="h-px bg-slate-700/50" />
+              <div>
+                <h4 className="text-sm font-medium text-slate-300 mb-3">
+                  Related searches:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.map((suggestion, index) => (
+                    <Button
+                      key={index}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRefineSearch(suggestion)}
+                      className="h-8 px-3 text-xs bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50 text-slate-300"
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </ScrollArea>
 
-        {/* Action Buttons */}
-        <div className="h-px bg-slate-700/50" />
-        <div className="flex items-center justify-between pt-2">
-          <div className="text-sm text-slate-400">
+        {/* Sticky footer with action buttons */}
+        <CardFooter className="border-t border-slate-700/50 pt-4 flex items-center justify-between bg-slate-800/95">
+          <div className="text-sm text-slate-400 px-2">
             {selectedResults.size} of {results.length} results selected
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 px-2 flex-wrap sm:flex-nowrap">
             <Button
               variant="outline"
               onClick={onCancel}
               className="bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50"
             >
-              Cancel
+              Close
             </Button>
             <Button
-              variant="outline"
-              onClick={onUseAllResults}
-              className="bg-slate-700/30 border-slate-600/50 hover:bg-slate-600/50"
-            >
-              Use All Results
-            </Button>
-            <Button
-              onClick={handleUseSelected}
+              onClick={handleAddContext}
               disabled={selectedResults.size === 0}
               className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50"
             >
-              Use Selected ({selectedResults.size})
+              Add to Context ({selectedResults.size})
             </Button>
           </div>
-        </div>
+        </CardFooter>
       </CardContent>
     </Card>
   );

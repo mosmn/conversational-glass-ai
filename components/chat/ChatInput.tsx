@@ -166,6 +166,23 @@ export function ChatInput({
   const buttonCount = getButtonCount();
   const dynamicPaddingRight = `${buttonCount * 40 + 16}px`; // 40px per button + 16px margin
 
+  // Accumulated manual search context results
+  const [contextResults, setContextResults] = useState<any[]>([]);
+
+  const addResultsToContext = (results: any[]) => {
+    setContextResults((prev) => [...prev, ...results]);
+    cancelSearch();
+  };
+
+  const handleSend = () => {
+    if (contextResults.length > 0 && onSendMessageWithSearch) {
+      onSendMessageWithSearch(inputValue, contextResults);
+      setContextResults([]);
+    } else {
+      onSendMessage();
+    }
+  };
+
   return (
     <div className="relative p-2 sm:p-3 lg:p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
       {/* Input area glow */}
@@ -297,7 +314,7 @@ export function ChatInput({
               </TooltipContent>
             </Tooltip>
 
-            <Tooltip>
+            {/* <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
@@ -324,7 +341,7 @@ export function ChatInput({
                     : "🔍 Open manual search - search the web independently"}
                 </p>
               </TooltipContent>
-            </Tooltip>
+            </Tooltip> */}
 
             {isVoiceSupported && (
               <Tooltip>
@@ -397,7 +414,7 @@ export function ChatInput({
             ) : (
               <Button
                 size="sm"
-                onClick={onSendMessage}
+                onClick={handleSend}
                 disabled={!canSend}
                 className="relative group h-8 w-8 sm:h-9 sm:w-9 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden touch-manipulation shrink-0"
               >
@@ -463,7 +480,7 @@ export function ChatInput({
 
       {/* Search Results Preview Modal */}
       {showResultsPreview && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm overflow-y-auto flex justify-center items-start pt-10 pb-10 px-4">
           <SearchResultsPreview
             results={currentResults}
             query={manualSearchQuery}
@@ -472,8 +489,8 @@ export function ChatInput({
             totalResults={currentResults.length}
             suggestions={suggestions.map((s) => s.query)}
             onSelectResults={useSelectedResults}
+            onAddContext={addResultsToContext}
             onRefineSearch={refineSearch}
-            onUseAllResults={useAllResults}
             onCancel={cancelSearch}
           />
         </div>
