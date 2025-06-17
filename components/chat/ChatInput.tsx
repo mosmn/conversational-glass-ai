@@ -94,25 +94,18 @@ export function ChatInput({
   const isProcessing = isStreaming || isSearching || isTranscribing;
 
   return (
-    <div className="relative p-3 sm:p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+    <div className="relative p-2 sm:p-3 lg:p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
       {/* Input area glow */}
       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
-      <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
+      <div className="max-w-4xl mx-auto space-y-2 sm:space-y-3 lg:space-y-4">
         {/* File Attachments */}
         {showAttachments && (
           <FileAttachment
             attachments={attachments}
             onAttachmentsChange={onAttachmentsChange}
             conversationId={conversationId}
-            selectedModel={selectedModel}
-            onModelRecommendation={(recommendedModels) => {
-              console.log(
-                "Model recommendations available:",
-                recommendedModels.map((m) => m.name)
-              );
-            }}
           />
         )}
 
@@ -130,13 +123,13 @@ export function ChatInput({
             rows={1}
           />
 
-          <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 flex items-center space-x-1 sm:space-x-2">
+          <div className="absolute bottom-2 sm:bottom-3 lg:bottom-4 right-2 sm:right-3 lg:right-4 flex items-center gap-1 sm:gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 touch-manipulation ${
                     showAttachments
                       ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
                       : "text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10"
@@ -156,7 +149,7 @@ export function ChatInput({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-300 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 touch-manipulation ${
                     searchEnabled
                       ? "text-blue-400 bg-blue-500/10 border-blue-500/30"
                       : "text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
@@ -185,7 +178,7 @@ export function ChatInput({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-10 w-10 p-0 rounded-xl transition-all duration-200 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 ${
+                  className={`h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-lg sm:rounded-xl transition-all duration-200 backdrop-blur-sm border border-slate-700/30 hover:border-slate-600/50 touch-manipulation ${
                     isRecording
                       ? "text-red-400 bg-red-500/10 border-red-500/30"
                       : isTranscribing
@@ -240,7 +233,7 @@ export function ChatInput({
                   <Button
                     size="sm"
                     onClick={onPauseStream}
-                    className="relative group h-10 w-10 p-0 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 border border-red-500/30 overflow-hidden"
+                    className="relative group h-9 w-9 sm:h-10 sm:w-10 p-0 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-lg sm:rounded-xl shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 border border-red-500/30 overflow-hidden touch-manipulation"
                   >
                     {/* Shimmer effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-red-400/0 via-red-400/30 to-red-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
@@ -257,7 +250,7 @@ export function ChatInput({
                 size="sm"
                 onClick={onSendMessage}
                 disabled={!canSend}
-                className="relative group h-10 w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden"
+                className="relative group h-9 w-9 sm:h-10 sm:w-10 p-0 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg sm:rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/30 overflow-hidden touch-manipulation"
               >
                 {/* Shimmer effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/30 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
@@ -267,7 +260,7 @@ export function ChatInput({
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="hidden sm:flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center space-x-4">
             <span>{inputValue.length} characters</span>
             <span>

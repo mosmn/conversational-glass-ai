@@ -353,18 +353,22 @@ export function MessageBubble({
   }
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} group`}>
+    <div
+      className={`flex ${
+        isUser ? "justify-end" : "justify-start"
+      } group px-2 sm:px-4`}
+    >
       <div
-        className={`max-w-[90%] sm:max-w-[80%] ${
+        className={`w-full max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${
           isUser ? "order-2" : "order-1"
         }`}
       >
         <div
-          className={`flex items-start space-x-2 sm:space-x-3 ${
-            isUser ? "flex-row-reverse space-x-reverse" : ""
+          className={`flex items-start gap-2 sm:gap-3 ${
+            isUser ? "flex-row-reverse" : ""
           }`}
         >
-          <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 ring-1 sm:ring-2 ring-slate-700/50 transition-all duration-300 hover:ring-emerald-500/50">
+          <Avatar className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 ring-1 sm:ring-2 ring-slate-700/50 transition-all duration-300 hover:ring-emerald-500/50 mt-1">
             {isUser && user?.imageUrl ? (
               <AvatarImage
                 src={user.imageUrl}
@@ -401,7 +405,9 @@ export function MessageBubble({
             </AvatarFallback>
           </Avatar>
 
-          <div className={`flex-1 ${isUser ? "text-right" : "text-left"}`}>
+          <div
+            className={`flex-1 min-w-0 ${isUser ? "text-right" : "text-left"}`}
+          >
             {/* Thinking block (collapsed by default) */}
             {thinkingContent && (
               <ThinkingBlock
@@ -412,7 +418,7 @@ export function MessageBubble({
             )}
 
             <div
-              className={`inline-block p-4 rounded-2xl ${
+              className={`inline-block p-3 sm:p-4 rounded-2xl max-w-full ${
                 hasError
                   ? "bg-red-600/20 border border-red-500/30 text-red-400"
                   : isUser

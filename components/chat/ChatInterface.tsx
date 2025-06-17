@@ -46,6 +46,7 @@ import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { ChatHeader } from "./ChatHeader";
 import { ChatInput } from "./ChatInput";
+import { FloatingMobileActions } from "./FloatingMobileActions";
 
 // Custom hooks
 import { useChatState } from "@/hooks/useChatState";
@@ -830,18 +831,27 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         </div>
 
         {/* Mobile Sidebar - Only render when not collapsed */}
+        {/* Mobile Sidebar Overlay */}
         {!chatState.sidebarCollapsed && (
-          <div className="lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out">
-            <ChatSidebar
-              isCollapsed={false}
-              onToggleCollapse={() =>
-                chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-              }
-              currentChatId={optimisticChatId || ""}
-              selectedModel={selectedModel}
-              onCreateNewChat={handleCreateNewChat}
+          <>
+            {/* Backdrop */}
+            <div
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ease-in-out"
+              onClick={() => chatState.setSidebarCollapsed(true)}
             />
-          </div>
+            {/* Sidebar */}
+            <div className="lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out">
+              <ChatSidebar
+                isCollapsed={false}
+                onToggleCollapse={() =>
+                  chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+                }
+                currentChatId={optimisticChatId || ""}
+                selectedModel={selectedModel}
+                onCreateNewChat={handleCreateNewChat}
+              />
+            </div>
+          </>
         )}
 
         {/* Main Content Area */}
@@ -1017,6 +1027,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           </div>
         </div>
       </div>
+
+      {/* Floating Mobile Actions */}
+      <FloatingMobileActions
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        lastSyncTime={lastSyncTime || undefined}
+      />
 
       {/* Share Modal */}
       {conversation && (
