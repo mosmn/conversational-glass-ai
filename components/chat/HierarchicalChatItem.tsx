@@ -117,7 +117,7 @@ export function HierarchicalChatItem({
 
   return (
     <TooltipProvider>
-      <div className="w-full overflow-visible">
+      <div className="w-[80%] overflow-visible">
         {/* Main conversation item */}
         <div
           onClick={handleClick}
