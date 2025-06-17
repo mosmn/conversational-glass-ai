@@ -1,8 +1,53 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import withPWA from "next-pwa";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// PWA Configuration
+const withPWAConfig = withPWA({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  runtimeCaching: [
+    {
+      urlPattern: /^https:\/\/api\.openai\.com\/.*/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "openai-api-cache",
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    {
+      urlPattern: /^https:\/\/api\.anthropic\.com\/.*/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "anthropic-api-cache",
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    {
+      urlPattern: /\/api\/conversations\/.*/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "conversations-cache",
+        expiration: {
+          maxEntries: 32,
+          maxAgeSeconds: 7 * 24 * 60 * 60, // 1 week
+        },
+      },
+    },
+  ],
+  buildExcludes: [/middleware-manifest\.json$/],
+  disable: process.env.NODE_ENV === "development",
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -15,6 +60,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  output: process.env.CAPACITOR_BUILD ? "export" : undefined,
+  trailingSlash: process.env.CAPACITOR_BUILD ? true : false,
+  distDir: process.env.CAPACITOR_BUILD ? "out" : ".next",
   serverExternalPackages: [
     "sharp",
     "pdf-parse",
@@ -108,4 +156,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPWAConfig(nextConfig);
