@@ -2,6 +2,7 @@
   "name": "conversational-glass-ai",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=8192 --no-deprecation' next dev",
     "dev:fast": "NODE_OPTIONS='--max-old-space-size=8192 --no-deprecation' NEXT_TELEMETRY_DISABLED=1 next dev --turbo --port 3000",
