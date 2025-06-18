@@ -166,8 +166,56 @@ export async function POST(request: NextRequest) {
         createdAt: userApiKeys.createdAt,
       });
 
-    // Queue validation in the background (we'll implement this later)
-    // await queueApiKeyValidation(newKey.id);
+    // Immediately validate the API key instead of queuing for later
+    try {
+      // Import the test function from shared utilities
+      const { testProviderKey } = await import("@/lib/ai/utils");
+
+      // Test the API key
+      const testResult = await testProviderKey(
+        validatedData.provider,
+        validatedData.apiKey
+      );
+
+      // Update the key status based on test result
+      const updateData: any = {
+        lastValidated: new Date(),
+        updatedAt: new Date(),
+      };
+
+      if (testResult.success) {
+        updateData.status = "valid";
+        updateData.lastError = null;
+        if (testResult.quotaInfo) {
+          updateData.quotaInfo = testResult.quotaInfo;
+        }
+      } else {
+        updateData.status = "invalid";
+        updateData.lastError = testResult.error || "Validation failed";
+      }
+
+      await db
+        .update(userApiKeys)
+        .set(updateData)
+        .where(eq(userApiKeys.id, newKey.id));
+
+      // Update the returned key with the validation result
+      newKey.status = updateData.status as any;
+    } catch (validationError) {
+      console.error("Failed to validate API key immediately:", validationError);
+      // If validation fails, mark as invalid
+      await db
+        .update(userApiKeys)
+        .set({
+          status: "invalid",
+          lastError: "Failed to validate key",
+          lastValidated: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(userApiKeys.id, newKey.id));
+
+      newKey.status = "invalid" as any;
+    }
 
     return NextResponse.json({
       success: true,
@@ -175,7 +223,12 @@ export async function POST(request: NextRequest) {
         ...newKey,
         keyPreview: maskApiKey(validatedData.apiKey),
       },
-      message: "API key added successfully. Validation in progress...",
+      message:
+        newKey.status === "valid"
+          ? "API key added and validated successfully!"
+          : newKey.status === "invalid"
+          ? "API key added but validation failed. Please check the key."
+          : "API key added successfully. Validation in progress...",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

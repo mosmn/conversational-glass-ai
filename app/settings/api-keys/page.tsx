@@ -269,6 +269,40 @@ export default function ApiKeysPage() {
     fetchApiKeys(); // Refresh the list
   };
 
+  // Validate all pending API keys
+  const validateAllPendingKeys = async () => {
+    try {
+      const response = await fetch("/api/user/api-keys/validate-all", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "Validation Complete",
+          description: data.message,
+        });
+        await fetchApiKeys(); // Refresh the list
+      } else {
+        toast({
+          title: "Validation Failed",
+          description: data.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to validate API keys",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Check if there are any pending keys
+  const hasPendingKeys = apiKeys.some((key) => key.status === "pending");
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 p-4 sm:p-6">
@@ -312,17 +346,39 @@ export default function ApiKeysPage() {
         transition={{ duration: 0.5 }}
         className="mb-6 sm:mb-8"
       >
-        <div className="flex items-center gap-2 sm:gap-3 mb-3">
-          <div className="w-1.5 sm:w-2 h-6 sm:h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-            API Keys
-          </h1>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-1.5 sm:w-2 h-6 sm:h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              API Keys
+            </h1>
+          </div>
+          {hasPendingKeys && (
+            <Button
+              onClick={validateAllPendingKeys}
+              className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30"
+              variant="outline"
+              size="sm"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Validate Pending Keys
+            </Button>
+          )}
         </div>
         <p className="text-slate-400 text-base sm:text-lg leading-relaxed max-w-3xl">
           Bring your own API keys (BYOK) to reduce costs and maintain control
           over your AI model usage. Add keys from multiple providers to unlock
           advanced features and personalized experiences.
         </p>
+        {hasPendingKeys && (
+          <Alert className="mt-4 bg-yellow-500/10 border-yellow-500/30">
+            <AlertTriangle className="h-4 w-4 text-yellow-400" />
+            <AlertDescription className="text-yellow-200">
+              Some of your API keys are still being validated. Click "Validate
+              Pending Keys" above to check them now.
+            </AlertDescription>
+          </Alert>
+        )}
       </motion.div>
 
       {/* Provider Cards Grid */}

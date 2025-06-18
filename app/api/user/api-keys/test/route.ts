@@ -21,71 +21,8 @@ const testApiKeySchema = z.object({
   apiKey: z.string().optional(), // For testing new keys before saving
 });
 
-// Test a specific provider with an API key
-async function testProviderKey(
-  provider: string,
-  apiKey: string
-): Promise<{
-  success: boolean;
-  error?: string;
-  quotaInfo?: any;
-  models?: string[];
-}> {
-  try {
-    switch (provider) {
-      case "openai":
-        // For now, just test the basic format since BYOK isn't implemented yet
-        return {
-          success: apiKey.startsWith("sk-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-")
-            ? undefined
-            : "Invalid OpenAI API key format",
-        };
-
-      case "claude":
-        return {
-          success: apiKey.startsWith("sk-ant-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-ant-")
-            ? undefined
-            : "Invalid Claude API key format",
-        };
-
-      case "gemini":
-        return {
-          success: apiKey.length > 30 && apiKey.length < 50,
-          error:
-            apiKey.length > 30 && apiKey.length < 50
-              ? undefined
-              : "Invalid Gemini API key format",
-        };
-
-      case "openrouter":
-        // Test basic format - OpenRouter provider should already support BYOK
-        return {
-          success: apiKey.startsWith("sk-or-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-or-")
-            ? undefined
-            : "Invalid OpenRouter API key format",
-        };
-
-      case "groq":
-        return {
-          success: apiKey.startsWith("gsk_") && apiKey.length > 20,
-          error: apiKey.startsWith("gsk_")
-            ? undefined
-            : "Invalid Groq API key format",
-        };
-
-      default:
-        return { success: false, error: `Unknown provider: ${provider}` };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Test failed",
-    };
-  }
-}
+// Import shared test function
+import { testProviderKey } from "@/lib/ai/utils";
 
 // POST /api/user/api-keys/test - Test API key functionality
 export async function POST(request: NextRequest) {
