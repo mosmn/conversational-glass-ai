@@ -61,6 +61,7 @@ import { useMessageHandling } from "@/hooks/useMessageHandling";
 import { useEnabledModels } from "@/hooks/useEnabledModels";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { usePersistentModel } from "@/hooks/usePersistentModel";
 
 // Performance optimization constants
 const MESSAGE_RENDER_BATCH_SIZE = 10;
@@ -168,7 +169,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const personalization = usePersonalization();
   const visualPrefs = useVisualPreferences();
   const { preferences } = useUserPreferences();
-  const [selectedModel, setSelectedModel] = useState<string>("");
+  const {
+    selectedModel,
+    setSelectedModel,
+    isInitialized: modelInitialized,
+  } = usePersistentModel();
   const { toast } = useToast();
   const { isMobile } = useResponsive();
 
@@ -417,42 +422,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     setJustSentMessage(false);
   }, [optimisticChatId]);
 
-  // Auto-select a valid model if none is selected or current selection is invalid
-  useEffect(() => {
-    if (!modelsLoading && models.length > 0 && enabledModels.length > 0) {
-      if (!selectedModel) {
-        // No model selected - pick the first enabled model
-        const firstEnabledModel = enabledModels.find((m) => m.isEnabled);
-        if (firstEnabledModel) {
-          console.log(
-            `🔄 Auto-selecting first enabled model: ${firstEnabledModel.id}`
-          );
-          setSelectedModel(firstEnabledModel.id);
-        }
-      } else {
-        // Check if current selection is still valid
-        const currentModelValid = enabledModels.find(
-          (m) => m.id === selectedModel && m.isEnabled
-        );
-        if (!currentModelValid) {
-          const fallbackModel = enabledModels.find((m) => m.isEnabled);
-          if (fallbackModel) {
-            console.warn(
-              `⚠️ Current model '${selectedModel}' invalid, switching to: ${fallbackModel.id}`
-            );
-            setSelectedModel(fallbackModel.id);
-          }
-        }
-      }
-    }
-  }, [
-    selectedModel,
-    models,
-    enabledModels,
-    modelsLoading,
-    setSelectedModel,
-    toast,
-  ]);
+  // Model selection is now handled by usePersistentModel hook
 
   // CRITICAL DEBUG: Track conversation changes
   useEffect(() => {

@@ -137,7 +137,28 @@ export function generatePersonalizedSystemPrompt(
 
 // Detect provider from model ID (now dynamic!)
 export function getProviderFromModelId(modelId: ModelId): string {
-  // OpenAI models
+  // OpenRouter models - these have the format "provider/model:variant" or "provider/model"
+  if (
+    modelId.includes("/") ||
+    modelId.includes(":") ||
+    modelId.startsWith("openai/") ||
+    modelId.startsWith("anthropic/") ||
+    modelId.startsWith("google/") ||
+    modelId.startsWith("meta-llama/") ||
+    modelId.startsWith("deepseek/") ||
+    modelId.startsWith("microsoft/") ||
+    modelId.startsWith("mistralai/") ||
+    modelId.startsWith("qwen/") ||
+    modelId.startsWith("nvidia/") ||
+    modelId.startsWith("cognitivecomputations/") ||
+    modelId.endsWith(":free") ||
+    modelId.endsWith(":beta") ||
+    modelId.endsWith(":extended")
+  ) {
+    return "openrouter";
+  }
+
+  // OpenAI models (direct API)
   if (
     modelId.startsWith("gpt-") ||
     modelId === "o1-preview" ||
@@ -146,12 +167,12 @@ export function getProviderFromModelId(modelId: ModelId): string {
     return "openai";
   }
 
-  // Claude models
+  // Claude models (direct API)
   if (modelId.startsWith("claude-")) {
     return "claude";
   }
 
-  // Gemini models
+  // Gemini models (direct API)
   if (modelId.startsWith("gemini-")) {
     return "gemini";
   }

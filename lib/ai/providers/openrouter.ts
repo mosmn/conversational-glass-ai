@@ -400,7 +400,10 @@ async function* createOpenRouterStreamingCompletion(
     );
   }
 
-  const model = openrouterModels[modelId];
+  // Get the current models from the provider (includes both static and dynamic models)
+  const allModels = await fetchOpenRouterModels(apiKey, options.userId);
+  const model = allModels[modelId];
+
   if (!model) {
     throw new AIProviderError(
       `Model ${modelId} not found in OpenRouter provider`,
