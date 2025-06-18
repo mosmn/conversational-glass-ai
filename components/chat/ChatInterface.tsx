@@ -496,11 +496,18 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         if (!modelToUse) {
           // If no model selected, use the first available enabled model
           const enabledModelsList = enabledModels.filter((m) => m.isEnabled);
-          modelToUse =
-            enabledModelsList.length > 0
-              ? enabledModelsList[0].id
-              : "llama-3.1-8b-instant";
-          console.log(`🔄 No model selected, using fallback: ${modelToUse}`);
+          if (enabledModelsList.length > 0) {
+            modelToUse = enabledModelsList[0].id;
+            console.log(
+              `🔄 No model selected, using first enabled model: ${modelToUse}`
+            );
+          } else {
+            // Only use hardcoded fallback if no models are enabled at all
+            modelToUse = "llama-3.1-8b-instant";
+            console.warn(
+              `⚠️ No enabled models found, using hardcoded fallback: ${modelToUse}`
+            );
+          }
         } else {
           // Check if the selected model is available and enabled
           const selectedModelData = models.find((m) => m.id === selectedModel);
@@ -509,13 +516,23 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           );
 
           if (!selectedModelData || !enabledModelsList) {
+            // Use the first enabled model as fallback, not hardcoded default
             const fallbackModel = enabledModels.find((m) => m.isEnabled);
-            modelToUse = fallbackModel
-              ? fallbackModel.id
-              : "llama-3.1-8b-instant";
-            console.warn(
-              `⚠️ Selected model '${selectedModel}' not available/enabled, using fallback: ${modelToUse}`
-            );
+            if (fallbackModel) {
+              modelToUse = fallbackModel.id;
+              console.warn(
+                `⚠️ Selected model '${selectedModel}' not available/enabled, using first enabled model: ${modelToUse}`
+              );
+            } else {
+              // Only use hardcoded fallback if no models are enabled at all
+              modelToUse = "llama-3.1-8b-instant";
+              console.warn(
+                `⚠️ Selected model '${selectedModel}' not available and no enabled models found, using hardcoded fallback: ${modelToUse}`
+              );
+            }
+          } else {
+            // The selected model is valid - use it!
+            console.log(`✅ Using user's selected model: ${modelToUse}`);
           }
         }
 
@@ -528,7 +545,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         });
 
         if (newConversation) {
-          console.log(`✅ Created conversation:`, newConversation);
+          console.log(`✅ Created conversation with model:`, {
+            conversationId: newConversation.id,
+            requestedModel: selectedModel,
+            actualModel: modelToUse,
+            conversationModel: newConversation.model,
+          });
 
           // Update the selected model to match what was actually used
           if (modelToUse !== selectedModel) {
@@ -545,7 +567,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           // This will create both user message and AI response
           try {
             console.log(
-              `🤖 Sending initial message to conversation ${newConversation.id}`
+              `🤖 Sending initial message to conversation ${newConversation.id} with model ${modelToUse}`
             );
 
             const sendResponse = await fetch("/api/chat/send", {

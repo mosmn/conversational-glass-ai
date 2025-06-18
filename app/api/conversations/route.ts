@@ -56,13 +56,34 @@ export async function POST(request: NextRequest) {
     let warning: string | undefined;
 
     if (!availableModelIds.includes(model)) {
-      // If the model doesn't exist, use the default model instead
+      // If the model doesn't exist, try to find the best fallback
       const defaultModel = await getDefaultModel();
-      finalModel = defaultModel || "llama-3.1-8b-instant";
-      warning = `Model '${model}' not available, used '${finalModel}' instead`;
 
-      console.warn(
-        `⚠️ Invalid model '${model}' requested, using '${finalModel}' instead`
+      // First, try to use the system's recommended default model
+      if (defaultModel && availableModelIds.includes(defaultModel)) {
+        finalModel = defaultModel;
+        warning = `Model '${model}' not available, used recommended default '${finalModel}' instead`;
+        console.warn(
+          `⚠️ Invalid model '${model}' requested, using recommended default '${finalModel}' instead`
+        );
+      } else if (availableModels.length > 0) {
+        // If default model is also not available, use the first available model
+        finalModel = availableModels[0].id;
+        warning = `Model '${model}' not available, used first available model '${finalModel}' instead`;
+        console.warn(
+          `⚠️ Invalid model '${model}' and default model not available, using first available '${finalModel}' instead`
+        );
+      } else {
+        // Only use hardcoded fallback if no models are available at all (should be very rare)
+        finalModel = "llama-3.1-8b-instant";
+        warning = `Model '${model}' not available and no other models found, used fallback '${finalModel}'`;
+        console.error(
+          `❌ No available models found! Using hardcoded fallback '${finalModel}'. This indicates a configuration problem.`
+        );
+      }
+    } else {
+      console.log(
+        `✅ Using requested model '${finalModel}' for new conversation`
       );
     }
 

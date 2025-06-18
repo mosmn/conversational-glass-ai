@@ -165,12 +165,21 @@ export function ModelSelector({
       // Clear the restoration indicator after a few seconds
       setTimeout(() => setWasRestored(false), 3000);
     } else {
-      // Fallback: select the first recommended or first available model
-      const fallbackModel =
-        enabledModels.find((m) => m.isRecommended) || enabledModels[0];
+      // Fallback: select the first recommended model, then first enabled model
+      const recommendedModel = enabledModels.find((m) => m.isRecommended);
+      const fallbackModel = recommendedModel || enabledModels[0];
       if (fallbackModel) {
-        console.log("✅ Using fallback model:", fallbackModel.id);
+        console.log(
+          `✅ Using ${
+            recommendedModel ? "recommended" : "first available"
+          } model:`,
+          fallbackModel.id
+        );
         onModelChange(fallbackModel.id);
+      } else {
+        console.warn(
+          "⚠️ No enabled models found for ModelSelector initialization"
+        );
       }
     }
   }, [enabledModels, selectedModel, onModelChange, defaultModel]);
