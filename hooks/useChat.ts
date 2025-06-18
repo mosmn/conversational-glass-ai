@@ -115,6 +115,12 @@ export function useChat(conversationId: string): UseChatReturn {
     async (reset = false) => {
       if (!conversationId) return;
 
+      // Don't fetch messages if we're actively streaming to avoid the "Message incomplete" issue
+      if (isStreaming && !reset) {
+        console.log("⏸️ Skipping fetchMessages during active streaming");
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
@@ -132,6 +138,15 @@ export function useChat(conversationId: string): UseChatReturn {
         // Sort messages by timestamp and filter out incomplete ones
         const sortedMessages = response.messages
           .filter((msg) => {
+            // Filter out temporary optimistic messages that somehow got persisted
+            if (msg.id.startsWith("temp-")) {
+              console.warn(
+                "🚨 Temporary message found in API response, filtering out:",
+                msg.id
+              );
+              return false;
+            }
+
             // Filter out incomplete messages
             if (msg.error === "Message incomplete") {
               handleIncompleteMessage(msg);
@@ -185,10 +200,22 @@ export function useChat(conversationId: string): UseChatReturn {
       });
 
       // Sort messages by timestamp and combine with existing
-      const sortedMessages = response.messages.sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
+      const sortedMessages = response.messages
+        .filter((msg) => {
+          // Filter out temporary optimistic messages
+          if (msg.id.startsWith("temp-")) {
+            console.warn(
+              "🚨 Temporary message found in loadMore, filtering out:",
+              msg.id
+            );
+            return false;
+          }
+          return true;
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
 
       setMessages((prev) => {
         const combined = [...sortedMessages, ...prev];
@@ -228,10 +255,12 @@ export function useChat(conversationId: string): UseChatReturn {
             messageMap.set(updatedMsg.id, updatedMsg);
           });
 
-          // Add new messages
-          syncResponse.newMessages.forEach((newMsg) => {
-            messageMap.set(newMsg.id, newMsg);
-          });
+          // Add new messages (excluding temporary ones)
+          syncResponse.newMessages
+            .filter((msg) => !msg.id.startsWith("temp-"))
+            .forEach((newMsg) => {
+              messageMap.set(newMsg.id, newMsg);
+            });
 
           // Convert back to array and sort by timestamp
           return Array.from(messageMap.values()).sort(
@@ -918,7 +947,30 @@ export function useChat(conversationId: string): UseChatReturn {
             hasMore: response.pagination.hasMore,
           });
 
-          setMessages(response.messages);
+          // Filter out temporary messages and incomplete ones
+          const filteredMessages = response.messages.filter((msg) => {
+            // Filter out temporary optimistic messages
+            if (msg.id.startsWith("temp-")) {
+              console.warn(
+                "🚨 Temporary message found in initial load, filtering out:",
+                msg.id
+              );
+              return false;
+            }
+
+            // Filter out incomplete messages
+            if (msg.error === "Message incomplete") {
+              console.warn(
+                "⚠️ Incomplete message found in initial load, filtering out:",
+                msg.id
+              );
+              return false;
+            }
+
+            return true;
+          });
+
+          setMessages(filteredMessages);
           setConversation(response.conversation);
           setHasMore(response.pagination.hasMore);
           setNextCursor(response.pagination.nextCursor);
