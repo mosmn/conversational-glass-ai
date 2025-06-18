@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/connection";
 import { userApiKeys } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { auditEncryptionConfig } from "@/lib/utils/encryption";
 import { getRateLimitStatus } from "@/lib/utils/rate-limiter";
+import { getAuthenticatedUserId } from "@/lib/utils/auth";
 
 // GET /api/user/security/audit - Get comprehensive security audit for user
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await auth();
-    const userId = authResult.userId;
+    const authResult = await getAuthenticatedUserId();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authResult.success) {
+      const status = authResult.error === "Unauthorized" ? 401 : 404;
+      return NextResponse.json({ error: authResult.error }, { status });
     }
+
+    const userId = authResult.userId!;
 
     // Get encryption configuration audit
     const encryptionAudit = auditEncryptionConfig();

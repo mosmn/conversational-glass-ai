@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/connection";
 import { userApiKeys } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,6 +9,7 @@ import {
   recordFailedAttempt,
   getRateLimitHeaders,
 } from "@/lib/utils/rate-limiter";
+import { getAuthenticatedUserId } from "@/lib/utils/auth";
 
 // Validation schema
 const exportKeysSchema = z.object({
@@ -26,12 +26,14 @@ export async function POST(request: NextRequest) {
   let rateLimitResult: any = null;
 
   try {
-    const authResult = await auth();
-    userId = authResult.userId;
+    const authResult = await getAuthenticatedUserId();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authResult.success) {
+      const status = authResult.error === "Unauthorized" ? 401 : 404;
+      return NextResponse.json({ error: authResult.error }, { status });
     }
+
+    userId = authResult.userId!;
 
     // Check rate limit - key export is a highly sensitive operation
     rateLimitResult = checkRateLimit(userId, "keyExport");

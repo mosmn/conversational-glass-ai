@@ -104,6 +104,12 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's internal UUID from Clerk ID
+    const internalUserId = await getUserInternalId(userId);
+    if (!internalUserId) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const validatedData = updateApiKeySchema.parse(body);
 
@@ -111,7 +117,12 @@ export async function PUT(
     const existingKey = await db
       .select()
       .from(userApiKeys)
-      .where(and(eq(userApiKeys.id, params.id), eq(userApiKeys.userId, userId)))
+      .where(
+        and(
+          eq(userApiKeys.id, params.id),
+          eq(userApiKeys.userId, internalUserId)
+        )
+      )
       .limit(1);
 
     if (existingKey.length === 0) {
@@ -128,7 +139,7 @@ export async function PUT(
         .from(userApiKeys)
         .where(
           and(
-            eq(userApiKeys.userId, userId),
+            eq(userApiKeys.userId, internalUserId),
             eq(userApiKeys.provider, existingKey[0].provider),
             eq(userApiKeys.keyName, validatedData.keyName)
           )
@@ -163,7 +174,12 @@ export async function PUT(
     const [updatedKey] = await db
       .update(userApiKeys)
       .set(updateData)
-      .where(and(eq(userApiKeys.id, params.id), eq(userApiKeys.userId, userId)))
+      .where(
+        and(
+          eq(userApiKeys.id, params.id),
+          eq(userApiKeys.userId, internalUserId)
+        )
+      )
       .returning({
         id: userApiKeys.id,
         provider: userApiKeys.provider,
