@@ -60,7 +60,7 @@ export function UserProfile() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem
-            onClick={() => router.push("/settings")}
+            onClick={() => router.push("/settings/customize")}
             className="hover:bg-slate-800/40"
           >
             <Settings className="mr-2 h-4 w-4" />

@@ -138,7 +138,7 @@ export function ChatHeader({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push("/settings")}
+              onClick={() => router.push("/settings/customize")}
               className="hover:bg-slate-700/50 hover:text-blue-400 transition-colors 
                          h-10 w-10 sm:h-9 sm:w-9 lg:h-10 lg:w-10 p-0 touch-manipulation
                          rounded-xl active:scale-95 active:bg-slate-700/60"
