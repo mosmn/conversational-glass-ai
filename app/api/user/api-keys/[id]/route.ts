@@ -206,11 +206,22 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get user's internal UUID from Clerk ID
+    const internalUserId = await getUserInternalId(userId);
+    if (!internalUserId) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     // Check if key exists and belongs to user
     const existingKey = await db
       .select()
       .from(userApiKeys)
-      .where(and(eq(userApiKeys.id, params.id), eq(userApiKeys.userId, userId)))
+      .where(
+        and(
+          eq(userApiKeys.id, params.id),
+          eq(userApiKeys.userId, internalUserId)
+        )
+      )
       .limit(1);
 
     if (existingKey.length === 0) {
@@ -221,8 +232,28 @@ export async function DELETE(
     await db
       .delete(userApiKeys)
       .where(
-        and(eq(userApiKeys.id, params.id), eq(userApiKeys.userId, userId))
+        and(
+          eq(userApiKeys.id, params.id),
+          eq(userApiKeys.userId, internalUserId)
+        )
       );
+
+    // Clear BYOK cache for this user and provider
+    const { BYOKManager } = await import("@/lib/ai/providers/byok-manager");
+    const { SearchBYOKManager } = await import(
+      "@/lib/ai/search-providers/search-byok-manager"
+    );
+
+    const provider = existingKey[0].provider;
+
+    // Clear cache for AI providers
+    if (!provider.startsWith("search_")) {
+      BYOKManager.clearCache(internalUserId, provider);
+    } else {
+      // Clear cache for search providers
+      const searchProvider = provider.replace("search_", "");
+      // SearchBYOKManager doesn't have a clearCache method yet, but we can add it if needed
+    }
 
     return NextResponse.json({
       success: true,

@@ -377,7 +377,21 @@ async function* createOpenRouterStreamingCompletion(
   options: StreamingOptions = {},
   customApiKey?: string
 ): AsyncIterable<StreamingChunk> {
-  const apiKey = customApiKey || env?.OPENROUTER_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let apiKey: string | null = null;
+
+  if (customApiKey) {
+    apiKey = customApiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "openrouter",
+      "OPENROUTER_API_KEY",
+      options.userId
+    );
+    apiKey = keyConfig?.apiKey || null;
+  }
 
   if (!apiKey) {
     throw new AIProviderError(
@@ -545,7 +559,20 @@ async function testOpenRouterConnection(apiKey?: string): Promise<{
   error?: string;
   models?: string[];
 }> {
-  const testKey = apiKey || env?.OPENROUTER_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let testKey: string | null = null;
+
+  if (apiKey) {
+    testKey = apiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "openrouter",
+      "OPENROUTER_API_KEY"
+    );
+    testKey = keyConfig?.apiKey || null;
+  }
 
   if (!testKey) {
     return { success: false, error: "No API key provided" };
@@ -600,7 +627,8 @@ const MODELS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Get available models with full details (upgraded for dynamic discovery)
 async function fetchOpenRouterModels(
-  apiKey?: string
+  apiKey?: string,
+  userId?: string
 ): Promise<Record<string, AIModel>> {
   const now = Date.now();
 
@@ -613,7 +641,21 @@ async function fetchOpenRouterModels(
     return cachedModels;
   }
 
-  const testKey = apiKey || env?.OPENROUTER_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let testKey: string | null = null;
+
+  if (apiKey) {
+    testKey = apiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "openrouter",
+      "OPENROUTER_API_KEY",
+      userId
+    );
+    testKey = keyConfig?.apiKey || null;
+  }
 
   if (!testKey) {
     console.log("🔄 OpenRouter: No API key available, using static models");
@@ -733,9 +775,9 @@ class OpenRouterProvider implements AIProvider {
   }
 
   // Load models dynamically
-  async ensureModelsLoaded(apiKey?: string): Promise<void> {
+  async ensureModelsLoaded(apiKey?: string, userId?: string): Promise<void> {
     if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
-      this._models = await fetchOpenRouterModels(apiKey);
+      this._models = await fetchOpenRouterModels(apiKey, userId);
       this._modelsLoaded = true;
     }
   }

@@ -136,7 +136,8 @@ function generateGeminiModelConfig(
 
 // Fetch available models from Gemini API
 async function fetchGeminiModels(
-  userApiKey?: string
+  userApiKey?: string,
+  userId?: string
 ): Promise<Record<string, AIModel>> {
   const now = Date.now();
 
@@ -148,7 +149,22 @@ async function fetchGeminiModels(
     return cachedModels;
   }
 
-  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let apiKey: string | null = null;
+
+  if (userApiKey) {
+    apiKey = userApiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "gemini",
+      "GOOGLE_AI_API_KEY",
+      userId
+    );
+    apiKey = keyConfig?.apiKey || null;
+  }
+
   if (!apiKey) {
     console.warn("🔴 Gemini: No API key configured");
     return {};
@@ -387,7 +403,22 @@ async function* createGeminiStreamingCompletion(
   options: StreamingOptions = {},
   userApiKey?: string
 ): AsyncIterable<StreamingChunk> {
-  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let apiKey: string | null = null;
+
+  if (userApiKey) {
+    apiKey = userApiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "gemini",
+      "GOOGLE_AI_API_KEY",
+      options.userId
+    );
+    apiKey = keyConfig?.apiKey || null;
+  }
+
   if (!apiKey) {
     throw new AIProviderError(
       "Gemini API key is required. Please configure a GOOGLE_AI_API_KEY environment variable or add your own API key in Settings → API Keys.",
@@ -395,10 +426,37 @@ async function* createGeminiStreamingCompletion(
     );
   }
 
-  // Note: Model validation is now handled by the provider class
-  // This function is called by the provider after ensuring models are loaded
+  // Create a dummy model for formatting - this will be improved when model is available
+  const dummyModel: AIModel = {
+    id: modelId,
+    name: modelId,
+    provider: "gemini",
+    maxTokens: 30720,
+    maxResponseTokens: 8192,
+    contextWindow: 30720,
+    personality: "helpful",
+    description: "Gemini model",
+    visualConfig: {
+      color: "blue",
+      avatar: "🤖",
+      style: "geometric",
+    },
+    capabilities: {
+      streaming: true,
+      functionCalling: true,
+      multiModal: true,
+      fileSupport: {} as any,
+    },
+    pricing: {
+      inputCostPer1kTokens: 0.00125,
+      outputCostPer1kTokens: 0.005,
+    },
+  };
 
-  const { contents, systemInstruction } = formatMessagesForGemini(messages);
+  const { contents, systemInstruction } = formatMessagesForGemini(
+    messages,
+    dummyModel
+  );
 
   const requestBody = {
     contents,
@@ -638,7 +696,21 @@ function calculateConversationTokens(messages: ChatMessage[]): number {
 
 // Test connection
 async function testGeminiConnection(userApiKey?: string): Promise<boolean> {
-  const apiKey = userApiKey || env?.GOOGLE_AI_API_KEY;
+  // Use BYOK manager to get API key with proper priority
+  let apiKey: string | null = null;
+
+  if (userApiKey) {
+    apiKey = userApiKey;
+  } else {
+    // Use BYOK manager for consistent API key resolution
+    const { BYOKManager } = await import("./byok-manager");
+    const keyConfig = await BYOKManager.getApiKeyWithFallback(
+      "gemini",
+      "GOOGLE_AI_API_KEY"
+    );
+    apiKey = keyConfig?.apiKey || null;
+  }
+
   if (!apiKey) return false;
 
   try {
@@ -683,9 +755,12 @@ export class GeminiProvider implements AIProvider {
   }
 
   // Load models dynamically
-  async ensureModelsLoaded(userApiKey?: string): Promise<void> {
+  async ensureModelsLoaded(
+    userApiKey?: string,
+    userId?: string
+  ): Promise<void> {
     if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
-      this._models = await fetchGeminiModels(userApiKey);
+      this._models = await fetchGeminiModels(userApiKey, userId);
       this._modelsLoaded = true;
     }
   }
@@ -706,7 +781,7 @@ export class GeminiProvider implements AIProvider {
     const userApiKey = byokConfig?.apiKey;
 
     // Ensure models are loaded with user's API key
-    await this.ensureModelsLoaded(userApiKey);
+    await this.ensureModelsLoaded(userApiKey, options.userId);
 
     const model = this.models[modelId];
     if (!model) {

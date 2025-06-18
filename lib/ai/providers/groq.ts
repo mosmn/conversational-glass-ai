@@ -219,15 +219,15 @@ function generateModelConfig(
 
 // Fetch models from Groq API
 async function fetchGroqModels(
-  userApiKey?: string
+  userApiKey?: string,
+  userId?: string
 ): Promise<Record<string, AIModel>> {
   const now = Date.now();
 
-  // Return cached models if they're still fresh
+  // Return cached models if still fresh
   if (
-    cachedModels &&
-    Object.keys(cachedModels).length > 0 &&
-    now - modelsLastFetched < MODELS_CACHE_DURATION
+    now - modelsLastFetched < MODELS_CACHE_DURATION &&
+    Object.keys(cachedModels).length > 0
   ) {
     return cachedModels;
   }
@@ -235,8 +235,28 @@ async function fetchGroqModels(
   try {
     const client = getGroqClient(userApiKey);
 
+    // Use BYOK manager to get API key with proper priority
+    let apiKey: string | null = null;
+
+    if (userApiKey) {
+      apiKey = userApiKey;
+    } else {
+      // Use BYOK manager for consistent API key resolution
+      const { BYOKManager } = await import("./byok-manager");
+      const keyConfig = await BYOKManager.getApiKeyWithFallback(
+        "groq",
+        "GROQ_API_KEY",
+        userId
+      );
+      apiKey = keyConfig?.apiKey || null;
+    }
+
+    if (!apiKey) {
+      console.warn("🔴 Groq: No API key configured");
+      return {};
+    }
+
     // Fetch models from Groq API
-    const apiKey = userApiKey || process.env.GROQ_API_KEY;
     const response = await fetch("https://api.groq.com/openai/v1/models", {
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -445,9 +465,12 @@ export class GroqProvider implements AIProvider {
   }
 
   // Load models dynamically
-  async ensureModelsLoaded(userApiKey?: string): Promise<void> {
+  async ensureModelsLoaded(
+    userApiKey?: string,
+    userId?: string
+  ): Promise<void> {
     if (!this._modelsLoaded || Object.keys(this._models).length === 0) {
-      this._models = await fetchGroqModels(userApiKey);
+      this._models = await fetchGroqModels(userApiKey, userId);
       this._modelsLoaded = true;
     }
   }
@@ -465,7 +488,7 @@ export class GroqProvider implements AIProvider {
     const userApiKey = byokConfig?.apiKey;
 
     // Ensure models are loaded
-    await this.ensureModelsLoaded(userApiKey);
+    await this.ensureModelsLoaded(userApiKey, options.userId);
 
     const model = this.models[modelId];
     if (!model) {
