@@ -58,11 +58,7 @@ interface UseChatReturn {
 // Streaming performance optimization constants
 const STREAMING_PERF_CONFIG = {
   // Throttle UI updates to reduce React re-renders
-  UI_UPDATE_THROTTLE_MS: 150, // Max 6-7 FPS for UI updates
-
-  // Batch content updates to reduce string concatenations
-  CONTENT_BATCH_SIZE: 3, // Batch every 3 chunks
-  CONTENT_BATCH_TIMEOUT_MS: 200, // Force batch after 200ms
+  UI_UPDATE_THROTTLE_MS: 100, // More responsive: Max 10 FPS for UI updates
 
   // Reduce localStorage persistence frequency for performance
   PERSISTENCE_FREQUENCY: 10, // Save every 10 chunks instead of 5
@@ -432,53 +428,44 @@ export function useChat(conversationId: string): UseChatReturn {
         let timeToFirstToken = 0;
 
         // Performance optimization variables
-        let contentBatch: string[] = [];
         let lastUIUpdate = 0;
         let lastPersistence = 0;
         let lastMemoryCleanup = 0;
-        let batchTimeout: NodeJS.Timeout | null = null;
 
-        // Optimized content update function
-        const flushContentBatch = () => {
-          if (contentBatch.length > 0) {
-            const batchedContent = contentBatch.join("");
-            assistantContent += batchedContent;
-            contentBatch = [];
+        // Simplified content update function without double batching
+        const updateStreamContent = (
+          newContent: string,
+          forceUpdate: boolean = false
+        ) => {
+          assistantContent += newContent;
 
-            // Throttled UI update to prevent excessive re-renders
-            const now = Date.now();
-            if (
-              now - lastUIUpdate >=
-              STREAMING_PERF_CONFIG.UI_UPDATE_THROTTLE_MS
-            ) {
-              lastUIUpdate = now;
+          // Throttled UI update to prevent excessive re-renders
+          const now = Date.now();
+          if (
+            forceUpdate ||
+            now - lastUIUpdate >= STREAMING_PERF_CONFIG.UI_UPDATE_THROTTLE_MS
+          ) {
+            lastUIUpdate = now;
 
-              // Memory safety: Truncate content if it gets too large
-              const displayContent =
-                assistantContent.length >
-                STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
-                  ? assistantContent.substring(
-                      0,
-                      STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
-                    ) + "\n\n[Content truncated for performance...]"
-                  : assistantContent;
+            // Memory safety: Truncate content if it gets too large
+            const displayContent =
+              assistantContent.length > STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
+                ? assistantContent.substring(
+                    0,
+                    STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
+                  ) + "\n\n[Content truncated for performance...]"
+                : assistantContent;
 
-              setCurrentStreamContent(displayContent);
+            setCurrentStreamContent(displayContent);
 
-              // Batched message update (less frequent)
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === optimisticAssistantMessage.id
-                    ? { ...msg, content: displayContent }
-                    : msg
-                )
-              );
-            }
-          }
-
-          if (batchTimeout) {
-            clearTimeout(batchTimeout);
-            batchTimeout = null;
+            // Update message content
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === optimisticAssistantMessage.id
+                  ? { ...msg, content: displayContent }
+                  : msg
+              )
+            );
           }
         };
 
@@ -487,28 +474,12 @@ export function useChat(conversationId: string): UseChatReturn {
             if (chunk.type === "content" && chunk.content) {
               chunkIndex++;
 
-              // Batch content updates instead of immediate concatenation
-              contentBatch.push(chunk.content);
+              // Direct content update - server already handles batching
+              updateStreamContent(chunk.content);
 
               // Track time to first token
-              if (
-                timeToFirstToken === 0 &&
-                (assistantContent.length > 0 || contentBatch.length > 0)
-              ) {
+              if (timeToFirstToken === 0 && assistantContent.length > 0) {
                 timeToFirstToken = Date.now() - startTime;
-              }
-
-              // Flush batch when it reaches size limit
-              if (
-                contentBatch.length >= STREAMING_PERF_CONFIG.CONTENT_BATCH_SIZE
-              ) {
-                flushContentBatch();
-              } else if (!batchTimeout) {
-                // Set timeout to flush batch after delay
-                batchTimeout = setTimeout(
-                  () => flushContentBatch(),
-                  STREAMING_PERF_CONFIG.CONTENT_BATCH_TIMEOUT_MS
-                );
               }
 
               // Reduced frequency persistence for performance
@@ -533,7 +504,7 @@ export function useChat(conversationId: string): UseChatReturn {
 
                       const updatedStreamState: StreamState = {
                         ...initialStreamState,
-                        content: assistantContent + contentBatch.join(""), // Include batched content
+                        content: assistantContent, // Use the actual content
                         chunkIndex,
                         totalTokens: chunk.totalTokens || 0,
                         tokensPerSecond,
@@ -583,8 +554,7 @@ export function useChat(conversationId: string): UseChatReturn {
                 chunkIndex % STREAMING_PERF_CONFIG.PERFORMANCE_LOG_INTERVAL ===
                 0
               ) {
-                const memoryUsed =
-                  (assistantContent.length + contentBatch.join("").length) * 2; // Approximate bytes
+                const memoryUsed = assistantContent.length * 2; // Approximate bytes
                 console.log(
                   `🚀 Streaming performance: ${chunkIndex} chunks, ${Math.round(
                     memoryUsed / 1024
@@ -609,9 +579,7 @@ export function useChat(conversationId: string): UseChatReturn {
                   tokensPerSecond,
                   timeToFirstToken,
                   elapsedTime,
-                  bytesReceived:
-                    (assistantContent.length + contentBatch.join("").length) *
-                    2,
+                  bytesReceived: assistantContent.length * 2,
                   canPause: true,
                   canResume: true,
                   lastChunkTime: Date.now(),
@@ -635,8 +603,8 @@ export function useChat(conversationId: string): UseChatReturn {
                 realUserMessageId = chunk.userMessageId;
               }
             } else if (chunk.type === "error") {
-              // Flush any remaining batched content before error handling
-              flushContentBatch();
+              // Force final UI update before error handling
+              updateStreamContent("", true);
 
               // Remove optimistic messages immediately when we get an error
               setMessages((prev) =>
@@ -652,12 +620,7 @@ export function useChat(conversationId: string): UseChatReturn {
               setCurrentStreamId(null);
               setStreamProgress(null);
 
-              // Cleanup batching state
-              if (batchTimeout) {
-                clearTimeout(batchTimeout);
-                batchTimeout = null;
-              }
-              contentBatch = [];
+              // No batching state to cleanup with simplified approach
 
               // Use enhanced error handling for streaming errors
               await chatErrorHandler.handleStreamingError(
@@ -688,8 +651,8 @@ export function useChat(conversationId: string): UseChatReturn {
               chunk.type === "finished" ||
               chunk.finished
             ) {
-              // Flush any remaining batched content before completion
-              flushContentBatch();
+              // Force final UI update before completion
+              updateStreamContent("", true);
 
               // Mark stream as complete
               streamPersistence.markStreamComplete(streamId);

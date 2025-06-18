@@ -518,9 +518,8 @@ export async function POST(request: NextRequest) {
           // Server-side performance optimizations
           let chunkCount = 0;
           let lastDBUpdate = 0;
-          let contentBatch: string[] = [];
 
-          // Process streaming chunks with batching for better performance
+          // Process streaming chunks with direct forwarding
           for await (const chunk of aiStream) {
             if (chunk.error) {
               // Handle streaming error
@@ -572,40 +571,29 @@ export async function POST(request: NextRequest) {
             if (chunk.content) {
               chunkCount++;
 
-              // Batch chunks every 3 chunks to reduce network overhead
-              contentBatch.push(chunk.content);
-              if (contentBatch.length >= 3 || chunk.finished) {
-                const batchedContent = contentBatch.join("");
-                assistantContent += batchedContent;
-                totalTokenCount += chunk.tokenCount || 0;
-                contentBatch = [];
+              // Add content directly to stream and accumulate
+              assistantContent += chunk.content;
+              totalTokenCount += chunk.tokenCount || 0;
 
-                // Send batched chunk to client (only if controller is still open)
-                const responseChunk = {
-                  type: "content",
-                  content: batchedContent,
-                  finished: false,
-                  provider: provider.name,
-                  model: aiModel.name,
-                  messageId: assistantMessage.id,
-                  userMessageId: userMessage.id,
-                };
+              // Send content chunk to client immediately (no server-side batching)
+              const responseChunk = {
+                type: "content",
+                content: chunk.content,
+                finished: false,
+                provider: provider.name,
+                model: aiModel.name,
+                messageId: assistantMessage.id,
+                userMessageId: userMessage.id,
+              };
 
-                try {
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
-                  );
-                } catch (controllerError) {
-                  // Controller is closed (likely due to client abort) - exit gracefully
-                  console.log(
-                    "🛑 Controller closed, stopping stream gracefully"
-                  );
-                  break;
-                }
-              } else {
-                // Just accumulate content without sending yet
-                assistantContent += chunk.content;
-                totalTokenCount += chunk.tokenCount || 0;
+              try {
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
+                );
+              } catch (controllerError) {
+                // Controller is closed (likely due to client abort) - exit gracefully
+                console.log("🛑 Controller closed, stopping stream gracefully");
+                break;
               }
 
               // Non-blocking database updates with reduced frequency for performance
