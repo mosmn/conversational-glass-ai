@@ -571,6 +571,18 @@ export async function POST(request: NextRequest) {
             if (chunk.content) {
               chunkCount++;
 
+              // CRITICAL DEBUG: Log server-side content processing
+              console.log("🖥️ SERVER CHUNK DEBUG:", {
+                chunkContent: `"${chunk.content}"`,
+                chunkLength: chunk.content.length,
+                assistantContentBefore: assistantContent.length,
+                assistantContentAfterWillBe:
+                  assistantContent.length + chunk.content.length,
+                chunkCount,
+                provider: provider.name,
+                model: aiModel.name,
+              });
+
               // Add content directly to stream and accumulate
               assistantContent += chunk.content;
               totalTokenCount += chunk.tokenCount || 0;
@@ -585,6 +597,11 @@ export async function POST(request: NextRequest) {
                 messageId: assistantMessage.id,
                 userMessageId: userMessage.id,
               };
+
+              console.log("📤 SENDING TO CLIENT:", {
+                responseChunkContent: `"${responseChunk.content}"`,
+                responseChunkLength: responseChunk.content?.length || 0,
+              });
 
               try {
                 controller.enqueue(

@@ -437,7 +437,82 @@ export function useChat(conversationId: string): UseChatReturn {
           newContent: string,
           forceUpdate: boolean = false
         ) => {
-          assistantContent += newContent;
+          // CRITICAL DEBUG: Log every content update to identify duplication
+          console.log("🔍 CONTENT DEBUG:", {
+            newContent: `"${newContent}"`,
+            newContentLength: newContent.length,
+            assistantContentBefore: assistantContent.length,
+            lastFewCharsOfExisting: assistantContent.slice(-20),
+            firstFewCharsOfNew: newContent.slice(0, 20),
+            chunkIndex,
+          });
+
+          // CRITICAL FIX: Detect and prevent content duplication
+          let contentToAdd = newContent;
+
+          if (assistantContent.length > 0 && newContent.length > 0) {
+            // Check if the new content starts with the end of existing content (overlap detection)
+            for (
+              let overlapLength = Math.min(
+                assistantContent.length,
+                newContent.length
+              );
+              overlapLength > 0;
+              overlapLength--
+            ) {
+              const existingEnd = assistantContent.slice(-overlapLength);
+              const newStart = newContent.slice(0, overlapLength);
+
+              if (existingEnd === newStart) {
+                // Found overlap - remove duplicated part from new content
+                contentToAdd = newContent.slice(overlapLength);
+                console.warn("🔧 OVERLAP DETECTED AND FIXED:", {
+                  overlapLength,
+                  overlappingText: `"${existingEnd}"`,
+                  originalNewContent: `"${newContent}"`,
+                  deduplicatedContent: `"${contentToAdd}"`,
+                });
+                break;
+              }
+            }
+
+            // Additional check: if new content is completely contained in the last part of existing content
+            if (
+              contentToAdd === newContent &&
+              assistantContent.includes(newContent)
+            ) {
+              const lastOccurrence = assistantContent.lastIndexOf(newContent);
+              const isAtEnd =
+                lastOccurrence + newContent.length === assistantContent.length;
+
+              if (isAtEnd) {
+                // This content is already at the end - skip it completely
+                contentToAdd = "";
+                console.warn("🚫 DUPLICATE CONTENT SKIPPED:", {
+                  duplicatedContent: `"${newContent}"`,
+                  reason: "Content already exists at end of message",
+                });
+              }
+            }
+          }
+
+          assistantContent += contentToAdd;
+
+          // CRITICAL DEBUG: Check for duplication patterns
+          if (contentToAdd.length > 0) {
+            // Check if the new content appears to duplicate the end of existing content
+            const overlapCheck = assistantContent.slice(
+              -contentToAdd.length * 2,
+              -contentToAdd.length
+            );
+            if (overlapCheck === contentToAdd) {
+              console.error("🚨 DUPLICATION DETECTED AFTER FIX!", {
+                duplicatedContent: `"${contentToAdd}"`,
+                overlapRegion: `"${overlapCheck}"`,
+                assistantContentEnd: assistantContent.slice(-50),
+              });
+            }
+          }
 
           // Throttled UI update to prevent excessive re-renders
           const now = Date.now();
@@ -471,6 +546,18 @@ export function useChat(conversationId: string): UseChatReturn {
 
         try {
           for await (const chunk of stream) {
+            // CRITICAL DEBUG: Log every chunk received from AI provider
+            if (chunk.type === "content" && chunk.content) {
+              console.log("📡 CHUNK RECEIVED:", {
+                chunkType: chunk.type,
+                chunkContent: `"${chunk.content}"`,
+                chunkLength: chunk.content.length,
+                chunkIndex: chunkIndex + 1,
+                provider: chunk.provider,
+                model: chunk.model,
+              });
+            }
+
             if (chunk.type === "content" && chunk.content) {
               chunkIndex++;
 
