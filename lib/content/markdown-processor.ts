@@ -246,7 +246,7 @@ export class MarkdownProcessor {
         `<strong class="font-bold text-white">${text}</strong>`;
       renderer.em = (text) => `<em class="italic text-slate-200">${text}</em>`;
       renderer.code = (text) =>
-        `<code class="bg-slate-700 px-1.5 py-0.5 rounded text-sm font-mono text-emerald-300">${text}</code>`;
+        `<code class="inline bg-slate-700/40 px-1.5 py-0.5 rounded text-sm font-mono text-emerald-300 border-0 m-0 whitespace-nowrap">${text}</code>`;
       renderer.blockquote = (quote) =>
         `<blockquote class="border-l-4 border-emerald-500 pl-4 my-4 text-slate-300 italic">${quote}</blockquote>`;
       renderer.list = (body, ordered) => {

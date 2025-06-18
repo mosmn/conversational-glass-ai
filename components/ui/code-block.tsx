@@ -308,13 +308,15 @@ export function InlineCode({
   return (
     <code
       className={cn(
-        "inline-flex items-center",
-        "px-1.5 py-0.5 mx-0.5",
+        "inline",
+        "px-1.5 py-0.5",
         "text-sm font-mono",
         "bg-slate-700/40 text-slate-200",
         "border border-slate-600/40",
         "rounded-md",
         "backdrop-blur-sm",
+        "whitespace-nowrap",
+        "m-0",
         className
       )}
     >

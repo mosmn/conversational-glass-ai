@@ -53,7 +53,7 @@ export function MarkdownContent({
         "markdown-content",
         "prose prose-invert max-w-none",
         "prose-strong:text-white prose-em:text-slate-200",
-        "prose-code:bg-slate-700 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-emerald-300",
+        "prose-code:inline prose-code:bg-slate-700/40 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-emerald-300 prose-code:border-0 prose-code:m-0",
         "prose-blockquote:border-l-emerald-500 prose-blockquote:text-slate-300",
         "prose-a:text-emerald-400 prose-a:no-underline hover:prose-a:text-emerald-300",
         "prose-headings:text-white prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg",
@@ -89,16 +89,75 @@ function renderProcessedContent(
     );
   }
 
+  // Group consecutive text and inline-code segments to keep them inline
+  const groupedSegments: Array<ProcessedSegment | ProcessedSegment[]> = [];
+  let currentTextGroup: ProcessedSegment[] = [];
+
+  for (const segment of processedContent.segments) {
+    if (segment.type === "text" || segment.type === "inline-code") {
+      currentTextGroup.push(segment);
+    } else {
+      // Code block - flush any pending text group and add the code block
+      if (currentTextGroup.length > 0) {
+        if (currentTextGroup.length === 1) {
+          groupedSegments.push(currentTextGroup[0]);
+        } else {
+          groupedSegments.push([...currentTextGroup]);
+        }
+        currentTextGroup = [];
+      }
+      groupedSegments.push(segment);
+    }
+  }
+
+  // Don't forget the last text group
+  if (currentTextGroup.length > 0) {
+    if (currentTextGroup.length === 1) {
+      groupedSegments.push(currentTextGroup[0]);
+    } else {
+      groupedSegments.push([...currentTextGroup]);
+    }
+  }
+
   return (
     <div className="space-y-2">
-      {processedContent.segments.map((segment) => (
-        <SegmentRenderer
-          key={segment.id}
-          segment={segment}
-          showLineNumbers={options.showLineNumbers}
-          maxCodeBlockHeight={options.maxCodeBlockHeight}
-        />
-      ))}
+      {groupedSegments.map((segmentOrGroup, index) => {
+        if (Array.isArray(segmentOrGroup)) {
+          // Group of text and inline code - render inline
+          return (
+            <div key={`group-${index}`} className="leading-relaxed">
+              {segmentOrGroup.map((segment, segmentIndex) => (
+                <React.Fragment key={`${segment.id}-${segmentIndex}`}>
+                  {segment.type === "text" ? (
+                    <span
+                      dangerouslySetInnerHTML={{
+                        __html: segment.highlightedContent || segment.content,
+                      }}
+                    />
+                  ) : (
+                    <InlineCode
+                      language={segment.language}
+                      highlightedHtml={segment.highlightedContent}
+                    >
+                      {segment.content}
+                    </InlineCode>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          );
+        } else {
+          // Single segment
+          return (
+            <SegmentRenderer
+              key={segmentOrGroup.id}
+              segment={segmentOrGroup}
+              showLineNumbers={options.showLineNumbers}
+              maxCodeBlockHeight={options.maxCodeBlockHeight}
+            />
+          );
+        }
+      })}
     </div>
   );
 }
@@ -169,13 +228,16 @@ function SegmentRenderer({
       );
 
     case "inline-code":
+      // This case should now rarely be hit since inline code is grouped with text
       return (
-        <InlineCode
-          language={segment.language}
-          highlightedHtml={segment.highlightedContent}
-        >
-          {segment.content}
-        </InlineCode>
+        <div className="leading-relaxed">
+          <InlineCode
+            language={segment.language}
+            highlightedHtml={segment.highlightedContent}
+          >
+            {segment.content}
+          </InlineCode>
+        </div>
       );
 
     default:
