@@ -1,5 +1,6 @@
 import { toast } from "@/hooks/use-toast";
 import { aiLogger, apiLogger, fileLogger, streamLogger } from "./logger";
+import { showApiKeyErrorToast } from "@/components/chat/ApiKeyErrorToast";
 
 // Error severity levels
 export enum ErrorSeverity {
@@ -15,6 +16,7 @@ export enum ErrorCategory {
   AUTHENTICATION = "authentication",
   VALIDATION = "validation",
   AI_PROVIDER = "ai_provider",
+  API_KEY = "api_key",
   STREAMING = "streaming",
   FILE_PROCESSING = "file_processing",
   RATE_LIMIT = "rate_limit",
@@ -51,6 +53,7 @@ export enum RecoveryAction {
   SWITCH_MODEL = "switch_model",
   CLEAR_CACHE = "clear_cache",
   REFRESH_SESSION = "refresh_session",
+  ADD_API_KEY = "add_api_key",
   CONTACT_SUPPORT = "contact_support",
   NONE = "none",
 }
@@ -314,6 +317,20 @@ class ChatErrorHandler {
         });
         break;
 
+      case ErrorCategory.API_KEY:
+        suggestions.push({
+          action: RecoveryAction.ADD_API_KEY,
+          actionLabel: "Add API Key",
+          onAction: () => {
+            window.location.href = "/settings/api-keys";
+          },
+        });
+        suggestions.push({
+          action: RecoveryAction.SWITCH_MODEL,
+          actionLabel: "Switch to Different Model",
+        });
+        break;
+
       case ErrorCategory.AI_PROVIDER:
         if (chatError.isRetryable) {
           suggestions.push({
@@ -473,6 +490,15 @@ class ChatErrorHandler {
       severity = ErrorSeverity.MEDIUM;
       isRetryable = true;
     } else if (
+      message.toLowerCase().includes("api key") ||
+      message.toLowerCase().includes("invalid key") ||
+      message.toLowerCase().includes("key not found") ||
+      message.toLowerCase().includes("missing api key") ||
+      message.toLowerCase().includes("authentication required")
+    ) {
+      severity = ErrorSeverity.HIGH;
+      isRetryable = false; // Retry won't help without a valid API key
+    } else if (
       message.toLowerCase().includes("unauthorized") ||
       message.toLowerCase().includes("forbidden")
     ) {
@@ -499,6 +525,14 @@ class ChatErrorHandler {
         return "Connection issue detected. Please check your internet connection and try again.";
       case ErrorCategory.AUTHENTICATION:
         return "Authentication failed. Please refresh the page or sign in again.";
+      case ErrorCategory.API_KEY:
+        const provider =
+          this.extractProviderFromMessage(message) ||
+          context?.provider ||
+          this.extractProviderFromModel(context?.model);
+        return `${
+          provider ? `${provider} ` : ""
+        }API key is missing or invalid. Please add a valid API key in Settings to continue using this model.`;
       case ErrorCategory.AI_PROVIDER:
         return `AI service temporarily unavailable${
           context?.model ? ` for ${context.model}` : ""
@@ -535,6 +569,18 @@ class ChatErrorHandler {
     const message = error instanceof Error ? error.message : String(error);
     const lowerMessage = message.toLowerCase();
 
+    // Check for API key related errors first
+    if (
+      lowerMessage.includes("api key") ||
+      lowerMessage.includes("invalid key") ||
+      lowerMessage.includes("key not found") ||
+      lowerMessage.includes("missing api key") ||
+      lowerMessage.includes("authentication required") ||
+      (lowerMessage.includes("unauthorized") &&
+        (lowerMessage.includes("key") || lowerMessage.includes("token")))
+    ) {
+      return ErrorCategory.API_KEY;
+    }
     if (lowerMessage.includes("unauthorized") || lowerMessage.includes("401")) {
       return ErrorCategory.AUTHENTICATION;
     }
@@ -547,7 +593,9 @@ class ChatErrorHandler {
     if (
       lowerMessage.includes("openai") ||
       lowerMessage.includes("anthropic") ||
-      lowerMessage.includes("gemini")
+      lowerMessage.includes("gemini") ||
+      lowerMessage.includes("openrouter") ||
+      lowerMessage.includes("groq")
     ) {
       return ErrorCategory.AI_PROVIDER;
     }
@@ -609,6 +657,12 @@ class ChatErrorHandler {
       ? this.getRecoverySuggestions(error)
       : [];
 
+    // Special handling for API key errors with action buttons
+    if (error.category === ErrorCategory.API_KEY) {
+      this.showAPIKeyErrorToast(error, recoveryOptions);
+      return;
+    }
+
     toast({
       title: this.getToastTitle(error.category, error.severity),
       description: error.userMessage,
@@ -630,6 +684,22 @@ class ChatErrorHandler {
     });
   }
 
+  private showAPIKeyErrorToast(
+    error: ChatError,
+    recoveryOptions: ErrorRecoveryOptions[]
+  ): void {
+    const provider =
+      this.extractProviderFromMessage(error.message) ||
+      error.context?.provider ||
+      this.extractProviderFromModel(error.context?.model) ||
+      undefined;
+
+    showApiKeyErrorToast({
+      provider,
+      model: error.context?.model,
+    });
+  }
+
   private getToastTitle(
     category: ErrorCategory,
     severity: ErrorSeverity
@@ -640,6 +710,8 @@ class ChatErrorHandler {
     switch (category) {
       case ErrorCategory.NETWORK:
         return "Connection Issue";
+      case ErrorCategory.API_KEY:
+        return "API Key Required";
       case ErrorCategory.AI_PROVIDER:
         return "AI Service Issue";
       case ErrorCategory.RATE_LIMIT:
@@ -662,6 +734,38 @@ class ChatErrorHandler {
       default:
         return 3000;
     }
+  }
+
+  private extractProviderFromMessage(message: string): string | null {
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes("openai")) return "OpenAI";
+    if (lowerMessage.includes("anthropic") || lowerMessage.includes("claude"))
+      return "Anthropic";
+    if (lowerMessage.includes("gemini") || lowerMessage.includes("google"))
+      return "Google";
+    if (lowerMessage.includes("openrouter")) return "OpenRouter";
+    if (lowerMessage.includes("groq")) return "Groq";
+
+    return null;
+  }
+
+  private extractProviderFromModel(model?: string): string | null {
+    if (!model) return null;
+
+    const lowerModel = model.toLowerCase();
+
+    if (lowerModel.startsWith("gpt-") || lowerModel.includes("openai"))
+      return "OpenAI";
+    if (lowerModel.includes("claude") || lowerModel.includes("anthropic"))
+      return "Anthropic";
+    if (lowerModel.includes("gemini") || lowerModel.includes("google"))
+      return "Google";
+    if (lowerModel.includes("llama") || lowerModel.includes("meta"))
+      return "OpenRouter";
+    if (lowerModel.includes("groq")) return "Groq";
+
+    return null;
   }
 }
 

@@ -14,6 +14,10 @@ import {
 } from "@/lib/streaming/persistence";
 import { StreamState, StreamProgress } from "@/lib/streaming/types";
 import { useStreamingFailureHandler } from "./useStreamingFailureHandler";
+import {
+  chatErrorHandler,
+  ErrorCategory,
+} from "@/lib/utils/chat-error-handler";
 
 interface UseChatReturn {
   messages: Message[];
@@ -478,8 +482,30 @@ export function useChat(conversationId: string): UseChatReturn {
               setCurrentStreamId(null);
               setStreamProgress(null);
 
-              // Throw error to be caught by outer error handler
-              throw new Error(chunk.error || "Streaming error");
+              // Use enhanced error handling for streaming errors
+              await chatErrorHandler.handleStreamingError(
+                new Error(chunk.error || "Streaming error"),
+                {
+                  conversationId,
+                  messageId: optimisticAssistantMessage.id,
+                  streamId: currentStreamId || undefined,
+                },
+                async () => {
+                  // Retry callback - resend the message
+                  await sendMessage(
+                    content,
+                    model,
+                    attachments,
+                    displayContent,
+                    searchResults,
+                    searchQuery,
+                    searchProvider
+                  );
+                }
+              );
+
+              // Don't throw - error is already handled
+              return;
             } else if (
               chunk.type === "completed" ||
               chunk.type === "finished" ||
@@ -715,7 +741,24 @@ export function useChat(conversationId: string): UseChatReturn {
           return; // Exit gracefully
         }
 
-        setError(apiError.error || "Failed to send message");
+        // Use enhanced error handling to categorize and show appropriate UI
+        const chatError = await chatErrorHandler.handleError(
+          err,
+          ErrorCategory.AI_PROVIDER,
+          {
+            context: {
+              conversationId,
+              model,
+              provider: model.includes("/") ? model.split("/")[0] : undefined,
+              endpoint: "chat/send",
+            },
+            showToast: true,
+            suggestRecovery: true,
+          }
+        );
+
+        // Set generic error state for the component (the specific error is handled by the toast)
+        setError("Failed to send message");
         console.error("Send message error:", err);
 
         // Remove any temporary messages on error
@@ -733,7 +776,7 @@ export function useChat(conversationId: string): UseChatReturn {
           if (streamState) {
             streamPersistence.saveStreamState({
               ...streamState,
-              error: apiError.error || "Failed to send message",
+              error: chatError.userMessage,
               isComplete: true,
             });
           }
