@@ -464,6 +464,21 @@ export function useChat(conversationId: string): UseChatReturn {
                 realUserMessageId = chunk.userMessageId;
               }
             } else if (chunk.type === "error") {
+              // Remove optimistic messages immediately when we get an error
+              setMessages((prev) =>
+                prev.filter(
+                  (msg) =>
+                    msg.id !== optimisticUserMessage.id &&
+                    msg.id !== optimisticAssistantMessage.id
+                )
+              );
+
+              // Clear streaming state
+              setCurrentStreamContent("");
+              setCurrentStreamId(null);
+              setStreamProgress(null);
+
+              // Throw error to be caught by outer error handler
               throw new Error(chunk.error || "Streaming error");
             } else if (
               chunk.type === "completed" ||

@@ -524,21 +524,41 @@ export async function POST(request: NextRequest) {
                 error: chunk.error,
                 finished: true,
                 messageId: assistantMessage.id,
+                userMessageId: userMessage.id,
               };
 
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`)
               );
 
-              // Update the assistant message with error status
-              await MessageQueries.updateMessage(assistantMessage.id, user.id, {
-                content: `Error: ${chunk.error}`,
-                metadata: {
-                  streamingComplete: false,
-                  regenerated: false,
-                  error: true,
-                } as any,
-              });
+              // Delete the failed messages instead of saving error content
+              try {
+                await MessageQueries.deleteMessage(
+                  assistantMessage.id,
+                  user.id
+                );
+                await MessageQueries.deleteMessage(userMessage.id, user.id);
+                console.log(
+                  "🗑️ Deleted failed messages due to streaming error:",
+                  chunk.error
+                );
+              } catch (deleteError) {
+                console.error("Failed to delete error messages:", deleteError);
+                // Fallback: mark as error without content
+                await MessageQueries.updateMessage(
+                  assistantMessage.id,
+                  user.id,
+                  {
+                    content: "",
+                    metadata: {
+                      streamingComplete: false,
+                      regenerated: false,
+                      error: true,
+                      deleted: true,
+                    } as any,
+                  }
+                );
+              }
 
               controller.close();
               return;
@@ -651,23 +671,37 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.error("Streaming error:", error);
 
-          // Update message with error
-          await MessageQueries.updateMessage(assistantMessage.id, user.id, {
-            content: `Error: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`,
-            metadata: {
-              streamingComplete: false,
-              regenerated: false,
-              error: true,
-            } as any,
-          });
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
+          // Delete the failed messages instead of saving error content
+          try {
+            await MessageQueries.deleteMessage(assistantMessage.id, user.id);
+            await MessageQueries.deleteMessage(userMessage.id, user.id);
+            console.log(
+              "🗑️ Deleted failed messages due to streaming error:",
+              errorMessage
+            );
+          } catch (deleteError) {
+            console.error("Failed to delete error messages:", deleteError);
+            // Fallback: mark as error without content
+            await MessageQueries.updateMessage(assistantMessage.id, user.id, {
+              content: "",
+              metadata: {
+                streamingComplete: false,
+                regenerated: false,
+                error: true,
+                deleted: true,
+              } as any,
+            });
+          }
 
           const errorChunk = {
             type: "error",
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: errorMessage,
             finished: true,
             messageId: assistantMessage.id,
+            userMessageId: userMessage.id,
           };
 
           try {
