@@ -89,36 +89,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the stream state from persistence
-    const streamState = streamPersistence.getStreamState(streamId);
+    // Get the stream state from persistence - FALLBACK STRATEGY
+    let streamState = streamPersistence.getStreamState(streamId);
+
     if (!streamState) {
       console.error(`❌ Stream state not found for ID: ${streamId}`);
 
-      // List available streams for debugging
+      // FALLBACK: Try to find any stream for this message ID and conversation
       const allStreams = streamPersistence.getIncompleteStreams();
       console.log(
         `📋 Available incomplete streams (${allStreams.length}):`,
         allStreams.map((s) => ({
           streamId: s.streamId,
           messageId: s.messageId,
+          conversationId: s.conversationId,
           content: s.content?.substring(0, 50) + "...",
         }))
       );
 
-      return NextResponse.json(
-        {
-          error: "Stream state not found or expired",
-          details: {
-            streamId,
-            availableStreams: allStreams.length,
-            suggestion:
-              allStreams.length > 0
-                ? "Try refreshing the page to see updated resume options"
-                : "No recoverable streams available",
-          },
-        },
-        { status: 404 }
+      // Try to find a stream with matching messageId and conversationId
+      const fallbackStream = allStreams.find(
+        (s) => s.messageId === messageId && s.conversationId === conversationId
       );
+
+      if (fallbackStream) {
+        console.log(`🔄 Using fallback stream: ${fallbackStream.streamId}`);
+        streamState = fallbackStream;
+      } else {
+        // Create a minimal stream state from the provided data
+        console.log(`🆕 Creating new stream state from provided data`);
+        streamState = {
+          streamId,
+          conversationId,
+          messageId,
+          content: lastKnownContent,
+          chunkIndex: fromChunkIndex,
+          totalTokens: 0,
+          tokensPerSecond: 0,
+          timeToFirstToken: 0,
+          elapsedTime: 0,
+          bytesReceived: lastKnownContent.length * 2,
+          isComplete: false,
+          isPaused: true,
+          lastUpdateTime: Date.now(),
+          model,
+          provider: "unknown",
+          originalPrompt: "",
+          startTime: Date.now(),
+        };
+
+        // Save this new state
+        streamPersistence.saveStreamState(streamState);
+      }
     }
 
     console.log(`📊 Found stream state:`, {

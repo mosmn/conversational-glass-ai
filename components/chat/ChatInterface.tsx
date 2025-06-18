@@ -316,6 +316,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     canPauseStream,
     pauseStream,
     resumeStream,
+    isRecovering,
   } = useChat(optimisticChatId || ""); // Use optimistic chat ID for smoother transitions
   const { models, loading: modelsLoading, getModelById } = useModels();
   const { enabledModels } = useEnabledModels();
@@ -1100,6 +1101,24 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         }}
                         isRetrying={isStreaming}
                       />
+                    )}
+
+                    {/* Stream recovery notification */}
+                    {isRecovering && (
+                      <div className="mb-4 p-4 border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
+                          <div>
+                            <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                              Recovering interrupted message...
+                            </h4>
+                            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                              We detected an interrupted AI response and are
+                              continuing from where it left off.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {hasMore && (

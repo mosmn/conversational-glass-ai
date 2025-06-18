@@ -172,7 +172,13 @@ class StreamPersistence {
       const incompleteStreams = this.getIncompleteStreams();
 
       return incompleteStreams
-        .filter((stream) => stream.conversationId === conversationId)
+        .filter(
+          (stream) =>
+            stream.conversationId === conversationId &&
+            stream.content && // Must have actual content
+            stream.content.length > 0 && // Content cannot be empty
+            !stream.messageId?.startsWith("temp-") // CRITICAL: Don't recover temporary messages that haven't been persisted to DB
+        )
         .map((stream) => ({
           streamId: stream.streamId,
           lastContent: stream.content,
@@ -180,7 +186,8 @@ class StreamPersistence {
           interruptedAt: stream.lastUpdateTime,
           model: stream.model,
           provider: stream.provider,
-          canRecover: !stream.error && !stream.isComplete,
+          canRecover:
+            !stream.error && !stream.isComplete && stream.content.length > 0,
           errorMessage: stream.error,
         }));
     } catch (error) {
@@ -245,10 +252,21 @@ class StreamPersistence {
         if (stored) {
           try {
             const data = JSON.parse(stored);
-            if (data.savedAt < cutoffTime || data.isComplete) {
+            // Clean up old streams, completed streams, AND temporary message streams
+            if (
+              data.savedAt < cutoffTime ||
+              data.isComplete ||
+              data.messageId?.startsWith("temp-")
+            ) {
               localStorage.removeItem(key);
               this.removeFromStreamIndex(streamId);
               cleanedCount++;
+
+              if (data.messageId?.startsWith("temp-")) {
+                console.log(
+                  `🧹 Cleaned up temporary message stream: ${streamId} (messageId: ${data.messageId})`
+                );
+              }
             }
           } catch (error) {
             // Invalid data, remove it
@@ -270,6 +288,52 @@ class StreamPersistence {
         "cleanup",
         error
       );
+    }
+  }
+
+  /**
+   * Clean up temporary message streams that shouldn't persist
+   */
+  cleanupTemporaryMessageStreams(): number {
+    try {
+      if (typeof window === "undefined") return 0;
+
+      const index = this.getStreamIndex();
+      let cleanedCount = 0;
+
+      for (const streamId of index.streamIds) {
+        const key = `${STORAGE_KEYS.STREAM_STATE}${streamId}`;
+        const stored = localStorage.getItem(key);
+
+        if (stored) {
+          try {
+            const data = JSON.parse(stored);
+            // Remove streams for temporary messages that haven't been persisted
+            if (data.messageId?.startsWith("temp-")) {
+              localStorage.removeItem(key);
+              this.removeFromStreamIndex(streamId);
+              cleanedCount++;
+              console.log(
+                `🧹 Cleaned up temporary message stream: ${streamId} (messageId: ${data.messageId})`
+              );
+            }
+          } catch (error) {
+            // Invalid data, remove it
+            localStorage.removeItem(key);
+            this.removeFromStreamIndex(streamId);
+            cleanedCount++;
+          }
+        }
+      }
+
+      if (cleanedCount > 0) {
+        console.log(`🧹 Cleaned up ${cleanedCount} temporary message streams`);
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error("Failed to cleanup temporary message streams:", error);
+      return 0;
     }
   }
 

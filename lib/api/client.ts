@@ -74,6 +74,17 @@ export interface Message {
     regenerated?: boolean;
     provider?: string;
     error?: boolean;
+
+    // Stream recovery and resumption properties
+    isRecovering?: boolean;
+    isResuming?: boolean;
+    wasResumed?: boolean;
+    recoveryFailed?: boolean;
+    recoveryError?: string;
+    originalStreamId?: string;
+    resumedStreamId?: string;
+    resumeAttempted?: boolean;
+    currentStreamId?: string;
   };
 }
 

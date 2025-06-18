@@ -15,6 +15,8 @@ import {
   ChevronUp,
   RefreshCw,
   X,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { StreamRecoveryData } from "@/lib/streaming/types";
 import {
@@ -28,6 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface RecoveryBannerProps {
   streams: StreamRecoveryData[];
@@ -36,6 +39,13 @@ interface RecoveryBannerProps {
   onDiscardAll: () => void;
   isLoading?: boolean;
   className?: string;
+  isRecovering: boolean;
+  isResuming: boolean;
+  wasResumed: boolean;
+  recoveryFailed: boolean;
+  recoveryError?: string;
+  onRetry?: () => void;
+  onDismiss?: () => void;
 }
 
 export function RecoveryBanner({
@@ -45,6 +55,13 @@ export function RecoveryBanner({
   onDiscardAll,
   isLoading = false,
   className = "",
+  isRecovering,
+  isResuming,
+  wasResumed,
+  recoveryFailed,
+  recoveryError,
+  onRetry,
+  onDismiss,
 }: RecoveryBannerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [resumingStreamId, setResumingStreamId] = useState<string | null>(null);
@@ -74,6 +91,127 @@ export function RecoveryBanner({
   };
 
   const mostRecentStream = streams[0];
+
+  if (!isRecovering && !isResuming && !wasResumed && !recoveryFailed) {
+    return null;
+  }
+
+  // Recovery in progress
+  if (isRecovering) {
+    return (
+      <Alert className="mb-4 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+        <RefreshCw className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+        <AlertDescription className="text-blue-800 dark:text-blue-200">
+          <span className="font-medium">Recovering interrupted message...</span>
+          <br />
+          <span className="text-sm opacity-80">
+            We detected an interrupted AI response and are preparing to continue
+            from where it left off.
+          </span>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Stream resumption in progress
+  if (isResuming) {
+    return (
+      <Alert className="mb-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+        <RefreshCw className="h-4 w-4 animate-spin text-green-600 dark:text-green-400" />
+        <AlertDescription className="text-green-800 dark:text-green-200">
+          <span className="font-medium">Resuming AI response...</span>
+          <br />
+          <span className="text-sm opacity-80">
+            Continuing the AI response from where it was interrupted. You'll
+            receive the complete answer.
+          </span>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Recovery failed
+  if (recoveryFailed) {
+    return (
+      <Alert className="mb-4 border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+        <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+        <AlertDescription className="text-red-800 dark:text-red-200">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <span className="font-medium">Recovery failed</span>
+              <br />
+              <span className="text-sm opacity-80">
+                Unable to recover the interrupted message. The response may be
+                incomplete.
+                {recoveryError && (
+                  <>
+                    <br />
+                    <span className="font-mono text-xs">{recoveryError}</span>
+                  </>
+                )}
+              </span>
+            </div>
+            <div className="flex gap-2 ml-4">
+              {onRetry && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRetry}
+                  className="border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
+              )}
+              {onDismiss && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDismiss}
+                  className="text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-900"
+                >
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Successfully resumed
+  if (wasResumed) {
+    return (
+      <Alert className="mb-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <AlertDescription className="text-green-800 dark:text-green-200">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <span className="font-medium">
+                Message recovered successfully!
+              </span>
+              <br />
+              <span className="text-sm opacity-80">
+                The AI response was automatically continued after the
+                interruption. You now have the complete answer.
+              </span>
+            </div>
+            {onDismiss && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDismiss}
+                className="text-green-700 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900 ml-4"
+              >
+                Dismiss
+              </Button>
+            )}
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -305,4 +443,33 @@ function StreamItem({
       </div>
     </div>
   );
+}
+
+// Hook to extract recovery state from messages
+export function useRecoveryState(messages: any[]) {
+  const recoveryMessage = messages.find(
+    (msg) =>
+      msg.metadata?.isRecovering ||
+      msg.metadata?.isResuming ||
+      msg.metadata?.wasResumed ||
+      msg.metadata?.recoveryFailed
+  );
+
+  if (!recoveryMessage) {
+    return {
+      isRecovering: false,
+      isResuming: false,
+      wasResumed: false,
+      recoveryFailed: false,
+      recoveryError: undefined,
+    };
+  }
+
+  return {
+    isRecovering: recoveryMessage.metadata?.isRecovering || false,
+    isResuming: recoveryMessage.metadata?.isResuming || false,
+    wasResumed: recoveryMessage.metadata?.wasResumed || false,
+    recoveryFailed: recoveryMessage.metadata?.recoveryFailed || false,
+    recoveryError: recoveryMessage.metadata?.recoveryError,
+  };
 }

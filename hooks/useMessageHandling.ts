@@ -225,16 +225,6 @@ Please synthesize the information from the search results to provide an accurate
       (a) => a.status === "uploaded"
     );
 
-    console.log("🐛 DEBUG - handleSendMessage:");
-    console.log("  📎 Total attachments:", attachments.length);
-    console.log(
-      "  ✅ Filtered uploaded attachments:",
-      messageAttachments.length
-    );
-    console.log("  🔍 Search enabled:", searchEnabled);
-    console.log("  🤖 Selected model being sent:", selectedModel);
-    console.log("  💬 Chat ID:", chatId);
-
     // Reset input immediately to improve perceived performance
     resetInput();
 
@@ -256,8 +246,6 @@ Please synthesize the information from the search results to provide an accurate
         queryOptimization = searchResult.queryOptimization;
         setIsSearching(false);
       }
-
-      console.log("🚀 About to call sendMessage with model:", selectedModel);
 
       // Build optional search parameters only when we actually have results
       const hasSearchResults =
@@ -290,11 +278,6 @@ Please synthesize the information from the search results to provide an accurate
     const messageAttachments = attachments.filter(
       (a) => a.status === "uploaded"
     );
-
-    console.log("🐛 DEBUG - handleSendMessageWithSearch:");
-    console.log("  🔍 Search results:", searchResults.length);
-    console.log("  📎 Attachments:", messageAttachments.length);
-    console.log("  🤖 Selected model:", selectedModel);
 
     if (resetInput) resetInput();
 
@@ -348,12 +331,6 @@ Please synthesize the information from the search results to provide an accurate
     setIsSearching: (searching: boolean) => void,
     triggerDetection: () => void
   ) => {
-    console.log("🛑 Pause button clicked", {
-      isStreaming,
-      canPauseStream,
-      isSearching,
-    });
-
     if (isStreaming && canPauseStream) {
       pauseStream();
       triggerDetection();
@@ -371,7 +348,6 @@ Please synthesize the information from the search results to provide an accurate
         description: "Web search has been cancelled",
       });
     } else if (isStreaming) {
-      console.log("⚠️ Cannot pause stream - forced abort attempt");
       pauseStream();
       toast({
         title: "🛑 Stream Stopped",
@@ -379,7 +355,6 @@ Please synthesize the information from the search results to provide an accurate
         variant: "destructive",
       });
     } else {
-      console.log("⚠️ No active stream to stop");
       toast({
         title: "No Active Stream",
         description: "There's no active AI response to stop",

@@ -53,6 +53,9 @@ interface UseChatReturn {
   canPauseStream: boolean;
   pauseStream: () => void;
   resumeStream: (streamId: string) => Promise<boolean>;
+
+  // Recovery state
+  isRecovering: boolean;
 }
 
 // Streaming performance optimization constants
@@ -93,6 +96,10 @@ export function useChat(conversationId: string): UseChatReturn {
   const [streamProgress, setStreamProgress] = useState<StreamProgress | null>(
     null
   );
+
+  // Recovery state
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryAttempted, setRecoveryAttempted] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -377,7 +384,7 @@ export function useChat(conversationId: string): UseChatReturn {
         let realAssistantMessageId = "";
 
         // Generate stream ID for tracking
-        const streamId = generateStreamId(
+        let streamId = generateStreamId(
           conversationId,
           optimisticAssistantMessage.id
         );
@@ -569,46 +576,47 @@ export function useChat(conversationId: string): UseChatReturn {
                 timeToFirstToken = Date.now() - startTime;
               }
 
-              // Reduced frequency persistence for performance
+              // CRITICAL FIX: More frequent persistence for recovery functionality
               const now = Date.now();
               if (
-                chunkIndex % STREAMING_PERF_CONFIG.PERSISTENCE_FREQUENCY ===
-                  0 ||
-                chunk.finished
+                chunkIndex % 3 === 0 || // Save every 3 chunks instead of 10
+                chunk.finished ||
+                now - lastPersistence >= 1000 // Force save every 1 second
               ) {
-                if (now - lastPersistence >= 500) {
-                  // Minimum 500ms between saves
+                if (now - lastPersistence >= 300) {
+                  // Minimum 300ms between saves (more frequent)
                   lastPersistence = now;
 
-                  // Non-blocking persistence using setTimeout
-                  setTimeout(() => {
-                    try {
-                      const elapsedTime = Date.now() - startTime;
-                      const tokensPerSecond =
-                        chunk.totalTokens && elapsedTime > 0
-                          ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
-                          : 0;
+                  // IMMEDIATE persistence for recovery (not setTimeout)
+                  try {
+                    const elapsedTime = Date.now() - startTime;
+                    const tokensPerSecond =
+                      chunk.totalTokens && elapsedTime > 0
+                        ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
+                        : 0;
 
-                      const updatedStreamState: StreamState = {
-                        ...initialStreamState,
-                        content: assistantContent, // Use the actual content
-                        chunkIndex,
-                        totalTokens: chunk.totalTokens || 0,
-                        tokensPerSecond,
-                        timeToFirstToken,
-                        elapsedTime,
-                        lastUpdateTime: Date.now(),
-                        provider: chunk.provider || "unknown",
-                      };
+                    const updatedStreamState: StreamState = {
+                      ...initialStreamState,
+                      streamId, // Use current streamId (might have been updated)
+                      messageId:
+                        realAssistantMessageId || initialStreamState.messageId, // Use real message ID if available
+                      content: assistantContent, // Use the actual accumulated content
+                      chunkIndex,
+                      totalTokens: chunk.totalTokens || 0,
+                      tokensPerSecond,
+                      timeToFirstToken,
+                      elapsedTime,
+                      lastUpdateTime: Date.now(),
+                      provider: chunk.provider || "unknown",
+                    };
 
-                      streamPersistence.saveStreamState(updatedStreamState);
-                    } catch (persistError) {
-                      console.warn(
-                        "Non-blocking persistence error:",
-                        persistError
-                      );
-                    }
-                  }, 0);
+                    streamPersistence.saveStreamState(updatedStreamState);
+                    console.log(
+                      `💾 Stream state saved: chunk ${chunkIndex}, content: ${assistantContent.length} chars, streamId: ${streamId}, messageId: ${updatedStreamState.messageId}`
+                    );
+                  } catch (persistError) {
+                    console.warn("Stream persistence error:", persistError);
+                  }
                 }
               }
 
@@ -677,13 +685,48 @@ export function useChat(conversationId: string): UseChatReturn {
               if (chunk.messageId) {
                 realAssistantMessageId = chunk.messageId;
 
-                // Generate new stream ID with the real message ID
+                // CRITICAL FIX: Update stream state when real message ID comes in
+                const oldStreamId = streamId;
                 const realStreamId = generateStreamId(
                   conversationId,
                   chunk.messageId
                 );
 
+                console.log(
+                  `🔄 Updating stream ID: ${oldStreamId} -> ${realStreamId}`
+                );
+
+                // Get current stream state
+                const currentStreamState =
+                  streamPersistence.getStreamState(oldStreamId);
+                if (currentStreamState) {
+                  // Create new stream state with real message ID
+                  const updatedStreamState: StreamState = {
+                    ...currentStreamState,
+                    streamId: realStreamId,
+                    messageId: chunk.messageId,
+                    content: assistantContent,
+                    chunkIndex,
+                    lastUpdateTime: Date.now(),
+                  };
+
+                  // Save new stream state with real message ID
+                  streamPersistence.saveStreamState(updatedStreamState);
+
+                  // Remove old stream state with temporary message ID
+                  streamPersistence.removeStreamState(oldStreamId);
+
+                  console.log(
+                    `💾 Stream state migrated from temporary to real message ID`
+                  );
+                } else {
+                  console.warn(
+                    `⚠️ Could not find stream state for ${oldStreamId} to migrate`
+                  );
+                }
+
                 // Update current stream ID
+                streamId = realStreamId;
                 setCurrentStreamId(realStreamId);
               }
               if (chunk.userMessageId) {
@@ -1022,7 +1065,7 @@ export function useChat(conversationId: string): UseChatReturn {
         console.log(`🏁 Streaming cleanup completed`);
       }
     },
-    [conversationId, handleStreamingFailure]
+    [conversationId] // CRITICAL FIX: Removed handleStreamingFailure to prevent circular dependencies
   );
 
   const refetchMessages = useCallback(async () => {
@@ -1104,6 +1147,282 @@ export function useChat(conversationId: string): UseChatReturn {
     }
   }, [conversationId, lastSyncTime, isStreaming, syncMessages]);
 
+  // New function to check for and resume interrupted streams
+  const checkAndResumeInterruptedStreams = useCallback(async () => {
+    if (!conversationId || recoveryAttempted) return;
+
+    try {
+      console.log("🔍 Checking for recoverable streams...");
+
+      // Get all incomplete streams first for better debugging
+      const allIncompleteStreams = streamPersistence.getIncompleteStreams();
+      const conversationStreams = allIncompleteStreams.filter(
+        (stream) => stream.conversationId === conversationId
+      );
+
+      console.log(
+        `📊 Found ${conversationStreams.length} total incomplete streams for this conversation`
+      );
+
+      // Log temporary message streams separately for debugging
+      const tempMessageStreams = conversationStreams.filter((stream) =>
+        stream.messageId?.startsWith("temp-")
+      );
+
+      if (tempMessageStreams.length > 0) {
+        console.log(
+          `⚠️ Skipping ${tempMessageStreams.length} temporary message streams (not persisted to DB):`,
+          tempMessageStreams.map((s) => ({
+            streamId: s.streamId,
+            messageId: s.messageId,
+          }))
+        );
+      }
+
+      const recoverableStreams =
+        streamPersistence.getRecoverableStreams(conversationId);
+
+      if (recoverableStreams.length === 0) {
+        console.log(
+          "✅ No recoverable streams found (excluding temporary messages)"
+        );
+        setRecoveryAttempted(true);
+        return;
+      }
+
+      console.log(
+        `🔄 Found ${recoverableStreams.length} recoverable streams:`,
+        recoverableStreams
+      );
+
+      // Find the most recent recoverable stream
+      const latestStream = recoverableStreams.sort(
+        (a, b) => b.interruptedAt - a.interruptedAt
+      )[0];
+
+      if (!latestStream.canRecover) {
+        console.log(
+          "❌ Latest stream cannot be recovered:",
+          latestStream.errorMessage
+        );
+        setRecoveryAttempted(true);
+        return;
+      }
+
+      console.log("🎯 Attempting to recover stream:", latestStream.streamId);
+
+      setIsRecovering(true);
+      setRecoveryAttempted(true);
+
+      // Get the original stream state to extract necessary data
+      const originalStreamState = streamPersistence.getStreamState(
+        latestStream.streamId
+      );
+      if (!originalStreamState) {
+        console.error("❌ Original stream state not found");
+        setIsRecovering(false);
+        return;
+      }
+
+      // Use a more reliable way to find incomplete messages without depending on current messages
+      const messageIdToRecover = originalStreamState.messageId;
+      console.log(`🔧 Attempting to recover message: ${messageIdToRecover}`);
+      console.log(
+        `📝 Existing content length: ${latestStream.lastContent.length} chars`
+      );
+
+      // CRITICAL: Double-check that this is not a temporary message
+      if (messageIdToRecover?.startsWith("temp-")) {
+        console.error(
+          "🚨 CRITICAL: Attempted to recover temporary message, aborting:",
+          messageIdToRecover
+        );
+        setIsRecovering(false);
+        setRecoveryAttempted(true);
+        // Clean up the invalid stream state
+        streamPersistence.removeStreamState(latestStream.streamId);
+        return;
+      }
+
+      // Set streaming state
+      setIsStreaming(true);
+      setCurrentStreamContent(latestStream.lastContent);
+      setCurrentStreamId(latestStream.streamId);
+
+      // Call the resume API
+      const response = await fetch("/api/chat/resume", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          streamId: latestStream.streamId,
+          fromChunkIndex: originalStreamState.chunkIndex || 0,
+          conversationId,
+          messageId: originalStreamState.messageId,
+          model: latestStream.model,
+          lastKnownContent: latestStream.lastContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Resume API failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      console.log("✅ Resume API call successful, processing stream...");
+
+      // Process the resumed stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No reader available from resume response");
+      }
+
+      const decoder = new TextDecoder();
+      let resumedContent = latestStream.lastContent;
+      let newStreamId = latestStream.streamId;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n").filter((line) => line.trim());
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.slice(6);
+              if (dataStr === "[DONE]") continue;
+
+              try {
+                const data = JSON.parse(dataStr);
+
+                if (data.type === "resumed") {
+                  console.log("🔄 Stream resumed:", data);
+                  newStreamId = data.streamId;
+                  setCurrentStreamId(newStreamId);
+
+                  // Update message to show it's being resumed - only find the message once
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === messageIdToRecover ||
+                      msg.id.startsWith("temp-assistant-")
+                        ? {
+                            ...msg,
+                            content: latestStream.lastContent,
+                            metadata: {
+                              ...msg.metadata,
+                              streamingComplete: false,
+                              isRecovering: false,
+                              isResuming: true,
+                            },
+                          }
+                        : msg
+                    )
+                  );
+                } else if (data.type === "content" && data.content) {
+                  resumedContent += data.content;
+                  setCurrentStreamContent(resumedContent);
+
+                  // Update message content
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === messageIdToRecover ||
+                      msg.id.startsWith("temp-assistant-")
+                        ? { ...msg, content: resumedContent }
+                        : msg
+                    )
+                  );
+                } else if (
+                  data.type === "completed" ||
+                  data.type === "finished"
+                ) {
+                  console.log("✅ Stream resumption completed:", data);
+
+                  // Mark stream as complete
+                  streamPersistence.markStreamComplete(newStreamId);
+
+                  // Update final message
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === messageIdToRecover ||
+                      msg.id.startsWith("temp-assistant-")
+                        ? {
+                            ...msg,
+                            content: resumedContent,
+                            metadata: {
+                              ...msg.metadata,
+                              streamingComplete: true,
+                              isResuming: false,
+                              wasResumed: true,
+                              originalStreamId: latestStream.streamId,
+                              resumedStreamId: newStreamId,
+                            },
+                          }
+                        : msg
+                    )
+                  );
+
+                  break;
+                } else if (data.type === "error") {
+                  console.error("❌ Resume stream error:", data.error);
+                  throw new Error(data.error);
+                }
+              } catch (parseError) {
+                console.warn(
+                  "Failed to parse resume stream chunk:",
+                  parseError
+                );
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      console.log("🎉 Stream recovery completed successfully");
+    } catch (error) {
+      console.error("💥 Stream recovery failed:", error);
+
+      // Update message to show recovery failed - minimize state updates
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.metadata?.isRecovering || msg.metadata?.isResuming
+            ? {
+                ...msg,
+                content:
+                  msg.content +
+                  "\n\n[Recovery failed - message may be incomplete]",
+                metadata: {
+                  ...msg.metadata,
+                  streamingComplete: true,
+                  isRecovering: false,
+                  isResuming: false,
+                  recoveryFailed: true,
+                  recoveryError:
+                    error instanceof Error ? error.message : "Unknown error",
+                },
+              }
+            : msg
+        )
+      );
+
+      // Clean up failed stream state
+      if (currentStreamId) {
+        streamPersistence.removeStreamState(currentStreamId);
+      }
+    } finally {
+      setIsStreaming(false);
+      setCurrentStreamContent("");
+      setCurrentStreamId(null);
+      setStreamProgress(null);
+      setIsRecovering(false);
+    }
+  }, [conversationId, recoveryAttempted, currentStreamId]);
+
   // Reset state and load messages when conversationId changes
   useEffect(() => {
     console.log("useChat: conversationId changed to:", conversationId);
@@ -1126,6 +1445,8 @@ export function useChat(conversationId: string): UseChatReturn {
       setLastSyncTime(null);
       setCurrentStreamContent("");
       setIsStreaming(false);
+      setIsRecovering(false);
+      setRecoveryAttempted(false);
 
       // Load new messages
       const loadMessages = async () => {
@@ -1136,6 +1457,9 @@ export function useChat(conversationId: string): UseChatReturn {
             "useChat: Loading messages for conversation:",
             conversationId
           );
+
+          // Clean up any temporary message streams before loading
+          streamPersistence.cleanupTemporaryMessageStreams();
 
           const response = await apiClient.getConversationMessages(
             conversationId,
@@ -1179,6 +1503,12 @@ export function useChat(conversationId: string): UseChatReturn {
           setHasMore(response.pagination.hasMore);
           setNextCursor(response.pagination.nextCursor);
           setLastSyncTime(response.sync.currentTimestamp);
+
+          // CRITICAL: Check for interrupted streams after loading messages
+          // Use setTimeout to ensure messages are rendered first
+          setTimeout(() => {
+            checkAndResumeInterruptedStreams();
+          }, 500);
         } catch (err) {
           const apiError = err as APIError;
           setError(apiError.error || "Failed to fetch messages");
@@ -1199,8 +1529,10 @@ export function useChat(conversationId: string): UseChatReturn {
       setHasMore(false);
       setNextCursor(null);
       setLastSyncTime(null);
+      setIsRecovering(false);
+      setRecoveryAttempted(false);
     }
-  }, [conversationId]);
+  }, [conversationId]); // CRITICAL FIX: Removed checkAndResumeInterruptedStreams from dependencies to prevent infinite loop
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1234,5 +1566,8 @@ export function useChat(conversationId: string): UseChatReturn {
     canPauseStream: isStreaming && currentStreamId !== null,
     pauseStream,
     resumeStream,
+
+    // Recovery state
+    isRecovering,
   };
 }

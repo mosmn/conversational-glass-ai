@@ -346,3 +346,33 @@ Built for the T3 ChatCloneathon with gratitude to:
 - **Framer Motion** for smooth animation capabilities
 - **Vercel** for exceptional deployment platform
 - **Open Source Community** for the incredible ecosystem of tools
+
+## ✨ Automatic Stream Recovery
+
+One of the most innovative features of Conversational Glass AI is **automatic stream recovery**. If a user refreshes the page or loses connection while an AI response is being streamed, the system will automatically detect the interruption and continue the response from where it left off.
+
+### How It Works
+
+1. **Stream Persistence**: All streaming responses are automatically saved to browser localStorage with progress tracking
+2. **Interruption Detection**: When a page loads, the system checks for any incomplete streams from the current conversation
+3. **Automatic Recovery**: If an interrupted stream is found, the system:
+   - Shows a recovery notification to the user
+   - Calls the resume API with the partial content already received
+   - Continues streaming from where it left off
+   - Seamlessly appends new content to the existing partial response
+
+### Technical Implementation
+
+- **Storage**: Uses `localStorage` with intelligent cleanup and size management
+- **API**: Dedicated `/api/chat/resume` endpoint handles stream resumption
+- **UI**: Real-time recovery notifications keep users informed
+- **Performance**: Optimized with throttled updates and memory management
+
+### User Experience
+
+- **Seamless**: Users get their complete AI response even after interruptions
+- **Transparent**: Clear notifications explain what's happening
+- **Reliable**: Works across page refreshes, network issues, and browser crashes
+- **Fast**: Recovery typically takes just seconds
+
+This feature ensures that users never lose valuable AI responses due to technical interruptions, making the conversation experience truly robust and reliable.
