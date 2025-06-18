@@ -15,6 +15,12 @@ import { useModels } from "@/hooks/useModels";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@clerk/nextjs";
 import {
+  useChatErrorHandling,
+  useAPIErrorHandling,
+} from "@/hooks/useChatErrorHandling";
+import { ChatErrorBoundary } from "./ChatErrorBoundary";
+import { ErrorCategory } from "@/lib/utils/chat-error-handler";
+import {
   usePersonalization,
   useVisualPreferences,
   useUserPreferences,
@@ -176,6 +182,19 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   } = usePersistentModel();
   const { toast } = useToast();
   const { isMobile } = useResponsive();
+
+  // Standardized error handling
+  const { handleError: handleChatError } = useChatErrorHandling({
+    conversationId: chatId,
+    userId: user?.id,
+  });
+
+  const { handleError: handleAPIError } = useAPIErrorHandling(
+    "/api/chat/send",
+    {
+      conversationId: chatId,
+    }
+  );
 
   // Auto-scroll refs
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -594,15 +613,9 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           return;
         }
       } catch (error) {
-        console.error("Failed to create conversation:", error);
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to create new conversation";
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
+        await handleAPIError(error, async () => {
+          // Retry conversation creation
+          return handleCreateNewChat();
         });
         return;
       }
@@ -859,8 +872,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       // The API will handle updating the message via streaming,
       // and the UI will automatically update via the existing useChat hook
     } catch (error) {
-      console.error("❌ Failed to retry message:", error);
-      throw error; // Re-throw so the MessageBubble can handle the error display
+      const chatError = await handleAPIError(error, async () => {
+        // Retry the retry operation
+        return handleRetryMessage(messageId);
+      });
+      throw chatError; // Re-throw standardized error
     }
   };
 
@@ -934,275 +950,282 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   };
 
   return (
-    <TooltipProvider>
-      <div
-        className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"
-        style={{
-          height: "100vh",
-          minHeight: "100vh",
-          maxHeight: "100vh",
-        }}
-      >
-        {/* Mobile Sidebar Overlay - only show when sidebar is open on mobile */}
-        {!chatState.sidebarCollapsed && (
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 lg:hidden"
-            onClick={() => chatState.setSidebarCollapsed(true)}
-          />
-        )}
-
-        {/* ChatSidebar Component - Desktop: always visible, Mobile: conditional */}
-        <div className="hidden lg:block">
-          <ChatSidebar
-            isCollapsed={chatState.sidebarCollapsed}
-            onToggleCollapse={() =>
-              chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-            }
-            currentChatId={optimisticChatId || ""}
-            selectedModel={selectedModel}
-            onCreateNewChat={handleCreateNewChat}
-          />
-        </div>
-
-        {/* Mobile Sidebar - Only render when not collapsed */}
-        {/* Mobile Sidebar Overlay */}
-        {!chatState.sidebarCollapsed && (
-          <>
-            {/* Backdrop */}
+    <ChatErrorBoundary
+      conversationId={optimisticChatId}
+      onError={(error, errorInfo) => {
+        handleChatError(error, ErrorCategory.UNKNOWN);
+      }}
+    >
+      <TooltipProvider>
+        <div
+          className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"
+          style={{
+            height: "100vh",
+            minHeight: "100vh",
+            maxHeight: "100vh",
+          }}
+        >
+          {/* Mobile Sidebar Overlay - only show when sidebar is open on mobile */}
+          {!chatState.sidebarCollapsed && (
             <div
-              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ease-in-out"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 lg:hidden"
               onClick={() => chatState.setSidebarCollapsed(true)}
             />
-            {/* Sidebar */}
-            <div className="lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out">
-              <ChatSidebar
-                isCollapsed={false}
-                onToggleCollapse={() =>
-                  chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-                }
-                currentChatId={optimisticChatId || ""}
-                selectedModel={selectedModel}
-                onCreateNewChat={handleCreateNewChat}
+          )}
+
+          {/* ChatSidebar Component - Desktop: always visible, Mobile: conditional */}
+          <div className="hidden lg:block">
+            <ChatSidebar
+              isCollapsed={chatState.sidebarCollapsed}
+              onToggleCollapse={() =>
+                chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+              }
+              currentChatId={optimisticChatId || ""}
+              selectedModel={selectedModel}
+              onCreateNewChat={handleCreateNewChat}
+            />
+          </div>
+
+          {/* Mobile Sidebar - Only render when not collapsed */}
+          {/* Mobile Sidebar Overlay */}
+          {!chatState.sidebarCollapsed && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ease-in-out"
+                onClick={() => chatState.setSidebarCollapsed(true)}
               />
-            </div>
-          </>
-        )}
+              {/* Sidebar */}
+              <div className="lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out">
+                <ChatSidebar
+                  isCollapsed={false}
+                  onToggleCollapse={() =>
+                    chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+                  }
+                  currentChatId={optimisticChatId || ""}
+                  selectedModel={selectedModel}
+                  onCreateNewChat={handleCreateNewChat}
+                />
+              </div>
+            </>
+          )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col relative min-w-0">
-          {/* Animated Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col relative min-w-0">
+            {/* Animated Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
-          {/* Header - Better mobile positioning */}
-          <div
-            className="sticky top-0 lg:relative lg:top-auto z-30 
+            {/* Header - Better mobile positioning */}
+            <div
+              className="sticky top-0 lg:relative lg:top-auto z-30 
                           bg-slate-900/95 backdrop-blur-xl 
                           lg:bg-transparent lg:backdrop-blur-none
                           shadow-sm lg:shadow-none"
-          >
-            <ChatHeader
-              conversationTitle={
-                conversation?.title ||
-                (messages.length > 0
-                  ? "🔥 Chat Session"
-                  : "✨ New Conversation")
-              }
-              conversationModel={conversation?.model}
-              selectedModel={selectedModel}
-              onModelChange={setSelectedModel}
-              lastSyncTime={lastSyncTime || undefined}
-              onShareClick={() => chatState.setShowShareModal(true)}
-              hasConversation={!!conversation || messages.length > 0}
-              onToggleSidebar={() =>
-                chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
-              }
-              onNewChat={handleCreateNewChat}
-              sidebarCollapsed={chatState.sidebarCollapsed}
-            />
-          </div>
-
-          {/* Messages Area - Takes remaining space between fixed header and input */}
-          <div className="flex-1 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800/10 to-transparent" />
-            <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
-
-            <ScrollArea
-              className="h-full px-3 sm:px-6 py-4 sm:py-8 pb-6 lg:pb-8 relative z-10"
-              ref={scrollAreaRef}
             >
-              {messagesLoading ? (
-                <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
-                  {[...Array(2)].map((_, i) => (
-                    <div key={i} className="space-y-3 sm:space-y-4">
-                      <div className="flex justify-end">
-                        <div className="bg-slate-700/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
-                          <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                          <div className="h-4 bg-slate-600 rounded w-3/4"></div>
-                        </div>
-                      </div>
-                      <div className="flex justify-start">
-                        <div className="bg-slate-800/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
-                          <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                          <div className="h-4 bg-slate-600 rounded w-2/3"></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : !optimisticChatId ? (
-                <WelcomeInterface
-                  quickActions={quickActions}
-                  onPromptSelect={chatState.setInputValue}
-                />
-              ) : (
-                <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
-                  {hasMore && (
-                    <div className="flex justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={loadMoreMessages}
-                        disabled={messagesLoading}
-                        className="bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600/50"
-                      >
-                        {messagesLoading ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-transparent mr-2" />
-                        ) : (
-                          <Clock className="h-4 w-4 mr-2" />
-                        )}
-                        Load older messages
-                      </Button>
-                    </div>
-                  )}
-
-                  {messages.map((message) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      user={user}
-                      conversationId={optimisticChatId || ""}
-                      onImageGenerated={chatState.handleImageGenerated}
-                      showInlineImageGeneration={
-                        chatState.showInlineImageGeneration
-                      }
-                      recoverableStreams={recoverableStreams}
-                      onResumeStream={handleResumeStream}
-                      onDiscardStream={discardStream}
-                      isRecoveryLoading={isRecoveryLoading}
-                      onCreateBranch={chatState.handleCreateBranch}
-                      onViewBranches={chatState.handleViewBranches}
-                      onRetryMessage={handleRetryMessage}
-                    />
-                  ))}
-
-                  {isStreaming && <TypingIndicator />}
-
-                  {/* Auto-scroll target */}
-                  <div ref={messagesEndRef} className="h-1" />
-                </div>
-              )}
-            </ScrollArea>
-          </div>
-
-          {/* Scroll to Bottom Button - Position adjusted for mobile */}
-          {!isAtBottom && messages.length > 0 && (
-            <div className="absolute bottom-32 sm:bottom-36 lg:bottom-20 right-3 sm:right-6 z-20">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => scrollToBottomViewport(true, true)}
-                className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90 shadow-lg text-xs sm:text-sm px-2 sm:px-3"
-              >
-                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Scroll to bottom</span>
-                <span className="sm:hidden">Bottom</span>
-              </Button>
+              <ChatHeader
+                conversationTitle={
+                  conversation?.title ||
+                  (messages.length > 0
+                    ? "🔥 Chat Session"
+                    : "✨ New Conversation")
+                }
+                conversationModel={conversation?.model}
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
+                lastSyncTime={lastSyncTime || undefined}
+                onShareClick={() => chatState.setShowShareModal(true)}
+                hasConversation={!!conversation || messages.length > 0}
+                onToggleSidebar={() =>
+                  chatState.setSidebarCollapsed(!chatState.sidebarCollapsed)
+                }
+                onNewChat={handleCreateNewChat}
+                sidebarCollapsed={chatState.sidebarCollapsed}
+              />
             </div>
-          )}
 
-          {/* Input Area - Fixed on mobile */}
-          <div className="sticky bottom-0 lg:relative lg:bottom-auto z-30 bg-slate-900/95 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none">
-            <ChatInput
-              inputValue={chatState.inputValue}
-              onInputChange={chatState.setInputValue}
-              onSendMessage={() =>
-                handleSendMessageWithCreation(
-                  chatState.inputValue,
-                  chatState.attachments,
-                  chatState.searchEnabled,
-                  chatState.setIsSearching,
-                  chatState.resetInput
-                )
-              }
-              onSendMessageWithSearch={(content, searchResults) => {
-                if (optimisticChatId) {
-                  messageHandling.handleSendMessageWithSearch(
-                    content,
-                    searchResults,
+            {/* Messages Area - Takes remaining space between fixed header and input */}
+            <div className="flex-1 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800/10 to-transparent" />
+              <div className="absolute left-1/2 top-0 w-px h-full bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent transform -translate-x-1/2" />
+
+              <ScrollArea
+                className="h-full px-3 sm:px-6 py-4 sm:py-8 pb-6 lg:pb-8 relative z-10"
+                ref={scrollAreaRef}
+              >
+                {messagesLoading ? (
+                  <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
+                    {[...Array(2)].map((_, i) => (
+                      <div key={i} className="space-y-3 sm:space-y-4">
+                        <div className="flex justify-end">
+                          <div className="bg-slate-700/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
+                            <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                            <div className="h-4 bg-slate-600 rounded w-3/4"></div>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-slate-800/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
+                            <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                            <div className="h-4 bg-slate-600 rounded w-2/3"></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !optimisticChatId ? (
+                  <WelcomeInterface
+                    quickActions={quickActions}
+                    onPromptSelect={chatState.setInputValue}
+                  />
+                ) : (
+                  <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
+                    {hasMore && (
+                      <div className="flex justify-center">
+                        <Button
+                          variant="outline"
+                          onClick={loadMoreMessages}
+                          disabled={messagesLoading}
+                          className="bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-600/50"
+                        >
+                          {messagesLoading ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-transparent mr-2" />
+                          ) : (
+                            <Clock className="h-4 w-4 mr-2" />
+                          )}
+                          Load older messages
+                        </Button>
+                      </div>
+                    )}
+
+                    {messages.map((message) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        user={user}
+                        conversationId={optimisticChatId || ""}
+                        onImageGenerated={chatState.handleImageGenerated}
+                        showInlineImageGeneration={
+                          chatState.showInlineImageGeneration
+                        }
+                        recoverableStreams={recoverableStreams}
+                        onResumeStream={handleResumeStream}
+                        onDiscardStream={discardStream}
+                        isRecoveryLoading={isRecoveryLoading}
+                        onCreateBranch={chatState.handleCreateBranch}
+                        onViewBranches={chatState.handleViewBranches}
+                        onRetryMessage={handleRetryMessage}
+                      />
+                    ))}
+
+                    {isStreaming && <TypingIndicator />}
+
+                    {/* Auto-scroll target */}
+                    <div ref={messagesEndRef} className="h-1" />
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
+            {/* Scroll to Bottom Button - Position adjusted for mobile */}
+            {!isAtBottom && messages.length > 0 && (
+              <div className="absolute bottom-32 sm:bottom-36 lg:bottom-20 right-3 sm:right-6 z-20">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => scrollToBottomViewport(true, true)}
+                  className="bg-slate-800/90 backdrop-blur-sm border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700/90 shadow-lg text-xs sm:text-sm px-2 sm:px-3"
+                >
+                  <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Scroll to bottom</span>
+                  <span className="sm:hidden">Bottom</span>
+                </Button>
+              </div>
+            )}
+
+            {/* Input Area - Fixed on mobile */}
+            <div className="sticky bottom-0 lg:relative lg:bottom-auto z-30 bg-slate-900/95 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none">
+              <ChatInput
+                inputValue={chatState.inputValue}
+                onInputChange={chatState.setInputValue}
+                onSendMessage={() =>
+                  handleSendMessageWithCreation(
+                    chatState.inputValue,
                     chatState.attachments,
-                    chatState.resetInput
-                  );
-                }
-              }}
-              onKeyPress={handleKeyPress}
-              attachments={chatState.attachments}
-              onAttachmentsChange={chatState.setAttachments}
-              showAttachments={chatState.showAttachments}
-              onToggleAttachments={() =>
-                chatState.setShowAttachments(!chatState.showAttachments)
-              }
-              searchEnabled={chatState.searchEnabled}
-              onToggleSearch={() =>
-                chatState.setSearchEnabled(!chatState.searchEnabled)
-              }
-              isSearching={chatState.isSearching}
-              isStreaming={isStreaming}
-              onPauseStream={() => {
-                if (optimisticChatId) {
-                  messageHandling.handlePauseStream(
-                    isStreaming,
-                    canPauseStream,
-                    chatState.isSearching,
-                    pauseStream,
+                    chatState.searchEnabled,
                     chatState.setIsSearching,
-                    triggerDetection
-                  );
+                    chatState.resetInput
+                  )
                 }
-              }}
-              conversationId={optimisticChatId || ""}
-              selectedModel={selectedModel}
-              textareaRef={chatState.textareaRef}
-              modelName={models.find((m) => m.id === selectedModel)?.name}
-            />
+                onSendMessageWithSearch={(content, searchResults) => {
+                  if (optimisticChatId) {
+                    messageHandling.handleSendMessageWithSearch(
+                      content,
+                      searchResults,
+                      chatState.attachments,
+                      chatState.resetInput
+                    );
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                attachments={chatState.attachments}
+                onAttachmentsChange={chatState.setAttachments}
+                showAttachments={chatState.showAttachments}
+                onToggleAttachments={() =>
+                  chatState.setShowAttachments(!chatState.showAttachments)
+                }
+                searchEnabled={chatState.searchEnabled}
+                onToggleSearch={() =>
+                  chatState.setSearchEnabled(!chatState.searchEnabled)
+                }
+                isSearching={chatState.isSearching}
+                isStreaming={isStreaming}
+                onPauseStream={() => {
+                  if (optimisticChatId) {
+                    messageHandling.handlePauseStream(
+                      isStreaming,
+                      canPauseStream,
+                      chatState.isSearching,
+                      pauseStream,
+                      chatState.setIsSearching,
+                      triggerDetection
+                    );
+                  }
+                }}
+                conversationId={optimisticChatId || ""}
+                selectedModel={selectedModel}
+                textareaRef={chatState.textareaRef}
+                modelName={models.find((m) => m.id === selectedModel)?.name}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Floating Mobile Actions */}
-      <FloatingMobileActions
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-        lastSyncTime={lastSyncTime || undefined}
-      />
-
-      {/* Share Modal */}
-      {conversation && (
-        <ShareModal
-          isOpen={chatState.showShareModal}
-          onClose={() => chatState.setShowShareModal(false)}
-          conversationId={conversation.id}
-          conversationTitle={conversation.title}
+        {/* Floating Mobile Actions */}
+        <FloatingMobileActions
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          lastSyncTime={lastSyncTime || undefined}
         />
-      )}
 
-      {/* Conversation Branch Modal */}
-      <ConversationBranchModal
-        isOpen={chatState.showCreateBranchModal}
-        onClose={chatState.clearBranchingModal}
-        parentConversationId={optimisticChatId || ""}
-        parentConversationTitle={conversation?.title || "New Conversation"}
-        branchFromMessage={chatState.branchingFromMessage}
-      />
-    </TooltipProvider>
+        {/* Share Modal */}
+        {conversation && (
+          <ShareModal
+            isOpen={chatState.showShareModal}
+            onClose={() => chatState.setShowShareModal(false)}
+            conversationId={conversation.id}
+            conversationTitle={conversation.title}
+          />
+        )}
+
+        {/* Conversation Branch Modal */}
+        <ConversationBranchModal
+          isOpen={chatState.showCreateBranchModal}
+          onClose={chatState.clearBranchingModal}
+          parentConversationId={optimisticChatId || ""}
+          parentConversationTitle={conversation?.title || "New Conversation"}
+          branchFromMessage={chatState.branchingFromMessage}
+        />
+      </TooltipProvider>
+    </ChatErrorBoundary>
   );
 }

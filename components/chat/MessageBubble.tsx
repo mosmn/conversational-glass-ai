@@ -3,6 +3,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useChatErrorHandling } from "@/hooks/useChatErrorHandling";
+import { ErrorCategory } from "@/lib/utils/chat-error-handler";
 import {
   Copy,
   Clock,
@@ -143,6 +145,12 @@ export function MessageBubble({
   const [isRetrying, setIsRetrying] = useState(false);
   const { toast } = useToast();
 
+  // Standardized error handling
+  const { handleError } = useChatErrorHandling({
+    conversationId,
+    messageId: message.id,
+  });
+
   const isUser = message.role === "user";
   const isStreaming = message.metadata?.streamingComplete === false;
   const hasError = message.metadata?.error || message.error;
@@ -198,13 +206,8 @@ export function MessageBubble({
         duration: 2000,
       });
     } catch (error) {
-      console.error("Failed to retry message:", error);
-      toast({
-        title: "Retry failed",
-        description:
-          error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive",
-        duration: 3000,
+      await handleError(error, ErrorCategory.AI_PROVIDER, {
+        customUserMessage: "Failed to retry message. Please try again.",
       });
     } finally {
       setIsRetrying(false);
