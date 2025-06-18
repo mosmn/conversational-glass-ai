@@ -32,7 +32,7 @@ interface SimpleChat {
   hasChildren: boolean;
 }
 
-// Input hierarchical chat type (what we receive from the API)
+// Input hierarchical chat type (what we receive from the API) - supports nested branches
 interface HierarchicalChat {
   id: string;
   title: string;
@@ -47,17 +47,22 @@ interface HierarchicalChat {
   branchCreatedAt?: string | null;
   metadata: any;
   hasChildren: boolean;
-  branches?: Array<{
-    id: string;
-    title: string;
-    branchName: string | null;
-    branchOrder: number | null;
-    branchCreatedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    model: string;
-    metadata: any;
-  }>;
+  branches?: Array<HierarchicalBranch>;
+}
+
+// Recursive branch type to support nested branches
+interface HierarchicalBranch {
+  id: string;
+  title: string;
+  branchName: string | null;
+  branchOrder: number | null;
+  branchCreatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  model: string;
+  metadata: any;
+  hasChildren?: boolean;
+  branches?: Array<HierarchicalBranch>; // Support nested branches
 }
 
 interface ChatListProps {
@@ -68,7 +73,6 @@ interface ChatListProps {
   selectedCategory: string;
   hierarchicalLoading: boolean;
   onPin: (chatId: string) => void;
-  onBookmark: (chatId: string) => void;
   onDelete: (chatId: string) => void;
   onNavigateToParent: (parentId: string) => void;
   onDeleteBranch?: (
@@ -140,13 +144,43 @@ function ChatListComponent({
   selectedCategory,
   hierarchicalLoading,
   onPin,
-  onBookmark,
   onDelete,
   onNavigateToParent,
   onDeleteBranch,
 }: ChatListProps) {
   // Memoize filtered and grouped conversations (flattened from hierarchical)
   const { filteredChats, pinnedChats, groupedRecentChats } = useMemo(() => {
+    // Recursive function to flatten all nested branches
+    const flattenBranches = (
+      branches: any[],
+      parentId: string,
+      result: SimpleChat[]
+    ): void => {
+      branches.forEach((branch) => {
+        // Add this branch to the result
+        result.push({
+          id: branch.id,
+          title: branch.title,
+          model: branch.model,
+          createdAt: branch.createdAt,
+          updatedAt: branch.updatedAt,
+          isShared: false, // branches are typically not shared directly
+          isBranch: true,
+          parentConversationId: parentId,
+          branchName: branch.branchName,
+          branchOrder: branch.branchOrder,
+          branchCreatedAt: branch.branchCreatedAt,
+          metadata: branch.metadata,
+          hasChildren: branch.branches && branch.branches.length > 0,
+        });
+
+        // Recursively flatten any nested branches
+        if (branch.branches && branch.branches.length > 0) {
+          flattenBranches(branch.branches, branch.id, result);
+        }
+      });
+    };
+
     // Flatten hierarchical conversations to include all branches as individual items
     const flattenedConversations: SimpleChat[] = [];
 
@@ -168,25 +202,9 @@ function ChatListComponent({
         hasChildren: conv.hasChildren,
       });
 
-      // Add all branches as separate items (if branches exist)
+      // Recursively add all branches (including nested branches)
       if (conv.branches && conv.branches.length > 0) {
-        conv.branches.forEach((branch) => {
-          flattenedConversations.push({
-            id: branch.id,
-            title: branch.title,
-            model: branch.model,
-            createdAt: branch.createdAt,
-            updatedAt: branch.updatedAt,
-            isShared: false, // branches are typically not shared directly
-            isBranch: true,
-            parentConversationId: conv.id, // parent is the main conversation
-            branchName: branch.branchName,
-            branchOrder: branch.branchOrder,
-            branchCreatedAt: branch.branchCreatedAt,
-            metadata: branch.metadata,
-            hasChildren: false, // simplified: no nested branches for now
-          });
-        });
+        flattenBranches(conv.branches, conv.id, flattenedConversations);
       }
     });
 
@@ -289,11 +307,7 @@ function ChatListComponent({
                       chat={chat}
                       isActive={chat.id === currentChatId}
                       isPinned={preferences.pinnedChats.includes(chat.id)}
-                      isBookmarked={preferences.bookmarkedChats.includes(
-                        chat.id
-                      )}
                       onPin={() => onPin(chat.id)}
-                      onBookmark={() => onBookmark(chat.id)}
                       onDelete={() => onDelete(chat.id)}
                       onNavigateToParent={onNavigateToParent}
                     />
@@ -382,11 +396,7 @@ function ChatListComponent({
                               isPinned={preferences.pinnedChats.includes(
                                 chat.id
                               )}
-                              isBookmarked={preferences.bookmarkedChats.includes(
-                                chat.id
-                              )}
                               onPin={() => onPin(chat.id)}
-                              onBookmark={() => onBookmark(chat.id)}
                               onDelete={() => onDelete(chat.id)}
                               onNavigateToParent={onNavigateToParent}
                             />

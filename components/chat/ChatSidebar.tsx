@@ -74,19 +74,6 @@ function ChatSidebarComponent({
     [togglePin, toast]
   );
 
-  const handleBookmark = useCallback(
-    (chatId: string) => {
-      const wasBookmarked = toggleBookmark(chatId);
-      toast({
-        title: wasBookmarked ? "Bookmarked" : "Unbookmarked",
-        description: `Chat ${
-          wasBookmarked ? "added to" : "removed from"
-        } bookmarks`,
-      });
-    },
-    [toggleBookmark, toast]
-  );
-
   const handleDelete = useCallback(
     async (chatId: string) => {
       try {
@@ -224,7 +211,6 @@ function ChatSidebarComponent({
               selectedCategory={selectedCategory}
               hierarchicalLoading={hierarchicalLoading}
               onPin={handlePin}
-              onBookmark={handleBookmark}
               onDelete={handleDelete}
               onNavigateToParent={handleNavigateToParent}
               onDeleteBranch={handleDeleteBranch}
