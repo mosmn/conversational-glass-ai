@@ -51,6 +51,9 @@ function ChatSidebarComponent({
     loading: hierarchicalLoading,
     refetchConversations: refetchHierarchical,
     navigateToConversation,
+    deleteBranch, // NEW: Add deleteBranch method
+    useNestedView,
+    setUseNestedView,
   } = useHierarchicalConversations();
 
   // Memoize usage calculation to prevent recalculation on every render
@@ -142,6 +145,40 @@ function ChatSidebarComponent({
     [navigateToConversation, router]
   );
 
+  // NEW: Handler for branch deletion
+  const handleDeleteBranch = useCallback(
+    async (branchId: string) => {
+      try {
+        const result = await deleteBranch(branchId);
+
+        if (result.success) {
+          toast({
+            title: "Branch Deleted",
+            description: "The branch conversation has been deleted",
+          });
+
+          // Navigate away if current chat is the deleted branch
+          if (branchId === currentChatId) {
+            router.push("/chat");
+          }
+        } else {
+          throw new Error(result.error || "Failed to delete branch");
+        }
+      } catch (error) {
+        console.error("Delete branch error:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description:
+            error instanceof Error ? error.message : "Failed to delete branch",
+        });
+      }
+
+      return { success: false };
+    },
+    [deleteBranch, toast, currentChatId, router]
+  );
+
   return (
     <div
       className={`${
@@ -160,6 +197,13 @@ function ChatSidebarComponent({
         <SidebarHeader
           isCollapsed={isCollapsed}
           onToggleCollapse={onToggleCollapse}
+          onNewChat={onCreateNewChat}
+          onToggleSearch={() => {}} // Placeholder - already handled by SearchAndFilter
+          onOpenSettings={() => router.push("/settings")}
+          isSearching={false}
+          totalChats={hierarchicalConversations.length}
+          useNestedView={useNestedView}
+          onToggleNestedView={setUseNestedView}
         />
 
         {!isCollapsed && (
@@ -187,6 +231,7 @@ function ChatSidebarComponent({
               onBookmark={handleBookmark}
               onDelete={handleDelete}
               onNavigateToParent={handleNavigateToParent}
+              onDeleteBranch={handleDeleteBranch}
             />
 
             {/* User Profile */}
