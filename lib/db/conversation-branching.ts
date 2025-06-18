@@ -16,7 +16,23 @@ export class ConversationBranchingQueries {
       description?: string;
     }
   ): Promise<Conversation> {
-    // Get the next branch order for this parent
+    // Get the parent conversation to understand its structure
+    const [parentConversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, parentConversationId))
+      .limit(1);
+
+    if (!parentConversation) {
+      throw new Error("Parent conversation not found");
+    }
+
+    // Determine the root conversation ID for hierarchical tracking
+    const rootConversationId = parentConversation.isBranch
+      ? this.getRootConversationId(parentConversationId)
+      : parentConversationId;
+
+    // Get the next branch order for this specific parent (not root)
     const siblings = await db
       .select()
       .from(conversations)
@@ -31,7 +47,7 @@ export class ConversationBranchingQueries {
         title: branchData.title,
         description: branchData.description,
         model: branchData.model,
-        parentConversationId,
+        parentConversationId, // This is the IMMEDIATE parent, not root
         branchPointMessageId,
         branchName: branchData.branchName,
         isBranch: true,
@@ -50,7 +66,9 @@ export class ConversationBranchingQueries {
             lastBranchedAt: new Date().toISOString(),
             isParentConversation: false,
             childBranchCount: 0,
-            branchingPointContext: `Branched from conversation at message ${branchPointMessageId}`,
+            branchingPointContext: `Branched from ${
+              parentConversation.isBranch ? "branch" : "conversation"
+            } at message ${branchPointMessageId}`,
           },
         },
       })
@@ -60,6 +78,28 @@ export class ConversationBranchingQueries {
     await this.updateParentConversationMetadata(parentConversationId);
 
     return branchConversation;
+  }
+
+  // Helper method to find the root conversation of a branch hierarchy
+  private static async getRootConversationId(
+    conversationId: string
+  ): Promise<string> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+
+    if (
+      !conversation ||
+      !conversation.isBranch ||
+      !conversation.parentConversationId
+    ) {
+      return conversationId;
+    }
+
+    // Recursively find the root
+    return this.getRootConversationId(conversation.parentConversationId);
   }
 
   // Update parent conversation metadata when a branch is created
@@ -191,6 +231,91 @@ export class ConversationBranchingQueries {
     }));
 
     return [...conversationHierarchy.slice(0, limit), ...orphanedAsParents];
+  }
+
+  // NEW: Get TRUE hierarchical conversation tree with nested branches
+  static async getHierarchicalConversationTree(userId: string, limit = 50) {
+    // Get all conversations for user
+    const allConversations = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.userId, userId))
+      .orderBy(desc(conversations.updatedAt));
+
+    // Build a map for fast lookup
+    const conversationMap = new Map(
+      allConversations.map((conv) => [conv.id, conv])
+    );
+
+    // Function to recursively build the tree
+    const buildBranchTree = (parentId: string): any[] => {
+      const directBranches = allConversations
+        .filter((conv) => conv.parentConversationId === parentId)
+        .sort((a, b) => (a.branchOrder || 0) - (b.branchOrder || 0));
+
+      return directBranches.map((branch) => ({
+        ...branch,
+        branches: buildBranchTree(branch.id), // Recursively get sub-branches
+        hasChildren: allConversations.some(
+          (conv) => conv.parentConversationId === branch.id
+        ),
+        depth: this.calculateBranchDepth(branch.id, conversationMap),
+      }));
+    };
+
+    // Start with root conversations (non-branches)
+    const rootConversations = allConversations
+      .filter((conv) => !conv.isBranch)
+      .slice(0, limit);
+
+    const hierarchicalTree = rootConversations.map((root) => ({
+      ...root,
+      branches: buildBranchTree(root.id),
+      hasChildren: allConversations.some(
+        (conv) => conv.parentConversationId === root.id
+      ),
+      depth: 0,
+    }));
+
+    // Handle orphaned branches (branches whose parents don't exist)
+    const orphanedBranches = allConversations.filter(
+      (conv) =>
+        conv.isBranch && !conversationMap.has(conv.parentConversationId || "")
+    );
+
+    const orphanedAsRoots = orphanedBranches.map((branch) => ({
+      ...branch,
+      isBranch: false, // Display as root
+      branches: buildBranchTree(branch.id),
+      hasChildren: allConversations.some(
+        (conv) => conv.parentConversationId === branch.id
+      ),
+      depth: 0,
+    }));
+
+    return [...hierarchicalTree, ...orphanedAsRoots];
+  }
+
+  // Helper method to calculate branch depth
+  private static calculateBranchDepth(
+    conversationId: string,
+    conversationMap: Map<string, any>
+  ): number {
+    const conversation = conversationMap.get(conversationId);
+    if (
+      !conversation ||
+      !conversation.isBranch ||
+      !conversation.parentConversationId
+    ) {
+      return 0;
+    }
+
+    const parent = conversationMap.get(conversation.parentConversationId);
+    if (!parent) return 0;
+
+    return parent.isBranch
+      ? this.calculateBranchDepth(parent.id, conversationMap) + 1
+      : 1;
   }
 
   // Copy messages from parent conversation up to branching point

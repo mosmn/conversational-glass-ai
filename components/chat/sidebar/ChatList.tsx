@@ -54,6 +54,9 @@ interface ChatListProps {
   onBookmark: (chatId: string) => void;
   onDelete: (chatId: string) => void;
   onNavigateToParent: (parentId: string) => void;
+  onDeleteBranch?: (
+    branchId: string
+  ) => Promise<{ success: boolean; error?: string }>; // NEW: Branch deletion
 }
 
 // Date grouping helper functions
@@ -123,6 +126,7 @@ function ChatListComponent({
   onBookmark,
   onDelete,
   onNavigateToParent,
+  onDeleteBranch,
 }: ChatListProps) {
   // Memoize filtered and grouped conversations
   const {
@@ -238,6 +242,7 @@ function ChatListComponent({
                       onBookmark={() => onBookmark(chat.id)}
                       onDelete={() => onDelete(chat.id)}
                       onNavigateToParent={onNavigateToParent}
+                      onDeleteBranch={onDeleteBranch}
                     />
                   ))}
                 </div>
@@ -331,6 +336,7 @@ function ChatListComponent({
                               onBookmark={() => onBookmark(chat.id)}
                               onDelete={() => onDelete(chat.id)}
                               onNavigateToParent={onNavigateToParent}
+                              onDeleteBranch={onDeleteBranch}
                             />
                           </motion.div>
                         ))}

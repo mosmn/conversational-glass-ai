@@ -17,6 +17,7 @@ export interface HierarchicalConversation {
   branchCreatedAt?: string | null;
   metadata: any;
   hasChildren: boolean;
+  depth?: number;
   branches: Array<{
     id: string;
     title: string;
@@ -27,6 +28,9 @@ export interface HierarchicalConversation {
     updatedAt: string;
     model: string;
     metadata: any;
+    depth?: number;
+    branches?: any[];
+    hasChildren?: boolean;
   }>;
 }
 
@@ -40,6 +44,11 @@ interface UseHierarchicalConversationsReturn {
   ) => void;
   refetchConversations: () => Promise<void>;
   navigateToConversation: (conversationId: string) => void;
+  useNestedView: boolean;
+  setUseNestedView: (nested: boolean) => void;
+  deleteBranch: (
+    branchId: string
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function useHierarchicalConversations(): UseHierarchicalConversationsReturn {
@@ -48,6 +57,7 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useNestedView, setUseNestedView] = useState(true); // Default to true for better UX
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -57,24 +67,32 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
       const response = await apiClient.getConversationsWithBranching({
         limit: 50, // Get more conversations since we're showing hierarchy
         includeOrphaned: true, // Include conversations that might be orphaned branches
+        nested: useNestedView, // Use the new nested view when enabled
       });
+
+      // Type the response properly
+      const apiResponse = response as {
+        conversations: HierarchicalConversation[];
+      };
 
       // Sort conversations to show parent conversations first, then their branches
-      const sortedConversations = response.conversations.sort((a, b) => {
-        // Parent conversations first (not branches)
-        if (!a.isBranch && b.isBranch) return -1;
-        if (a.isBranch && !b.isBranch) return 1;
+      const sortedConversations = apiResponse.conversations.sort(
+        (a: HierarchicalConversation, b: HierarchicalConversation) => {
+          // Parent conversations first (not branches)
+          if (!a.isBranch && b.isBranch) return -1;
+          if (a.isBranch && !b.isBranch) return 1;
 
-        // Within the same type, sort by most recent
-        const aDate = new Date(
-          a.isBranch ? a.branchCreatedAt || a.createdAt : a.updatedAt
-        );
-        const bDate = new Date(
-          b.isBranch ? b.branchCreatedAt || b.createdAt : b.updatedAt
-        );
+          // Within the same type, sort by most recent
+          const aDate = new Date(
+            a.isBranch ? a.branchCreatedAt || a.createdAt : a.updatedAt
+          );
+          const bDate = new Date(
+            b.isBranch ? b.branchCreatedAt || b.createdAt : b.updatedAt
+          );
 
-        return bDate.getTime() - aDate.getTime();
-      });
+          return bDate.getTime() - aDate.getTime();
+        }
+      );
 
       setConversations(sortedConversations);
     } catch (err) {
@@ -84,7 +102,7 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [useNestedView]); // Re-fetch when nested view changes
 
   const updateConversation = useCallback(
     (conversationId: string, updates: Partial<HierarchicalConversation>) => {
@@ -123,6 +141,28 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     fetchConversations();
   }, [fetchConversations]);
 
+  const deleteBranch = useCallback(async (branchId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      await apiClient.deleteBranchConversation(branchId);
+
+      // Remove the branch from local state
+      await refetchConversations(); // Refresh the entire list to ensure consistency
+
+      return { success: true };
+    } catch (err) {
+      const apiError = err as APIError;
+      const errorMessage = apiError.error || "Failed to delete branch";
+      setError(errorMessage);
+      console.error("Delete branch error:", err);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     conversations,
     loading,
@@ -130,5 +170,8 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     updateConversation,
     refetchConversations,
     navigateToConversation,
+    useNestedView,
+    setUseNestedView,
+    deleteBranch,
   };
 }

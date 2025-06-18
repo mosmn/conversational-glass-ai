@@ -30,6 +30,7 @@ import {
   Zap,
   AlertTriangle,
 } from "lucide-react";
+import { apiClient } from "@/lib/api/client";
 
 interface HierarchicalChat {
   id: string;
@@ -45,6 +46,7 @@ interface HierarchicalChat {
   branchCreatedAt?: string | null;
   metadata: any;
   hasChildren: boolean;
+  depth?: number;
   branches: Array<{
     id: string;
     title: string;
@@ -55,6 +57,9 @@ interface HierarchicalChat {
     updatedAt: string;
     model: string;
     metadata: any;
+    depth?: number;
+    branches?: any[];
+    hasChildren?: boolean;
   }>;
 }
 
@@ -67,6 +72,9 @@ interface HierarchicalChatItemProps {
   onBookmark: () => void;
   onDelete: () => void;
   onNavigateToParent?: (parentId: string) => void;
+  onDeleteBranch?: (
+    branchId: string
+  ) => Promise<{ success: boolean; error?: string }>; // NEW: Branch deletion
 }
 
 export function HierarchicalChatItem({
@@ -78,6 +86,7 @@ export function HierarchicalChatItem({
   onBookmark,
   onDelete,
   onNavigateToParent,
+  onDeleteBranch,
 }: HierarchicalChatItemProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(isActive || chat.hasChildren);
@@ -113,6 +122,161 @@ export function HierarchicalChatItem({
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffHours < 168) return `${Math.floor(diffHours / 24)}d ago`;
     return date.toLocaleDateString();
+  };
+
+  // NEW: Handle branch deletion
+  const handleDeleteBranch = async (branch: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the branch "${
+          branch.branchName || "Unnamed Branch"
+        }"?\n\nThis will permanently delete the branch and all its messages.`
+      )
+    ) {
+      return;
+    }
+
+    if (onDeleteBranch) {
+      const result = await onDeleteBranch(branch.id);
+      if (!result.success) {
+        alert(`Failed to delete branch: ${result.error || "Unknown error"}`);
+      }
+    } else {
+      // Fallback to direct API call if no hook provided
+      try {
+        await apiClient.deleteBranchConversation(branch.id);
+        window.location.reload();
+      } catch (error: any) {
+        alert(`Failed to delete branch: ${error.message || "Unknown error"}`);
+      }
+    }
+  };
+
+  // NEW: Recursive branch rendering for nested hierarchy
+  const renderBranches = (branches: any[], currentDepth: number = 1) => {
+    if (!branches || branches.length === 0) return null;
+
+    return branches.map((branch) => (
+      <div key={branch.id} className="mt-1">
+        {/* Branch item with proper indentation */}
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          className={`rounded-lg transition-all duration-200 ${
+            currentDepth > 3 ? "ml-12" : `ml-${currentDepth * 4}`
+          }`}
+        >
+          <div
+            className={`p-2 rounded-lg cursor-pointer transition-all duration-200 group relative ${
+              isActive && branch.id === chat.id
+                ? "bg-emerald-500/20 border border-emerald-500/30"
+                : "hover:bg-slate-700/50 border border-transparent"
+            }`}
+          >
+            {/* Depth indicator lines */}
+            <div className="absolute left-0 top-0 bottom-0 flex">
+              {[...Array(currentDepth)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-px bg-gradient-to-b ${
+                    i === currentDepth - 1
+                      ? "from-teal-500/50 to-teal-500/20"
+                      : "from-slate-600/50 to-slate-600/20"
+                  } ml-2`}
+                />
+              ))}
+            </div>
+
+            {/* Main branch content - clickable area */}
+            <div
+              onClick={() => handleBranchClick(branch.id)}
+              className="flex items-center gap-2 pl-2 pr-8 relative"
+            >
+              {/* Branch icon with depth-based styling */}
+              <GitBranch
+                className={`h-3 w-3 flex-shrink-0 ${
+                  currentDepth === 1
+                    ? "text-teal-400"
+                    : currentDepth === 2
+                    ? "text-orange-400"
+                    : "text-purple-400"
+                }`}
+              />
+
+              {/* Branch title */}
+              <span className="text-xs text-slate-300 truncate flex-1">
+                <span
+                  className={`font-medium ${
+                    currentDepth === 1
+                      ? "text-teal-300"
+                      : currentDepth === 2
+                      ? "text-orange-300"
+                      : "text-purple-300"
+                  }`}
+                >
+                  {branch.branchName || `Branch ${branch.branchOrder + 1}`}
+                </span>
+                {branch.title !== chat.title && (
+                  <span className="text-slate-400 ml-1">• {branch.title}</span>
+                )}
+              </span>
+
+              {/* Nested branch indicator */}
+              {branch.hasChildren && (
+                <Badge
+                  variant="outline"
+                  className={`h-3 px-1 text-xs border-current ${
+                    currentDepth === 1
+                      ? "text-teal-400 border-teal-500/30"
+                      : currentDepth === 2
+                      ? "text-orange-400 border-orange-500/30"
+                      : "text-purple-400 border-purple-500/30"
+                  }`}
+                >
+                  {branch.branches?.length || 0}
+                </Badge>
+              )}
+            </div>
+
+            {/* Branch action buttons - positioned absolute */}
+            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteBranch(branch, e)}
+                    className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    disabled={branch.hasChildren} // Disable if has child branches
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {branch.hasChildren
+                    ? "Cannot delete: branch has sub-branches"
+                    : "Delete branch"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            {/* Timestamp for branch */}
+            <div className="text-xs text-slate-500 mt-1 pl-5">
+              {formatDate(branch.branchCreatedAt || branch.createdAt)}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Recursively render nested branches */}
+        {branch.branches && branch.branches.length > 0 && (
+          <div className="mt-1">
+            {renderBranches(branch.branches, currentDepth + 1)}
+          </div>
+        )}
+      </div>
+    ));
   };
 
   return (
@@ -304,41 +468,7 @@ export function HierarchicalChatItem({
               transition={{ duration: 0.2 }}
               className="ml-6 mt-1 space-y-1 w-full overflow-hidden"
             >
-              {chat.branches
-                .sort((a, b) => (a.branchOrder || 0) - (b.branchOrder || 0))
-                .map((branch) => (
-                  <motion.div
-                    key={branch.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: 0.05 }}
-                    onClick={() => handleBranchClick(branch.id)}
-                    className={`relative p-2 rounded-md cursor-pointer transition-all duration-200 group border-l-2 border-l-teal-400/50 bg-slate-800/30 hover:bg-slate-700/50 w-full overflow-hidden ${
-                      branch.id === chat.id
-                        ? "bg-emerald-600/10 border-l-emerald-400"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 w-full overflow-hidden">
-                      <GitBranch className="h-3 w-3 text-teal-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-1 mb-1 min-w-0 overflow-hidden">
-                          <span className="text-xs font-medium text-teal-300 truncate flex-shrink min-w-0">
-                            {branch.branchName || "Unnamed Branch"}
-                          </span>
-                          <Zap className="h-2.5 w-2.5 text-teal-400 flex-shrink-0" />
-                        </div>
-                        <div className="flex items-center justify-between gap-2 min-w-0 overflow-hidden">
-                          <span className="text-xs text-slate-400 truncate flex-shrink min-w-0">
-                            {branch.branchCreatedAt
-                              ? formatDate(branch.branchCreatedAt)
-                              : formatDate(branch.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+              {renderBranches(chat.branches)}
             </motion.div>
           )}
         </AnimatePresence>

@@ -497,10 +497,12 @@ class APIClient {
   async getConversationsWithBranching(params?: {
     limit?: number;
     includeOrphaned?: boolean;
+    nested?: boolean; // NEW: Enable true nested hierarchy
   }) {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.set("limit", params.limit.toString());
     if (params?.includeOrphaned) searchParams.set("includeOrphaned", "true");
+    if (params?.nested) searchParams.set("nested", "true");
 
     const query = searchParams.toString();
     return this.fetchWithAuth(
