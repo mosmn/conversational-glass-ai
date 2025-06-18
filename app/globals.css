@@ -147,6 +147,35 @@ button:disabled {
   .glass-card {
     @apply backdrop-blur-xl bg-slate-900/80 border border-white/10 rounded-xl;
   }
+
+  /* Mobile-responsive utilities for settings */
+  .mobile-container {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .mobile-header {
+    @apply text-xl sm:text-2xl lg:text-3xl;
+  }
+
+  .mobile-spacing {
+    @apply space-y-4 sm:space-y-6 lg:space-y-8;
+  }
+
+  .mobile-grid-2 {
+    @apply grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8;
+  }
+
+  .mobile-card {
+    @apply p-4 sm:p-6 rounded-xl sm:rounded-2xl;
+  }
+
+  .mobile-nav-drawer {
+    @apply fixed inset-y-0 left-0 z-50 w-80 bg-slate-800/95 backdrop-blur-xl border-r border-slate-700/50 transform transition-transform duration-300 ease-in-out;
+  }
+
+  .mobile-overlay {
+    @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40;
+  }
 }
 
 @layer components {

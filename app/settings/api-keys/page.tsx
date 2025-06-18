@@ -271,19 +271,19 @@ export default function ApiKeysPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-8 p-6">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+      <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 p-4 sm:p-6">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 sm:gap-3 mb-3">
+            <div className="w-1.5 sm:w-2 h-6 sm:h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
               API Keys
             </h1>
           </div>
-          <p className="text-slate-400 text-lg leading-relaxed max-w-3xl">
+          <p className="text-slate-400 text-base sm:text-lg leading-relaxed max-w-3xl">
             Loading your API keys...
           </p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 rounded-2xl blur-xl opacity-70" />
@@ -304,21 +304,21 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 p-6">
+    <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 p-4 sm:p-6">
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-8"
+        className="mb-6 sm:mb-8"
       >
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-2 h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+        <div className="flex items-center gap-2 sm:gap-3 mb-3">
+          <div className="w-1.5 sm:w-2 h-6 sm:h-8 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
             API Keys
           </h1>
         </div>
-        <p className="text-slate-400 text-lg leading-relaxed max-w-3xl">
+        <p className="text-slate-400 text-base sm:text-lg leading-relaxed max-w-3xl">
           Bring your own API keys (BYOK) to reduce costs and maintain control
           over your AI model usage. Add keys from multiple providers to unlock
           advanced features and personalized experiences.
@@ -326,7 +326,7 @@ export default function ApiKeysPage() {
       </motion.div>
 
       {/* Provider Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {Object.entries(PROVIDERS).map(([providerKey, provider], index) => {
           const providerKeys = keysByProvider[providerKey] || [];
           const hasKeys = providerKeys.length > 0;

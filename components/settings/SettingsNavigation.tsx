@@ -13,9 +13,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface SettingsNavigationProps {
   currentSection: string;
+  onNavigate?: () => void;
 }
 
 const navigationItems = [
@@ -91,6 +93,7 @@ const colorClasses = {
 
 export function SettingsNavigation({
   currentSection,
+  onNavigate,
 }: SettingsNavigationProps) {
   return (
     <div className="space-y-2 py-4">
@@ -128,6 +131,7 @@ export function SettingsNavigation({
 
               <Link
                 href={item.href}
+                onClick={onNavigate}
                 className={cn(
                   "relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 group-hover:scale-[1.02]",
                   isActive
@@ -198,36 +202,50 @@ export function SettingsNavigation({
       <div className="mt-8 pt-6 border-t border-slate-700/50">
         <div className="flex items-center gap-2 px-3 mb-3">
           <Settings className="h-4 w-4 text-slate-500" />
-          <span className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             Coming Soon
           </span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 opacity-50">
           {[
-            { name: "Themes", icon: "🎨" },
-            { name: "Shortcuts", icon: "⌘" },
-            { name: "Privacy", icon: "🔒" },
-          ].map((item, index) => (
-            <motion.div
-              key={item.name}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{
-                duration: 0.3,
-                delay: (navigationItems.length + index) * 0.1,
-              }}
-              className="flex items-center gap-4 p-3 rounded-lg bg-slate-800/10 border border-slate-700/20 opacity-50 cursor-not-allowed"
-            >
-              <div className="w-8 h-8 rounded-lg bg-slate-700/30 flex items-center justify-center text-sm">
-                {item.icon}
+            {
+              title: "Themes",
+              description: "Dark, light, and custom themes",
+              icon: Sparkles,
+            },
+            {
+              title: "Integrations",
+              description: "Connect external services",
+              icon: Settings,
+            },
+          ].map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.title}
+                className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/10 border border-slate-700/20 cursor-not-allowed"
+              >
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-700/30 border border-slate-600/30">
+                  <Icon className="h-5 w-5 text-slate-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-slate-400 mb-1">
+                    {item.title}
+                  </div>
+                  <div className="text-xs text-slate-600 leading-tight">
+                    {item.description}
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-slate-600/50 text-slate-500 bg-slate-700/20 text-xs"
+                >
+                  Soon
+                </Badge>
               </div>
-              <div className="flex-1">
-                <div className="text-sm text-slate-400">{item.name}</div>
-                <div className="text-xs text-slate-600">Coming soon</div>
-              </div>
-            </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
