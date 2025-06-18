@@ -956,7 +956,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                     </div>
                   ))}
                 </div>
-              ) : messages.length === 0 ? (
+              ) : !optimisticChatId ? (
                 <WelcomeInterface
                   quickActions={quickActions}
                   onPromptSelect={chatState.setInputValue}

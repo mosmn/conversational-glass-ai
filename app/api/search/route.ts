@@ -8,6 +8,38 @@ import { z } from "zod";
 import { SearchManager } from "@/lib/ai/search-providers/search-manager";
 import { SearchProviderError } from "@/lib/ai/search-providers/types";
 import { getAuthenticatedUserId } from "@/lib/utils/auth";
+
+// Rate limiting store (in-memory for development, use Redis for production)
+const searchRequestCounts = new Map<
+  string,
+  { count: number; resetTime: number }
+>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_SEARCHES_PER_MINUTE = 10; // Maximum 10 searches per minute per user
+
+// Rate limiting function
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const userRequests = searchRequestCounts.get(userId);
+
+  if (!userRequests || now > userRequests.resetTime) {
+    // Reset the counter
+    searchRequestCounts.set(userId, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW,
+    });
+    return false;
+  }
+
+  if (userRequests.count >= MAX_SEARCHES_PER_MINUTE) {
+    return true;
+  }
+
+  // Increment the counter
+  userRequests.count++;
+  return false;
+}
+
 // Validation schema for search requests
 const searchRequestSchema = z.object({
   query: z.string().min(1).max(500),
@@ -64,6 +96,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
+      );
+    }
+
+    // Check rate limiting
+    if (isRateLimited(clerkUserId)) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Maximum ${MAX_SEARCHES_PER_MINUTE} searches per minute allowed. Please wait before searching again.`,
+          retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000), // seconds
+        },
+        { status: 429 }
       );
     }
 

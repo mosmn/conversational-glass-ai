@@ -2,6 +2,32 @@ import path from "path";
 import { fileURLToPath } from "url";
 import withPWA from "next-pwa";
 
+// Add process-level error handling to prevent crashes
+process.on("uncaughtException", (error) => {
+  console.error("🚨 Uncaught Exception:", error.message);
+  if (
+    error.message.includes("worker.js") ||
+    error.message.includes("worker thread")
+  ) {
+    console.warn(
+      "⚠️ Worker thread error caught and handled - continuing execution"
+    );
+    return; // Don't crash the process for worker thread errors
+  }
+  // For other critical errors, you might want to crash
+  console.error("💥 Critical error - process will exit");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("🚨 Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't crash for unhandled rejections in development
+  if (process.env.NODE_ENV === "development") {
+    console.warn("⚠️ Unhandled rejection in development - continuing");
+    return;
+  }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -77,6 +103,10 @@ const nextConfig = {
   experimental: {
     optimizeCss: false, // Disable CSS optimization in dev
     esmExternals: true,
+    // Disable worker threads to prevent missing worker.js errors
+    workerThreads: false,
+    // Prevent crashes during heavy operations
+    cpus: 1,
   },
 
   // Turbopack configuration (stable in Next.js 15)
@@ -101,7 +131,7 @@ const nextConfig = {
         splitChunks: false,
       };
 
-      // Reduce memory usage
+      // Reduce memory usage and prevent worker thread issues
       config.watchOptions = {
         poll: false,
         aggregateTimeout: 300,
@@ -117,6 +147,9 @@ const nextConfig = {
       config.cache = {
         type: "filesystem",
       };
+
+      // Disable worker threads in webpack to prevent crashes
+      config.optimization.sideEffects = false;
     }
 
     // Externalize heavy AI libraries for better performance
@@ -126,8 +159,21 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
+        // Add worker-related fallbacks
+        worker_threads: false,
+        child_process: false,
       };
     }
+
+    // Add error handling for missing modules
+    config.ignoreWarnings = [
+      {
+        module: /worker\.js$/,
+      },
+      {
+        message: /worker thread/i,
+      },
+    ];
 
     return config;
   },

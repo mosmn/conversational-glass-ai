@@ -173,17 +173,7 @@ export function HierarchicalChatItem({
                   </span>
                 ) : (
                   <span className="flex items-center gap-2 min-w-0 overflow-hidden">
-                    {chat.title === "New Chat" ||
-                    chat.title.startsWith("New Chat") ? (
-                      <>
-                        <span className="text-slate-400 truncate flex-shrink min-w-0">
-                          Generating title...
-                        </span>
-                        <div className="animate-spin rounded-full h-3 w-3 border border-slate-400 border-t-transparent flex-shrink-0" />
-                      </>
-                    ) : (
-                      <span className="truncate min-w-0">{chat.title}</span>
-                    )}
+                    <span className="truncate min-w-0">{chat.title}</span>
                   </span>
                 )}
               </h3>

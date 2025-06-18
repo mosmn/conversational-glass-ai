@@ -175,6 +175,18 @@ export function useEnhancedSearch({
         });
 
         if (!searchResponse.ok) {
+          // Handle rate limiting specifically
+          if (searchResponse.status === 429) {
+            const errorData = await searchResponse.json();
+            const retryAfter = errorData.retryAfter || 60;
+            toast({
+              title: "Search Rate Limit Exceeded",
+              description: `Too many searches. Please wait ${retryAfter} seconds before searching again.`,
+              variant: "destructive",
+            });
+            throw new Error(`Rate limited: ${errorData.message}`);
+          }
+
           throw new Error(
             `Search failed: ${searchResponse.status} ${searchResponse.statusText}`
           );
