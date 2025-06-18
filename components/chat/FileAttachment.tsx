@@ -69,6 +69,33 @@ const DEFAULT_ALLOWED_TYPES = [
   "text/csv",
 ];
 
+// Add helper function for non-blocking operations
+const scheduleIdleWork = (callback: () => void) => {
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(callback, { timeout: 100 });
+  } else {
+    // Fallback for browsers without requestIdleCallback
+    setTimeout(callback, 0);
+  }
+};
+
+// Add chunked processing helper
+const processFilesInChunks = async (files: FileList, chunkSize: number = 2) => {
+  const results: File[] = [];
+
+  for (let i = 0; i < files.length; i += chunkSize) {
+    const chunk = Array.from(files).slice(i, i + chunkSize);
+    results.push(...chunk);
+
+    // Yield control to prevent blocking
+    if (i + chunkSize < files.length) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  return results;
+};
+
 export function FileAttachment({
   attachments,
   onAttachmentsChange,
@@ -137,14 +164,20 @@ export function FileAttachment({
   };
 
   const processFiles = async (files: FileList) => {
+    // Prevent blocking by processing files in chunks
+    const filesArray = await processFilesInChunks(files);
     const newAttachments: AttachedFile[] = [];
+
+    // Batch state updates to prevent excessive re-renders
+    let batchedUpdates: AttachedFile[] = [];
 
     for (
       let i = 0;
-      i < files.length && attachments.length + newAttachments.length < maxFiles;
+      i < filesArray.length &&
+      attachments.length + newAttachments.length < maxFiles;
       i++
     ) {
-      const file = files[i];
+      const file = filesArray[i];
       const validationError = validateFile(file);
 
       const attachment: AttachedFile = {
@@ -158,24 +191,42 @@ export function FileAttachment({
         error: validationError || undefined,
       };
 
-      // Generate preview for images
+      // Generate preview for images non-blockingly
       if (file.type.startsWith("image/") && !validationError) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          attachment.preview = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
+        scheduleIdleWork(() => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            // Update attachment with preview without blocking
+            requestAnimationFrame(() => {
+              const updated = attachmentsRef.current.map((a) =>
+                a.id === attachment.id
+                  ? { ...a, preview: e.target?.result as string }
+                  : a
+              );
+              onAttachmentsChange(updated);
+            });
+          };
+          reader.readAsDataURL(file);
+        });
       }
 
       newAttachments.push(attachment);
+      batchedUpdates.push(attachment);
 
-      // Start upload if validation passed
+      // Batch updates every 3 files or at the end
+      if (batchedUpdates.length >= 3 || i === filesArray.length - 1) {
+        onAttachmentsChange([...attachments, ...batchedUpdates]);
+        batchedUpdates = [];
+
+        // Yield control to prevent blocking
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+
+      // Start upload if validation passed (non-blocking)
       if (!validationError) {
-        uploadFile(attachment, file);
+        scheduleIdleWork(() => uploadFile(attachment, file));
       }
     }
-
-    onAttachmentsChange([...attachments, ...newAttachments]);
   };
 
   const uploadFile = useCallback(

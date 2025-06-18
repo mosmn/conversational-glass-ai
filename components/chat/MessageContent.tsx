@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   MarkdownContent,
   StreamingContent,
@@ -12,6 +12,19 @@ import {
 import type { ProcessedContent } from "@/lib/content/markdown-processor";
 import { cn } from "@/lib/utils";
 import { ThinkingBlock } from "./ThinkingBlock";
+
+// Add performance helpers
+const PROCESSING_DEBOUNCE_MS = 200;
+const MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING = 1000;
+
+// Helper for non-blocking processing
+const scheduleNonBlockingWork = (callback: () => Promise<void>) => {
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(async () => await callback(), { timeout: 300 });
+  } else {
+    setTimeout(async () => await callback(), 0);
+  }
+};
 
 interface MessageContentProps {
   content: string;
@@ -36,10 +49,20 @@ export function MessageContent({
     useState<ProcessedContent | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Intelligent processing check using synchronous patterns
   const requiresProcessing = useMemo(() => {
     if (!content.trim() || isStreaming) return false;
+
+    // Skip processing for very long content to prevent blocking
+    if (content.length > 10000) {
+      console.warn(
+        "Content too long for advanced processing, using basic rendering"
+      );
+      return false;
+    }
 
     // For user messages, only process if there's clear markdown/code content
     if (isUser) {
@@ -99,6 +122,14 @@ export function MessageContent({
 
   // Process content when it changes and is not streaming
   useEffect(() => {
+    // Clear any pending processing
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     if (!requiresProcessing || isStreaming || !content.trim()) {
       setProcessedContent(null);
       setIsProcessing(false);
@@ -106,8 +137,12 @@ export function MessageContent({
     }
 
     let isMounted = true;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const processContentAsync = async () => {
+      if (abortController.signal.aborted) return;
+
       setIsProcessing(true);
       setProcessingError(null);
 
@@ -116,36 +151,68 @@ export function MessageContent({
         // For user messages, only allow HTML if there's clear markdown content
         const shouldAllowHtml = !isUser || allowHtml;
 
-        const processed = await processContent(content, {
-          enableHighlighting: true,
-          showLineNumbers,
-          maxCodeBlockHeight,
-          allowHtml: shouldAllowHtml,
-        });
+        // Use non-blocking processing for larger content
+        let processed: ProcessedContent;
 
-        if (isMounted) {
+        if (content.length > MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING) {
+          // Schedule heavy processing work in idle time
+          processed = await new Promise<ProcessedContent>((resolve, reject) => {
+            scheduleNonBlockingWork(async () => {
+              try {
+                const result = await processContent(content, {
+                  enableHighlighting: true,
+                  showLineNumbers,
+                  maxCodeBlockHeight,
+                  allowHtml: shouldAllowHtml,
+                });
+                resolve(result);
+              } catch (error) {
+                reject(error);
+              }
+            });
+          });
+        } else {
+          processed = await processContent(content, {
+            enableHighlighting: true,
+            showLineNumbers,
+            maxCodeBlockHeight,
+            allowHtml: shouldAllowHtml,
+          });
+        }
+
+        if (isMounted && !abortController.signal.aborted) {
           setProcessedContent(processed);
         }
       } catch (error) {
-        console.error("Failed to process message content:", error);
-        if (isMounted) {
-          setProcessingError(
-            error instanceof Error ? error.message : "Processing failed"
-          );
+        if (!abortController.signal.aborted) {
+          console.error("Failed to process message content:", error);
+          if (isMounted) {
+            setProcessingError(
+              error instanceof Error ? error.message : "Processing failed"
+            );
+          }
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && !abortController.signal.aborted) {
           setIsProcessing(false);
         }
       }
     };
 
-    // Debounce processing for performance
-    const timeoutId = setTimeout(processContentAsync, 100);
+    // Debounce processing for performance with longer delay for complex content
+    const debounceMs =
+      content.length > MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING
+        ? PROCESSING_DEBOUNCE_MS * 2
+        : PROCESSING_DEBOUNCE_MS;
+
+    processingTimeoutRef.current = setTimeout(processContentAsync, debounceMs);
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
+      abortController.abort();
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
     };
   }, [
     content,
@@ -156,6 +223,18 @@ export function MessageContent({
     allowHtml,
     isUser,
   ]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Show streaming content during streaming
   if (isStreaming) {

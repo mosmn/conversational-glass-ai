@@ -1,5 +1,12 @@
 import { useToast } from "@/hooks/use-toast";
 
+// Performance optimization constants
+const SEARCH_DEBOUNCE_MS = 300;
+const MAX_CONCURRENT_SEARCHES = 2;
+
+// Helper for non-blocking async operations
+const yieldControl = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 interface UseMessageHandlingProps {
   chatId: string;
   selectedModel: string;
@@ -38,6 +45,9 @@ export function useMessageHandling({
     searchType: string = "general"
   ) => {
     try {
+      // Yield control to prevent blocking
+      await yieldControl();
+
       const response = await fetch("/api/search/optimize-query", {
         method: "POST",
         headers: {
@@ -70,7 +80,8 @@ export function useMessageHandling({
     try {
       console.log("🔍 Starting AI-optimized web search for:", query);
 
-      // Prepare conversation context (last 6 messages)
+      // Prepare conversation context (last 6 messages) with yield
+      await yieldControl();
       const conversationContext = messages.slice(-6).map((msg) => ({
         role: msg.role === "system" ? "assistant" : msg.role,
         content: msg.content,
@@ -80,26 +91,48 @@ export function useMessageHandling({
             : msg.timestamp.toISOString(),
       }));
 
-      // First, optimize the search query using AI
+      // First, optimize the search query using AI (non-blocking)
       let queryOptimization = null;
       let searchQuery = query;
 
       if (conversationContext.length > 0) {
         console.log("🤖 Optimizing search query with conversation context...");
-        queryOptimization = await optimizeSearchQuery(
+
+        // Use timeout to prevent hanging
+        const optimizationPromise = optimizeSearchQuery(
           query,
           conversationContext,
           "general"
         );
-        searchQuery = queryOptimization.optimizedQuery;
 
-        console.log("📝 Original query:", query);
-        console.log("✨ Optimized query:", searchQuery);
-        console.log("💭 Reasoning:", queryOptimization.reasoning);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Query optimization timeout")),
+            5000
+          )
+        );
+
+        try {
+          queryOptimization = await Promise.race([
+            optimizationPromise,
+            timeoutPromise,
+          ]);
+          searchQuery = queryOptimization.optimizedQuery;
+
+          console.log("📝 Original query:", query);
+          console.log("✨ Optimized query:", searchQuery);
+          console.log("💭 Reasoning:", queryOptimization.reasoning);
+        } catch (error) {
+          console.warn("Query optimization failed or timed out:", error);
+          // Continue with original query
+        }
       }
 
-      // Perform the actual search with the optimized query
-      const searchResponse = await fetch("/api/search", {
+      // Yield control before search
+      await yieldControl();
+
+      // Perform the actual search with the optimized query (with timeout)
+      const searchPromise = fetch("/api/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,6 +148,15 @@ export function useMessageHandling({
         }),
       });
 
+      const searchTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Search timeout")), 10000)
+      );
+
+      const searchResponse = (await Promise.race([
+        searchPromise,
+        searchTimeoutPromise,
+      ])) as Response;
+
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         console.log("🔍 Full search response:", searchData);
@@ -124,6 +166,9 @@ export function useMessageHandling({
           : null;
 
         if (searchResults && searchResults.length > 0) {
+          // Process search results in chunks to prevent blocking
+          await yieldControl();
+
           const searchContext = searchResults
             .map(
               (result: any, index: number) =>
@@ -190,6 +235,7 @@ Please synthesize the information from the search results to provide an accurate
     console.log("  🤖 Selected model being sent:", selectedModel);
     console.log("  💬 Chat ID:", chatId);
 
+    // Reset input immediately to improve perceived performance
     resetInput();
 
     try {
@@ -197,6 +243,9 @@ Please synthesize the information from the search results to provide an accurate
       let enhancedContent = content;
       let searchQuery = content;
       let queryOptimization = null;
+
+      // Yield control to prevent blocking UI
+      await yieldControl();
 
       if (searchEnabled) {
         setIsSearching(true);

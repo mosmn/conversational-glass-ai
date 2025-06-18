@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/useConversations";
 import { useHierarchicalConversations } from "@/hooks/useHierarchicalConversations";
@@ -55,6 +61,32 @@ import { useMessageHandling } from "@/hooks/useMessageHandling";
 import { useEnabledModels } from "@/hooks/useEnabledModels";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+
+// Performance optimization constants
+const MESSAGE_RENDER_BATCH_SIZE = 10;
+const SCROLL_DEBOUNCE_MS = 100;
+const RESIZE_DEBOUNCE_MS = 250;
+
+// Helper for debouncing to prevent excessive re-renders
+const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
+// Performance optimization helper for batched operations
+const batchUpdates = (callback: () => void) => {
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(callback, { timeout: 100 });
+  } else {
+    setTimeout(callback, 0);
+  }
+};
 
 interface Message {
   id: string;
