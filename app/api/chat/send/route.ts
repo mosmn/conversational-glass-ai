@@ -515,7 +515,12 @@ export async function POST(request: NextRequest) {
           let totalTokenCount = 0;
           const startTime = Date.now();
 
-          // Process streaming chunks
+          // Server-side performance optimizations
+          let chunkCount = 0;
+          let lastDBUpdate = 0;
+          let contentBatch: string[] = [];
+
+          // Process streaming chunks with batching for better performance
           for await (const chunk of aiStream) {
             if (chunk.error) {
               // Handle streaming error
@@ -565,40 +570,66 @@ export async function POST(request: NextRequest) {
             }
 
             if (chunk.content) {
-              assistantContent += chunk.content;
-              totalTokenCount += chunk.tokenCount || 0;
+              chunkCount++;
 
-              // Send chunk to client (only if controller is still open)
-              const responseChunk = {
-                type: "content",
-                content: chunk.content,
-                finished: false,
-                provider: provider.name,
-                model: aiModel.name,
-                messageId: assistantMessage.id,
-                userMessageId: userMessage.id,
-              };
+              // Batch chunks every 3 chunks to reduce network overhead
+              contentBatch.push(chunk.content);
+              if (contentBatch.length >= 3 || chunk.finished) {
+                const batchedContent = contentBatch.join("");
+                assistantContent += batchedContent;
+                totalTokenCount += chunk.tokenCount || 0;
+                contentBatch = [];
 
-              try {
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
-                );
-              } catch (controllerError) {
-                // Controller is closed (likely due to client abort) - exit gracefully
-                console.log("🛑 Controller closed, stopping stream gracefully");
-                break;
+                // Send batched chunk to client (only if controller is still open)
+                const responseChunk = {
+                  type: "content",
+                  content: batchedContent,
+                  finished: false,
+                  provider: provider.name,
+                  model: aiModel.name,
+                  messageId: assistantMessage.id,
+                  userMessageId: userMessage.id,
+                };
+
+                try {
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify(responseChunk)}\n\n`)
+                  );
+                } catch (controllerError) {
+                  // Controller is closed (likely due to client abort) - exit gracefully
+                  console.log(
+                    "🛑 Controller closed, stopping stream gracefully"
+                  );
+                  break;
+                }
+              } else {
+                // Just accumulate content without sending yet
+                assistantContent += chunk.content;
+                totalTokenCount += chunk.tokenCount || 0;
               }
 
-              // Update message in database periodically (every ~1000 chars or 5 seconds)
-              if (assistantContent.length % 1000 === 0) {
-                await MessageQueries.updateMessage(
-                  assistantMessage.id,
-                  user.id,
-                  {
-                    content: assistantContent,
-                    tokenCount: totalTokenCount,
+              // Non-blocking database updates with reduced frequency for performance
+              const now = Date.now();
+              if (
+                now - lastDBUpdate >= 2000 &&
+                assistantContent.length % 2000 === 0
+              ) {
+                lastDBUpdate = now;
+                // Use setTimeout to make DB update non-blocking
+                setTimeout(async () => {
+                  try {
+                    await MessageQueries.updateMessage(
+                      assistantMessage.id,
+                      user.id,
+                      {
+                        content: assistantContent,
+                        tokenCount: totalTokenCount,
+                      }
+                    );
+                  } catch (dbError) {
+                    console.warn("Non-blocking DB update failed:", dbError);
                   }
-                );
+                }, 0);
               }
             }
 

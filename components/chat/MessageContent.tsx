@@ -17,12 +17,34 @@ import { ThinkingBlock } from "./ThinkingBlock";
 const PROCESSING_DEBOUNCE_MS = 200;
 const MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING = 1000;
 
-// Helper for non-blocking processing
+// Performance optimization constants for streaming content
+const STREAMING_PERF_CONFIG = {
+  // Throttle content processing to prevent excessive re-renders
+  PROCESSING_THROTTLE_MS: 200, // Max 5 FPS for content processing
+
+  // Batch content updates for large streams
+  LARGE_CONTENT_THRESHOLD: 5000, // 5KB threshold for aggressive optimization
+
+  // Limit DOM updates for very long content
+  MAX_DISPLAY_LENGTH: 50000, // 50KB max before truncation warning
+};
+
+// Helper for non-blocking processing with throttling
 const scheduleNonBlockingWork = (callback: () => Promise<void>) => {
   if (typeof requestIdleCallback !== "undefined") {
     requestIdleCallback(async () => await callback(), { timeout: 300 });
   } else {
     setTimeout(async () => await callback(), 0);
+  }
+};
+
+// Throttled processing to prevent excessive re-renders during streaming
+let lastProcessTime = 0;
+const throttledProcessing = (callback: () => void) => {
+  const now = Date.now();
+  if (now - lastProcessTime >= STREAMING_PERF_CONFIG.PROCESSING_THROTTLE_MS) {
+    lastProcessTime = now;
+    callback();
   }
 };
 
@@ -52,9 +74,17 @@ export function MessageContent({
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Intelligent processing check using synchronous patterns
+  // Intelligent processing check using synchronous patterns - optimized for streaming
   const requiresProcessing = useMemo(() => {
-    if (!content.trim() || isStreaming) return false;
+    if (!content.trim()) return false;
+
+    // PERFORMANCE: Skip processing during streaming for content over threshold
+    if (
+      isStreaming &&
+      content.length > STREAMING_PERF_CONFIG.LARGE_CONTENT_THRESHOLD
+    ) {
+      return false;
+    }
 
     // Skip processing for very long content to prevent blocking
     if (content.length > 10000) {

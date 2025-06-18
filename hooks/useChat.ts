@@ -55,6 +55,26 @@ interface UseChatReturn {
   resumeStream: (streamId: string) => Promise<boolean>;
 }
 
+// Streaming performance optimization constants
+const STREAMING_PERF_CONFIG = {
+  // Throttle UI updates to reduce React re-renders
+  UI_UPDATE_THROTTLE_MS: 150, // Max 6-7 FPS for UI updates
+
+  // Batch content updates to reduce string concatenations
+  CONTENT_BATCH_SIZE: 3, // Batch every 3 chunks
+  CONTENT_BATCH_TIMEOUT_MS: 200, // Force batch after 200ms
+
+  // Reduce localStorage persistence frequency for performance
+  PERSISTENCE_FREQUENCY: 10, // Save every 10 chunks instead of 5
+
+  // Memory management for large streams
+  MAX_CONTENT_LENGTH: 50000, // 50KB max for single message (truncate if exceeded)
+  MEMORY_CLEANUP_INTERVAL: 20, // Clean up every 20 chunks
+
+  // Performance monitoring
+  PERFORMANCE_LOG_INTERVAL: 50, // Log performance stats every 50 chunks
+};
+
 export function useChat(conversationId: string): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<{
@@ -411,63 +431,192 @@ export function useChat(conversationId: string): UseChatReturn {
         const startTime = Date.now();
         let timeToFirstToken = 0;
 
-        try {
-          for await (const chunk of stream) {
-            if (chunk.type === "content" && chunk.content) {
-              assistantContent += chunk.content;
-              setCurrentStreamContent(assistantContent);
-              chunkIndex++;
+        // Performance optimization variables
+        let contentBatch: string[] = [];
+        let lastUIUpdate = 0;
+        let lastPersistence = 0;
+        let lastMemoryCleanup = 0;
+        let batchTimeout: NodeJS.Timeout | null = null;
 
-              // Track time to first token
-              if (timeToFirstToken === 0 && assistantContent.length > 0) {
-                timeToFirstToken = Date.now() - startTime;
-              }
+        // Optimized content update function
+        const flushContentBatch = () => {
+          if (contentBatch.length > 0) {
+            const batchedContent = contentBatch.join("");
+            assistantContent += batchedContent;
+            contentBatch = [];
 
-              // Update stream state for resumability
-              const elapsedTime = Date.now() - startTime;
-              const tokensPerSecond =
-                chunk.totalTokens && elapsedTime > 0
-                  ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
-                  : 0;
+            // Throttled UI update to prevent excessive re-renders
+            const now = Date.now();
+            if (
+              now - lastUIUpdate >=
+              STREAMING_PERF_CONFIG.UI_UPDATE_THROTTLE_MS
+            ) {
+              lastUIUpdate = now;
 
-              const updatedStreamState: StreamState = {
-                ...initialStreamState,
-                content: assistantContent,
-                chunkIndex,
-                totalTokens: chunk.totalTokens || 0,
-                tokensPerSecond,
-                timeToFirstToken,
-                elapsedTime,
-                lastUpdateTime: Date.now(),
-                provider: chunk.provider || "unknown",
-              };
+              // Memory safety: Truncate content if it gets too large
+              const displayContent =
+                assistantContent.length >
+                STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
+                  ? assistantContent.substring(
+                      0,
+                      STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
+                    ) + "\n\n[Content truncated for performance...]"
+                  : assistantContent;
 
-              // Save updated stream state every few chunks
-              if (chunkIndex % 5 === 0 || chunk.finished) {
-                streamPersistence.saveStreamState(updatedStreamState);
-              }
+              setCurrentStreamContent(displayContent);
 
-              // Update stream progress
-              setStreamProgress({
-                phase: "streaming",
-                chunksReceived: chunkIndex,
-                tokensPerSecond,
-                timeToFirstToken,
-                elapsedTime,
-                bytesReceived: assistantContent.length * 2, // Approximate bytes
-                canPause: true,
-                canResume: true,
-                lastChunkTime: Date.now(),
-              });
-
-              // Update the optimistic assistant message
+              // Batched message update (less frequent)
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === optimisticAssistantMessage.id
-                    ? { ...msg, content: assistantContent }
+                    ? { ...msg, content: displayContent }
                     : msg
                 )
               );
+            }
+          }
+
+          if (batchTimeout) {
+            clearTimeout(batchTimeout);
+            batchTimeout = null;
+          }
+        };
+
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === "content" && chunk.content) {
+              chunkIndex++;
+
+              // Batch content updates instead of immediate concatenation
+              contentBatch.push(chunk.content);
+
+              // Track time to first token
+              if (
+                timeToFirstToken === 0 &&
+                (assistantContent.length > 0 || contentBatch.length > 0)
+              ) {
+                timeToFirstToken = Date.now() - startTime;
+              }
+
+              // Flush batch when it reaches size limit
+              if (
+                contentBatch.length >= STREAMING_PERF_CONFIG.CONTENT_BATCH_SIZE
+              ) {
+                flushContentBatch();
+              } else if (!batchTimeout) {
+                // Set timeout to flush batch after delay
+                batchTimeout = setTimeout(
+                  () => flushContentBatch(),
+                  STREAMING_PERF_CONFIG.CONTENT_BATCH_TIMEOUT_MS
+                );
+              }
+
+              // Reduced frequency persistence for performance
+              const now = Date.now();
+              if (
+                chunkIndex % STREAMING_PERF_CONFIG.PERSISTENCE_FREQUENCY ===
+                  0 ||
+                chunk.finished
+              ) {
+                if (now - lastPersistence >= 500) {
+                  // Minimum 500ms between saves
+                  lastPersistence = now;
+
+                  // Non-blocking persistence using setTimeout
+                  setTimeout(() => {
+                    try {
+                      const elapsedTime = Date.now() - startTime;
+                      const tokensPerSecond =
+                        chunk.totalTokens && elapsedTime > 0
+                          ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
+                          : 0;
+
+                      const updatedStreamState: StreamState = {
+                        ...initialStreamState,
+                        content: assistantContent + contentBatch.join(""), // Include batched content
+                        chunkIndex,
+                        totalTokens: chunk.totalTokens || 0,
+                        tokensPerSecond,
+                        timeToFirstToken,
+                        elapsedTime,
+                        lastUpdateTime: Date.now(),
+                        provider: chunk.provider || "unknown",
+                      };
+
+                      streamPersistence.saveStreamState(updatedStreamState);
+                    } catch (persistError) {
+                      console.warn(
+                        "Non-blocking persistence error:",
+                        persistError
+                      );
+                    }
+                  }, 0);
+                }
+              }
+
+              // Memory management: Clean up every N chunks
+              if (
+                chunkIndex % STREAMING_PERF_CONFIG.MEMORY_CLEANUP_INTERVAL ===
+                0
+              ) {
+                if (now - lastMemoryCleanup >= 2000) {
+                  // Minimum 2s between cleanup
+                  lastMemoryCleanup = now;
+
+                  // Cleanup old streams and force garbage collection hint
+                  setTimeout(() => {
+                    try {
+                      streamPersistence.cleanupOldStreams();
+                      // Force garbage collection hint (if available)
+                      if (typeof global !== "undefined" && global.gc) {
+                        global.gc();
+                      }
+                    } catch (cleanupError) {
+                      console.warn("Memory cleanup error:", cleanupError);
+                    }
+                  }, 0);
+                }
+              }
+
+              // Performance logging (throttled)
+              if (
+                chunkIndex % STREAMING_PERF_CONFIG.PERFORMANCE_LOG_INTERVAL ===
+                0
+              ) {
+                const memoryUsed =
+                  (assistantContent.length + contentBatch.join("").length) * 2; // Approximate bytes
+                console.log(
+                  `🚀 Streaming performance: ${chunkIndex} chunks, ${Math.round(
+                    memoryUsed / 1024
+                  )}KB, ${Math.round(1000 / (now - lastUIUpdate))}fps`
+                );
+              }
+
+              // Update stream progress (throttled)
+              if (
+                now - lastUIUpdate >=
+                STREAMING_PERF_CONFIG.UI_UPDATE_THROTTLE_MS
+              ) {
+                const elapsedTime = Date.now() - startTime;
+                const tokensPerSecond =
+                  chunk.totalTokens && elapsedTime > 0
+                    ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
+                    : 0;
+
+                setStreamProgress({
+                  phase: "streaming",
+                  chunksReceived: chunkIndex,
+                  tokensPerSecond,
+                  timeToFirstToken,
+                  elapsedTime,
+                  bytesReceived:
+                    (assistantContent.length + contentBatch.join("").length) *
+                    2,
+                  canPause: true,
+                  canResume: true,
+                  lastChunkTime: Date.now(),
+                });
+              }
 
               // Store real message IDs when we get them
               if (chunk.messageId) {
@@ -479,17 +628,6 @@ export function useChat(conversationId: string): UseChatReturn {
                   chunk.messageId
                 );
 
-                // Update stream state with real message ID and new stream ID
-                const realStreamState = {
-                  ...updatedStreamState,
-                  streamId: realStreamId,
-                  messageId: chunk.messageId,
-                };
-
-                // Save with new stream ID and remove old one
-                streamPersistence.saveStreamState(realStreamState);
-                streamPersistence.removeStreamState(streamId); // Remove old temp ID stream
-
                 // Update current stream ID
                 setCurrentStreamId(realStreamId);
               }
@@ -497,6 +635,9 @@ export function useChat(conversationId: string): UseChatReturn {
                 realUserMessageId = chunk.userMessageId;
               }
             } else if (chunk.type === "error") {
+              // Flush any remaining batched content before error handling
+              flushContentBatch();
+
               // Remove optimistic messages immediately when we get an error
               setMessages((prev) =>
                 prev.filter(
@@ -506,10 +647,17 @@ export function useChat(conversationId: string): UseChatReturn {
                 )
               );
 
-              // Clear streaming state
+              // Clear streaming state and cleanup
               setCurrentStreamContent("");
               setCurrentStreamId(null);
               setStreamProgress(null);
+
+              // Cleanup batching state
+              if (batchTimeout) {
+                clearTimeout(batchTimeout);
+                batchTimeout = null;
+              }
+              contentBatch = [];
 
               // Use enhanced error handling for streaming errors
               await chatErrorHandler.handleStreamingError(
@@ -540,6 +688,9 @@ export function useChat(conversationId: string): UseChatReturn {
               chunk.type === "finished" ||
               chunk.finished
             ) {
+              // Flush any remaining batched content before completion
+              flushContentBatch();
+
               // Mark stream as complete
               streamPersistence.markStreamComplete(streamId);
               setCurrentStreamId(null);
@@ -811,11 +962,14 @@ export function useChat(conversationId: string): UseChatReturn {
           }
         }
       } finally {
+        // Final cleanup of streaming state and performance resources
         setIsStreaming(false);
         setCurrentStreamContent("");
         setCurrentStreamId(null);
         setStreamProgress(null);
         abortControllerRef.current = null;
+
+        console.log(`🏁 Streaming cleanup completed`);
       }
     },
     [conversationId, handleStreamingFailure]
