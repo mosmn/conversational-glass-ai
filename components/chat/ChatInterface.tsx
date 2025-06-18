@@ -481,15 +481,22 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         } else {
           // Check if the selected model is available and enabled
           const selectedModelData = models.find((m) => m.id === selectedModel);
-          const enabledModelsList = enabledModels.find(
-            (m) => m.id === selectedModel && m.isEnabled
+          const enabledModelData = enabledModels.find(
+            (m) => m.id === selectedModel
           );
 
-          if (!selectedModelData || !enabledModelsList) {
+          console.log(`🔍 Model validation:`, {
+            selectedModel,
+            selectedModelData: !!selectedModelData,
+            enabledModelData: !!enabledModelData,
+            totalModels: models.length,
+            totalEnabledModels: enabledModels.length,
+          });
+
+          if (!selectedModelData || !enabledModelData) {
             // Use the first enabled model as fallback, not hardcoded default
-            const fallbackModel = enabledModels.find((m) => m.isEnabled);
-            if (fallbackModel) {
-              modelToUse = fallbackModel.id;
+            if (enabledModels.length > 0) {
+              modelToUse = enabledModels[0].id;
               console.warn(
                 `⚠️ Selected model '${selectedModel}' not available/enabled, using first enabled model: ${modelToUse}`
               );
