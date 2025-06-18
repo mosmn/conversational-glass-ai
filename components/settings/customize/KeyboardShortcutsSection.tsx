@@ -24,85 +24,12 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEFAULT_KEYBOARD_SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
 
 interface ShortcutSettings {
   enabled: boolean;
   customMappings: Record<string, string>;
 }
-
-// Default keyboard shortcuts
-const DEFAULT_SHORTCUTS = [
-  {
-    id: "new-chat",
-    action: "New Chat",
-    key: "Cmd+N",
-    description: "Start a new conversation",
-    category: "Navigation",
-  },
-  {
-    id: "search",
-    action: "Search",
-    key: "Cmd+K",
-    description: "Search conversations and messages",
-    category: "Navigation",
-  },
-  {
-    id: "settings",
-    action: "Settings",
-    key: "Cmd+,",
-    description: "Open settings panel",
-    category: "Navigation",
-  },
-  {
-    id: "send-message",
-    action: "Send Message",
-    key: "Enter",
-    description: "Send the current message",
-    category: "Chat",
-  },
-  {
-    id: "new-line",
-    action: "New Line",
-    key: "Shift+Enter",
-    description: "Add a new line in message",
-    category: "Chat",
-  },
-  {
-    id: "clear-chat",
-    action: "Clear Chat",
-    key: "Cmd+Shift+C",
-    description: "Clear current conversation",
-    category: "Chat",
-  },
-  {
-    id: "export-chat",
-    action: "Export Chat",
-    key: "Cmd+E",
-    description: "Export conversation",
-    category: "Actions",
-  },
-  {
-    id: "share-chat",
-    action: "Share Chat",
-    key: "Cmd+Shift+S",
-    description: "Share current conversation",
-    category: "Actions",
-  },
-  {
-    id: "regenerate",
-    action: "Regenerate",
-    key: "Cmd+R",
-    description: "Regenerate last AI response",
-    category: "Actions",
-  },
-  {
-    id: "toggle-sidebar",
-    action: "Toggle Sidebar",
-    key: "Cmd+\\",
-    description: "Show/hide conversation sidebar",
-    category: "Interface",
-  },
-];
 
 export function KeyboardShortcutsSection() {
   const { toast } = useToast();
@@ -190,13 +117,16 @@ export function KeyboardShortcutsSection() {
   };
 
   // Group shortcuts by category
-  const groupedShortcuts = DEFAULT_SHORTCUTS.reduce((acc, shortcut) => {
-    if (!acc[shortcut.category]) {
-      acc[shortcut.category] = [];
-    }
-    acc[shortcut.category].push(shortcut);
-    return acc;
-  }, {} as Record<string, typeof DEFAULT_SHORTCUTS>);
+  const groupedShortcuts = DEFAULT_KEYBOARD_SHORTCUTS.reduce(
+    (acc: Record<string, typeof DEFAULT_KEYBOARD_SHORTCUTS>, shortcut) => {
+      if (!acc[shortcut.category]) {
+        acc[shortcut.category] = [];
+      }
+      acc[shortcut.category].push(shortcut);
+      return acc;
+    },
+    {} as Record<string, typeof DEFAULT_KEYBOARD_SHORTCUTS>
+  );
 
   if (isLoading) {
     return (
@@ -375,7 +305,7 @@ export function KeyboardShortcutsSection() {
             )}
           </div>
 
-          {/* Coming Soon Note */}
+          {/* Status Note */}
           <motion.div
             className="p-4 bg-slate-800/30 border border-slate-700/50 rounded-xl"
             initial={{ opacity: 0, y: 20 }}
@@ -383,15 +313,15 @@ export function KeyboardShortcutsSection() {
             transition={{ delay: 0.6, duration: 0.5 }}
           >
             <div className="flex items-start gap-3">
-              <Command className="h-5 w-5 text-teal-400 mt-0.5 flex-shrink-0" />
+              <Sparkles className="h-5 w-5 text-teal-400 mt-0.5 flex-shrink-0" />
               <div>
                 <div className="text-sm font-medium text-slate-300 mb-1">
-                  Custom Shortcuts Coming Soon
+                  Keyboard Shortcuts Active
                 </div>
                 <div className="text-xs text-slate-500 leading-relaxed">
-                  We're working on allowing you to customize individual keyboard
-                  shortcuts. For now, you can enable or disable all shortcuts
-                  globally.
+                  All keyboard shortcuts are now fully functional! They work
+                  throughout the application and can be enabled or disabled
+                  using the toggle above. Custom key mappings coming soon.
                 </div>
               </div>
             </div>

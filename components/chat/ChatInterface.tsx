@@ -11,6 +11,7 @@ import { useUser } from "@clerk/nextjs";
 import {
   usePersonalization,
   useVisualPreferences,
+  useUserPreferences,
 } from "@/hooks/useUserPreferences";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -53,6 +54,7 @@ import { useChatState } from "@/hooks/useChatState";
 import { useMessageHandling } from "@/hooks/useMessageHandling";
 import { useEnabledModels } from "@/hooks/useEnabledModels";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 interface Message {
   id: string;
@@ -133,6 +135,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const { user } = useUser();
   const personalization = usePersonalization();
   const visualPrefs = useVisualPreferences();
+  const { preferences } = useUserPreferences();
   const [selectedModel, setSelectedModel] = useState<string>("");
   const { toast } = useToast();
   const { isMobile } = useResponsive();
@@ -730,6 +733,61 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   const handleCreateNewChat = async () => {
     router.push("/chat");
   };
+
+  // Keyboard shortcuts integration
+  useKeyboardShortcuts({
+    onNewChat: handleCreateNewChat,
+    onToggleSidebar: () =>
+      chatState.setSidebarCollapsed(!chatState.sidebarCollapsed),
+    onSendMessage: () => {
+      if (chatState.inputValue.trim() || chatState.attachments.length > 0) {
+        handleSendMessageWithCreation(
+          chatState.inputValue,
+          chatState.attachments,
+          chatState.searchEnabled,
+          chatState.setIsSearching,
+          chatState.resetInput
+        );
+      }
+    },
+    onClearChat: () => {
+      if (optimisticChatId && conversation) {
+        // Show confirmation dialog for clearing chat
+        if (
+          window.confirm("Are you sure you want to clear this conversation?")
+        ) {
+          router.push("/chat");
+        }
+      }
+    },
+    onExportChat: () => {
+      if (optimisticChatId && conversation) {
+        // Trigger export functionality
+        const exportUrl = `/api/conversations/${optimisticChatId}/export`;
+        window.open(exportUrl, "_blank");
+      }
+    },
+    onShareChat: () => {
+      if (conversation) {
+        chatState.setShowShareModal(true);
+      }
+    },
+    onRegenerateResponse: () => {
+      if (messages.length > 0 && optimisticChatId) {
+        const lastAssistantMessage = messages
+          .slice()
+          .reverse()
+          .find((m) => m.role === "assistant");
+
+        if (lastAssistantMessage) {
+          // Use the handleRetryMessage function that's defined in the component
+          handleRetryMessage(lastAssistantMessage.id);
+        }
+      }
+    },
+    inputRef: chatState.textareaRef as React.RefObject<HTMLTextAreaElement>,
+    enabled: preferences?.shortcuts?.enabled ?? true,
+  });
 
   // Handle retry message functionality
   const handleRetryMessage = async (messageId: string) => {

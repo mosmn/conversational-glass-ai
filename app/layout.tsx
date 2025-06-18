@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/toaster";
 import { PreferencesProvider } from "@/hooks/useUserPreferences";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { GlobalKeyboardShortcuts } from "@/components/GlobalKeyboardShortcuts";
 import "./globals.css";
 
 // Import storage utilities to make them available globally
@@ -83,6 +84,7 @@ export default function RootLayout({
         </head>
         <body suppressHydrationWarning={true}>
           <PreferencesProvider>
+            <GlobalKeyboardShortcuts />
             {children}
             <Toaster />
             <PWAInstallPrompt />

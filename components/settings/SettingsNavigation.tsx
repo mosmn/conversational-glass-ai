@@ -197,57 +197,6 @@ export function SettingsNavigation({
           );
         })}
       </div>
-
-      {/* Coming Soon Items */}
-      <div className="mt-8 pt-6 border-t border-slate-700/50">
-        <div className="flex items-center gap-2 px-3 mb-3">
-          <Settings className="h-4 w-4 text-slate-500" />
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Coming Soon
-          </span>
-        </div>
-
-        <div className="space-y-2 opacity-50">
-          {[
-            {
-              title: "Themes",
-              description: "Dark, light, and custom themes",
-              icon: Sparkles,
-            },
-            {
-              title: "Integrations",
-              description: "Connect external services",
-              icon: Settings,
-            },
-          ].map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.title}
-                className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/10 border border-slate-700/20 cursor-not-allowed"
-              >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-700/30 border border-slate-600/30">
-                  <Icon className="h-5 w-5 text-slate-500" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-slate-400 mb-1">
-                    {item.title}
-                  </div>
-                  <div className="text-xs text-slate-600 leading-tight">
-                    {item.description}
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="border-slate-600/50 text-slate-500 bg-slate-700/20 text-xs"
-                >
-                  Soon
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
