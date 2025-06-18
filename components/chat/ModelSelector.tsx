@@ -121,7 +121,20 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [wasRestored, setWasRestored] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const { enabledModels, loading, error, defaultModel } = useEnabledModels();
+  const { enabledModels, loading, error, defaultModel, refetch } =
+    useEnabledModels();
+
+  // Listen for storage events to refresh models when preferences change in other tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "model-preferences-updated") {
+        refetch();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [refetch]);
 
   // Load persisted model selection on mount when no model is selected
   useEffect(() => {

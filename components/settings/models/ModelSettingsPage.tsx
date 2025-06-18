@@ -164,7 +164,11 @@ export function ModelSettingsPage() {
   };
 
   const updateModelEnabled = async (modelId: string, enabled: boolean) => {
+    // Store original state for rollback
+    const originalModels = [...models];
+
     try {
+      // Optimistically update the UI first
       const updatedModels = models.map((model) =>
         model.id === modelId ? { ...model, isEnabled: enabled } : model
       );
@@ -185,22 +189,36 @@ export function ModelSettingsPage() {
         }),
       });
 
-      if (response.ok) {
-        toast.success(`${enabled ? "Enabled" : "Disabled"} model`);
-        // If we disabled the default model, clear it
-        if (!enabled && modelId === defaultModel) {
-          setDefaultModel("");
-        }
-        // Refresh provider status
-        fetchModelsData();
-      } else {
-        throw new Error("Failed to update preferences");
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
       }
+
+      toast.success(`${enabled ? "Enabled" : "Disabled"} model`);
+
+      // If we disabled the default model, clear it
+      if (!enabled && modelId === defaultModel) {
+        setDefaultModel("");
+      }
+
+      // Notify other components that preferences have changed
+      localStorage.setItem("model-preferences-updated", Date.now().toString());
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "model-preferences-updated",
+          newValue: Date.now().toString(),
+        })
+      );
+
+      // Wait a bit before refreshing to ensure database consistency
+      setTimeout(() => {
+        fetchModelsData();
+      }, 500);
     } catch (error) {
       console.error("Error updating model:", error);
-      toast.error("Failed to update model");
-      // Revert the change
-      setModels(models);
+      toast.error("Failed to update model. Please try again.");
+
+      // Revert optimistic updates on error
+      setModels(originalModels);
     }
   };
 
@@ -208,7 +226,12 @@ export function ModelSettingsPage() {
     providerId: string,
     enabled: boolean
   ) => {
+    // Store original state for rollback
+    const originalModels = [...models];
+    const originalProviders = [...providers];
+
     try {
+      // Optimistically update the UI first
       const providerModels = models.filter(
         (model) => model.provider === providerId
       );
@@ -217,10 +240,25 @@ export function ModelSettingsPage() {
       );
       setModels(updatedModels);
 
+      // Update provider status immediately
+      const updatedProviders = providers.map((provider) => {
+        if (provider.id === providerId) {
+          const enabledCount = enabled ? provider.modelCount : 0;
+          return {
+            ...provider,
+            isEnabled: enabled,
+            enabledModelCount: enabledCount,
+          };
+        }
+        return provider;
+      });
+      setProviders(updatedProviders);
+
       const enabledModelIds = updatedModels
         .filter((model) => model.isEnabled)
         .map((model) => model.id);
 
+      // Make API call with proper error handling
       const response = await fetch("/api/user/preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -232,20 +270,37 @@ export function ModelSettingsPage() {
         }),
       });
 
-      if (response.ok) {
-        toast.success(
-          `${enabled ? "Enabled" : "Disabled"} ${getProviderDisplayName(
-            providerId
-          )} models`
-        );
-        fetchModelsData();
-      } else {
-        throw new Error("Failed to update preferences");
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
       }
+
+      // Only show success message, don't refetch immediately to avoid race condition
+      toast.success(
+        `${enabled ? "Enabled" : "Disabled"} ${getProviderDisplayName(
+          providerId
+        )} models`
+      );
+
+      // Notify other components that preferences have changed
+      localStorage.setItem("model-preferences-updated", Date.now().toString());
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "model-preferences-updated",
+          newValue: Date.now().toString(),
+        })
+      );
+
+      // Wait a bit before refreshing to ensure database consistency
+      setTimeout(() => {
+        fetchModelsData();
+      }, 500);
     } catch (error) {
       console.error("Error updating provider:", error);
-      toast.error("Failed to update provider");
-      setModels(models);
+      toast.error("Failed to update provider. Please try again.");
+
+      // Revert optimistic updates on error
+      setModels(originalModels);
+      setProviders(originalProviders);
     }
   };
 

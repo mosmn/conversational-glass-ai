@@ -40,7 +40,9 @@ export function useEnabledModels(): UseEnabledModelsReturn {
       setPreferencesLoading(true);
       setPreferencesError(null);
 
-      const response = await fetch("/api/user/preferences");
+      const response = await fetch("/api/user/preferences", {
+        cache: "no-store", // Ensure fresh data
+      });
 
       if (!response.ok) {
         throw new Error("Failed to fetch user preferences");
@@ -65,6 +67,26 @@ export function useEnabledModels(): UseEnabledModelsReturn {
   // Initial load
   useEffect(() => {
     fetchPreferences();
+  }, [fetchPreferences]);
+
+  // Add window focus listener to refresh models when user comes back to tab
+  useEffect(() => {
+    const handleFocus = () => {
+      // Refresh preferences when window gains focus to ensure fresh data
+      fetchPreferences();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchPreferences]);
+
+  // Periodic refresh to catch any missed updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPreferences();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
   }, [fetchPreferences]);
 
   // Combine models with user preferences
