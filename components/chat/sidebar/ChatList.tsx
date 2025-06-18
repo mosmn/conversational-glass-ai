@@ -11,11 +11,28 @@ import {
   CalendarDays,
   History,
 } from "lucide-react";
-import { HierarchicalChatItem } from "@/components/chat/HierarchicalChatItem";
+import { SimpleChatItem } from "@/components/chat/SimpleChatItem";
 import type { ChatPreferences } from "@/hooks/useChatPreferences";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Use the actual type from HierarchicalChatItem
+// Simple chat type for flat list display
+interface SimpleChat {
+  id: string;
+  title: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+  isShared: boolean;
+  isBranch: boolean;
+  parentConversationId?: string | null;
+  branchName?: string | null;
+  branchOrder?: number | null;
+  branchCreatedAt?: string | null;
+  metadata: any;
+  hasChildren: boolean;
+}
+
+// Input hierarchical chat type (what we receive from the API)
 interface HierarchicalChat {
   id: string;
   title: string;
@@ -30,7 +47,7 @@ interface HierarchicalChat {
   branchCreatedAt?: string | null;
   metadata: any;
   hasChildren: boolean;
-  branches: Array<{
+  branches?: Array<{
     id: string;
     title: string;
     branchName: string | null;
@@ -56,7 +73,7 @@ interface ChatListProps {
   onNavigateToParent: (parentId: string) => void;
   onDeleteBranch?: (
     branchId: string
-  ) => Promise<{ success: boolean; error?: string }>; // NEW: Branch deletion
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 // Date grouping helper functions
@@ -128,14 +145,53 @@ function ChatListComponent({
   onNavigateToParent,
   onDeleteBranch,
 }: ChatListProps) {
-  // Memoize filtered and grouped conversations
-  const {
-    filteredHierarchicalChats,
-    pinnedHierarchicalChats,
-    groupedRecentChats,
-  } = useMemo(() => {
+  // Memoize filtered and grouped conversations (flattened from hierarchical)
+  const { filteredChats, pinnedChats, groupedRecentChats } = useMemo(() => {
+    // Flatten hierarchical conversations to include all branches as individual items
+    const flattenedConversations: SimpleChat[] = [];
+
+    hierarchicalConversations.forEach((conv) => {
+      // Add the main conversation
+      flattenedConversations.push({
+        id: conv.id,
+        title: conv.title,
+        model: conv.model,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+        isShared: conv.isShared,
+        isBranch: conv.isBranch,
+        parentConversationId: conv.parentConversationId,
+        branchName: conv.branchName,
+        branchOrder: conv.branchOrder,
+        branchCreatedAt: conv.branchCreatedAt,
+        metadata: conv.metadata,
+        hasChildren: conv.hasChildren,
+      });
+
+      // Add all branches as separate items (if branches exist)
+      if (conv.branches && conv.branches.length > 0) {
+        conv.branches.forEach((branch) => {
+          flattenedConversations.push({
+            id: branch.id,
+            title: branch.title,
+            model: branch.model,
+            createdAt: branch.createdAt,
+            updatedAt: branch.updatedAt,
+            isShared: false, // branches are typically not shared directly
+            isBranch: true,
+            parentConversationId: conv.id, // parent is the main conversation
+            branchName: branch.branchName,
+            branchOrder: branch.branchOrder,
+            branchCreatedAt: branch.branchCreatedAt,
+            metadata: branch.metadata,
+            hasChildren: false, // simplified: no nested branches for now
+          });
+        });
+      }
+    });
+
     // Filter conversations
-    const filtered = hierarchicalConversations.filter((conv) => {
+    const filtered = flattenedConversations.filter((conv) => {
       // Search filter
       const matchesSearch =
         !searchQuery ||
@@ -167,7 +223,7 @@ function ChatListComponent({
       }
       groups[group].push(chat);
       return groups;
-    }, {} as Record<string, HierarchicalChat[]>);
+    }, {} as Record<string, SimpleChat[]>);
 
     // Sort each group by updatedAt (most recent first)
     Object.keys(grouped).forEach((group) => {
@@ -178,8 +234,8 @@ function ChatListComponent({
     });
 
     return {
-      filteredHierarchicalChats: filtered,
-      pinnedHierarchicalChats: pinned,
+      filteredChats: filtered,
+      pinnedChats: pinned,
       groupedRecentChats: grouped,
     };
   }, [hierarchicalConversations, preferences, searchQuery, selectedCategory]);
@@ -209,15 +265,13 @@ function ChatListComponent({
                 <Search className="h-3 w-3 mr-2" />
                 Results for "{searchQuery}"
               </div>
-              <span className="text-xs">
-                {filteredHierarchicalChats.length} found
-              </span>
+              <span className="text-xs">{filteredChats.length} found</span>
             </div>
           )}
 
           {/* Pinned Chats */}
           <AnimatePresence>
-            {pinnedHierarchicalChats.length > 0 && (
+            {pinnedChats.length > 0 && (
               <motion.div
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -229,8 +283,8 @@ function ChatListComponent({
                   Pinned Conversations
                 </div>
                 <div className="space-y-2">
-                  {pinnedHierarchicalChats.map((chat) => (
-                    <HierarchicalChatItem
+                  {pinnedChats.map((chat) => (
+                    <SimpleChatItem
                       key={chat.id}
                       chat={chat}
                       isActive={chat.id === currentChatId}
@@ -242,7 +296,6 @@ function ChatListComponent({
                       onBookmark={() => onBookmark(chat.id)}
                       onDelete={() => onDelete(chat.id)}
                       onNavigateToParent={onNavigateToParent}
-                      onDeleteBranch={onDeleteBranch}
                     />
                   ))}
                 </div>
@@ -323,7 +376,7 @@ function ChatListComponent({
                               delay: groupIndex * 0.1 + index * 0.02,
                             }}
                           >
-                            <HierarchicalChatItem
+                            <SimpleChatItem
                               chat={chat}
                               isActive={chat.id === currentChatId}
                               isPinned={preferences.pinnedChats.includes(
@@ -336,7 +389,6 @@ function ChatListComponent({
                               onBookmark={() => onBookmark(chat.id)}
                               onDelete={() => onDelete(chat.id)}
                               onNavigateToParent={onNavigateToParent}
-                              onDeleteBranch={onDeleteBranch}
                             />
                           </motion.div>
                         ))}

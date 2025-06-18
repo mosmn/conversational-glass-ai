@@ -48,18 +48,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get hierarchical conversations with TRUE nesting support
-    const useNestedView = url.searchParams.get("nested") === "true";
-
-    const conversationsHierarchy = useNestedView
-      ? await ConversationBranchingQueries.getHierarchicalConversationTree(
-          user.id,
-          limit
-        )
-      : await ConversationBranchingQueries.getUserConversationsWithBranching(
-          user.id,
-          limit
-        );
+    // Get hierarchical conversations - always use tree structure for flattening in frontend
+    const conversationsHierarchy =
+      await ConversationBranchingQueries.getHierarchicalConversationTree(
+        user.id,
+        limit
+      );
 
     // Transform for frontend consumption
     const hierarchicalData = conversationsHierarchy.map((conv) => ({

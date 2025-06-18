@@ -44,8 +44,6 @@ interface UseHierarchicalConversationsReturn {
   ) => void;
   refetchConversations: () => Promise<void>;
   navigateToConversation: (conversationId: string) => void;
-  useNestedView: boolean;
-  setUseNestedView: (nested: boolean) => void;
   deleteBranch: (
     branchId: string
   ) => Promise<{ success: boolean; error?: string }>;
@@ -57,7 +55,6 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [useNestedView, setUseNestedView] = useState(true); // Default to true for better UX
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -67,7 +64,7 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
       const response = await apiClient.getConversationsWithBranching({
         limit: 50, // Get more conversations since we're showing hierarchy
         includeOrphaned: true, // Include conversations that might be orphaned branches
-        nested: useNestedView, // Use the new nested view when enabled
+        nested: true, // Always use nested view for flattening in ChatList
       });
 
       // Type the response properly
@@ -102,7 +99,7 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     } finally {
       setLoading(false);
     }
-  }, [useNestedView]); // Re-fetch when nested view changes
+  }, []); // No dependencies needed since we always use nested: true
 
   const updateConversation = useCallback(
     (conversationId: string, updates: Partial<HierarchicalConversation>) => {
@@ -170,8 +167,6 @@ export function useHierarchicalConversations(): UseHierarchicalConversationsRetu
     updateConversation,
     refetchConversations,
     navigateToConversation,
-    useNestedView,
-    setUseNestedView,
     deleteBranch,
   };
 }

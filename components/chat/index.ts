@@ -8,6 +8,7 @@ export { ChatSidebar } from "./ChatSidebar";
 export { ModelSelector } from "./ModelSelector";
 export { FileAttachment } from "./FileAttachment";
 export { HierarchicalChatItem } from "./HierarchicalChatItem";
+export { SimpleChatItem } from "./SimpleChatItem";
 export { ShareModal } from "./ShareModal";
 export { PublicConversationView } from "./PublicConversationView";
 export { MultiProviderImageWidget } from "./MultiProviderImageWidget";

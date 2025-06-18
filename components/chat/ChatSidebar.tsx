@@ -52,8 +52,6 @@ function ChatSidebarComponent({
     refetchConversations: refetchHierarchical,
     navigateToConversation,
     deleteBranch, // NEW: Add deleteBranch method
-    useNestedView,
-    setUseNestedView,
   } = useHierarchicalConversations();
 
   // Memoize usage calculation to prevent recalculation on every render
@@ -202,8 +200,6 @@ function ChatSidebarComponent({
           onOpenSettings={() => router.push("/settings")}
           isSearching={false}
           totalChats={hierarchicalConversations.length}
-          useNestedView={useNestedView}
-          onToggleNestedView={setUseNestedView}
         />
 
         {!isCollapsed && (
