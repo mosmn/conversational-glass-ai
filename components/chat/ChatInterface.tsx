@@ -905,8 +905,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 via-transparent to-slate-800/50" />
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
 
-          {/* Header - Fixed on mobile */}
-          <div className="sticky top-0 lg:relative lg:top-auto z-30 bg-slate-900/95 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none">
+          {/* Header - Better mobile positioning */}
+          <div
+            className="sticky top-0 lg:relative lg:top-auto z-30 
+                          bg-slate-900/95 backdrop-blur-xl 
+                          lg:bg-transparent lg:backdrop-blur-none
+                          shadow-sm lg:shadow-none"
+          >
             <ChatHeader
               conversationTitle={
                 conversation?.title ||

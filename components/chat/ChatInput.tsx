@@ -184,7 +184,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="relative p-2 sm:p-3 lg:p-6 border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
+    <div className="relative p-3 sm:p-3 lg:p-6 pb-safe-bottom border-t border-slate-700/30 bg-slate-800/20 backdrop-blur-2xl">
       {/* Input area glow */}
       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />

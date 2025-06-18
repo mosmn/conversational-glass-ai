@@ -176,6 +176,32 @@ button:disabled {
   .mobile-overlay {
     @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40;
   }
+
+  /* Safe area utilities for iPhone and mobile devices */
+  .pt-safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+
+  .pb-safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+
+  .pl-safe-left {
+    padding-left: max(env(safe-area-inset-left), 0);
+  }
+
+  .pr-safe-right {
+    padding-right: max(env(safe-area-inset-right), 0);
+  }
+
+  /* Mobile-specific touch improvements */
+  .touch-friendly {
+    @apply min-h-[44px] min-w-[44px] touch-manipulation;
+  }
+
+  .mobile-button {
+    @apply h-12 w-12 sm:h-10 sm:w-10 touch-manipulation rounded-xl active:scale-95;
+  }
 }
 
 @layer components {
