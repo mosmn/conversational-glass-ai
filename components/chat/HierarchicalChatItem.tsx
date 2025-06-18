@@ -133,7 +133,7 @@ export function HierarchicalChatItem({
           )}
 
           {/* Main content area with reserved space for action buttons */}
-          <div className="pr-16 w-full overflow-hidden">
+          <div className="pr-20 sm:pr-16 w-full overflow-hidden">
             {/* Title row with branch info */}
             <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
               {/* Expand/collapse button for conversations with branches */}
@@ -233,26 +233,34 @@ export function HierarchicalChatItem({
             </div>
           </div>
 
-          {/* Action buttons on hover - positioned within bounds */}
-          <div className="absolute top-2 right-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+          {/* Action buttons - Always visible on mobile, hover on desktop */}
+          <div
+            className="absolute top-2 right-2 z-30 flex items-center gap-1 
+                          opacity-100 sm:opacity-0 sm:group-hover:opacity-100 
+                          transition-all duration-200"
+          >
             {/* Pin/Unpin Button */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`h-7 w-7 p-0 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border transition-all duration-200 ${
-                    isPinned
-                      ? "border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-400"
-                      : "border-slate-600/50 hover:bg-slate-600/50 text-slate-200"
-                  }`}
+                  className={`h-8 w-8 sm:h-7 sm:w-7 p-0 rounded-md flex items-center justify-center 
+                              bg-slate-800/90 backdrop-blur-sm border transition-all duration-200 
+                              touch-manipulation active:scale-95 ${
+                                isPinned
+                                  ? "border-emerald-500/50 hover:bg-emerald-500/20 text-emerald-400"
+                                  : "border-slate-600/50 hover:bg-slate-600/50 text-slate-200"
+                              }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onPin();
                   }}
                 >
                   <Pin
-                    className={`h-3.5 w-3.5 ${isPinned ? "fill-current" : ""}`}
+                    className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${
+                      isPinned ? "fill-current" : ""
+                    }`}
                   />
                 </Button>
               </TooltipTrigger>
@@ -267,13 +275,16 @@ export function HierarchicalChatItem({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 rounded-md flex items-center justify-center bg-slate-800/90 backdrop-blur-sm border border-slate-600/50 hover:bg-red-900/20 hover:border-red-500/50 text-slate-200 hover:text-red-400 transition-all duration-200"
+                  className="h-8 w-8 sm:h-7 sm:w-7 p-0 rounded-md flex items-center justify-center 
+                             bg-slate-800/90 backdrop-blur-sm border border-slate-600/50 
+                             hover:bg-red-900/20 hover:border-red-500/50 text-slate-200 hover:text-red-400 
+                             transition-all duration-200 touch-manipulation active:scale-95"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowDeleteDialog(true);
                   }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">

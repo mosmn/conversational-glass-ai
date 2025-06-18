@@ -432,15 +432,18 @@ export function ConversationList({
                           )}
                         </div>
 
-                        {/* Actions Menu */}
+                        {/* Actions Menu - Always visible on mobile, hover on desktop */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="opacity-0 group-hover/conversation:opacity-100 transition-opacity h-8 w-8 p-0"
+                              className="opacity-100 sm:opacity-0 sm:group-hover/conversation:opacity-100 
+                                         transition-opacity h-9 w-9 sm:h-8 sm:w-8 p-0 
+                                         touch-manipulation active:scale-95 rounded-lg
+                                         bg-slate-800/50 sm:bg-transparent border border-slate-600/30 sm:border-0"
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="h-5 w-5 sm:h-4 sm:w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700">
