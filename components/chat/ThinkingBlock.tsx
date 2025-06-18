@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp, Brain, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MarkdownContent } from "@/components/ui/markdown-content";
+import { MessageContent } from "./MessageContent";
 
 interface ThinkingBlockProps {
   content: string;
@@ -71,24 +71,12 @@ export function ThinkingBlock({
 
           {/* Content */}
           <div className="p-3">
-            <div
-              className={cn(
-                "prose prose-slate prose-sm max-w-none",
-                "prose-p:text-slate-300 prose-p:leading-relaxed",
-                "prose-code:text-blue-300 prose-code:bg-slate-800/50",
-                "prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-slate-600/30",
-                "prose-strong:text-slate-200",
-                "prose-em:text-slate-300",
-                "prose-headings:text-slate-200",
-                "prose-blockquote:text-slate-400 prose-blockquote:border-slate-600/50"
-              )}
-            >
-              <MarkdownContent
-                content={content}
-                allowHtml={false}
-                className="text-slate-300"
-              />
-            </div>
+            <MessageContent
+              content={content}
+              isUser={false}
+              allowHtml={false}
+              className="text-slate-300 [&_.prose]:prose-slate [&_.prose]:prose-sm [&_.prose-p]:text-slate-300 [&_.prose-code]:text-blue-300"
+            />
           </div>
         </div>
       )}

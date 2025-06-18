@@ -1,52 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { memo } from "react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
-  MarkdownContent,
-  StreamingContent,
-} from "@/components/ui/markdown-content";
-import {
-  processContent,
-  needsProcessing,
-} from "@/lib/content/markdown-processor";
-import type { ProcessedContent } from "@/lib/content/markdown-processor";
+  oneDark,
+  oneLight,
+} from "react-syntax-highlighter/dist/cjs/styles/prism";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-import { ThinkingBlock } from "./ThinkingBlock";
-
-// Add performance helpers
-const PROCESSING_DEBOUNCE_MS = 200;
-const MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING = 1000;
-
-// Performance optimization constants for streaming content
-const STREAMING_PERF_CONFIG = {
-  // Throttle content processing to prevent excessive re-renders
-  PROCESSING_THROTTLE_MS: 200, // Max 5 FPS for content processing
-
-  // Batch content updates for large streams
-  LARGE_CONTENT_THRESHOLD: 5000, // 5KB threshold for aggressive optimization
-
-  // Limit DOM updates for very long content
-  MAX_DISPLAY_LENGTH: 50000, // 50KB max before truncation warning
-};
-
-// Helper for non-blocking processing with throttling
-const scheduleNonBlockingWork = (callback: () => Promise<void>) => {
-  if (typeof requestIdleCallback !== "undefined") {
-    requestIdleCallback(async () => await callback(), { timeout: 300 });
-  } else {
-    setTimeout(async () => await callback(), 0);
-  }
-};
-
-// Throttled processing to prevent excessive re-renders during streaming
-let lastProcessTime = 0;
-const throttledProcessing = (callback: () => void) => {
-  const now = Date.now();
-  if (now - lastProcessTime >= STREAMING_PERF_CONFIG.PROCESSING_THROTTLE_MS) {
-    lastProcessTime = now;
-    callback();
-  }
-};
+import { Copy, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface MessageContentProps {
   content: string;
@@ -58,309 +25,224 @@ interface MessageContentProps {
   allowHtml?: boolean;
 }
 
-export function MessageContent({
+interface CodeBlockProps {
+  children: string;
+  className?: string;
+  inline?: boolean;
+}
+
+function CodeBlock({ children, className, inline }: CodeBlockProps) {
+  const { theme } = useTheme();
+  const { toast } = useToast();
+  const [copied, setCopied] = React.useState(false);
+
+  // Extract language from className (format: "language-javascript")
+  const language = className?.replace("language-", "") || "text";
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(children);
+      setCopied(true);
+      toast({
+        title: "Copied!",
+        description: "Code copied to clipboard",
+        duration: 2000,
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({
+        title: "Copy failed",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
+
+  // Inline code
+  if (inline) {
+    return (
+      <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+        {children}
+      </code>
+    );
+  }
+
+  // Block code with syntax highlighting
+  return (
+    <div className="relative group my-4">
+      <div className="flex items-center justify-between bg-muted px-4 py-2 rounded-t-lg border-b">
+        <span className="text-sm font-medium text-muted-foreground">
+          {language === "text" ? "Code" : language}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={copyToClipboard}
+          className="h-6 w-6 p-0"
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-green-500" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <SyntaxHighlighter
+          language={language}
+          style={theme === "dark" ? oneDark : oneLight}
+          showLineNumbers={true}
+          wrapLines={true}
+          customStyle={{
+            margin: 0,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+            borderBottomLeftRadius: "0.5rem",
+            borderBottomRightRadius: "0.5rem",
+          }}
+        >
+          {children}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  );
+}
+
+export const MessageContent = memo(function MessageContent({
   content,
   isStreaming = false,
   isUser = false,
   className,
-  showLineNumbers = false,
+  showLineNumbers = true,
   maxCodeBlockHeight = "400px",
   allowHtml = false,
 }: MessageContentProps) {
-  const [processedContent, setProcessedContent] =
-    useState<ProcessedContent | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingError, setProcessingError] = useState<string | null>(null);
-  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // Simple content preprocessing for user messages
+  const processedContent = isUser ? content.trim() : content;
 
-  // Intelligent processing check using synchronous patterns - optimized for streaming
-  const requiresProcessing = useMemo(() => {
-    if (!content.trim()) return false;
-
-    // PERFORMANCE: Skip processing during streaming for content over threshold
-    if (
-      isStreaming &&
-      content.length > STREAMING_PERF_CONFIG.LARGE_CONTENT_THRESHOLD
-    ) {
-      return false;
-    }
-
-    // Skip processing for very long content to prevent blocking
-    if (content.length > 10000) {
-      console.warn(
-        "Content too long for advanced processing, using basic rendering"
-      );
-      return false;
-    }
-
-    // For user messages, only process if there's clear markdown/code content
-    if (isUser) {
-      // Check for obvious code patterns
-      const hasCode =
-        content.includes("```") ||
-        content.includes("`") ||
-        (content.includes("\n") && content.match(/^[ ]{4,}/m)); // Indented code blocks
-
-      // Check for other markdown patterns
-      const hasMarkdown =
-        content.includes("*") ||
-        content.includes("#") ||
-        content.includes("](") ||
-        content.includes("- ") ||
-        content.includes("1. ");
-
-      return hasCode || hasMarkdown;
-    }
-
-    // For assistant messages, use intelligent checks for processing needs
-    const hasCodeBlocks = content.includes("```");
-    const hasInlineCode = content.includes("`");
-    const hasMarkdown =
-      content.includes("*") ||
-      content.includes("#") ||
-      content.includes("](") ||
-      content.includes("- ") ||
-      content.includes("1. ") ||
-      content.includes("**") ||
-      content.includes("__") ||
-      content.includes("~~");
-
-    // Only process if there's actual formatted content
-    return hasCodeBlocks || hasInlineCode || hasMarkdown;
-  }, [content, isUser, isStreaming]);
-
-  // Determine processing type for better user feedback
-  const processingType = useMemo(() => {
-    if (!content.trim() || !requiresProcessing) return null;
-
-    const hasCodeBlocks = content.includes("```");
-    const hasInlineCode = content.includes("`") && !hasCodeBlocks;
-    const hasMarkdown =
-      content.includes("*") ||
-      content.includes("#") ||
-      content.includes("](") ||
-      content.includes("- ") ||
-      content.includes("1. ");
-
-    if (hasCodeBlocks) return "code";
-    if (hasInlineCode) return "inline-code";
-    if (hasMarkdown) return "markdown";
-
-    return "text";
-  }, [content, requiresProcessing]);
-
-  // Process content when it changes and is not streaming
-  useEffect(() => {
-    // Clear any pending processing
-    if (processingTimeoutRef.current) {
-      clearTimeout(processingTimeoutRef.current);
-    }
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    if (!requiresProcessing || isStreaming || !content.trim()) {
-      setProcessedContent(null);
-      setIsProcessing(false);
-      return;
-    }
-
-    let isMounted = true;
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    const processContentAsync = async () => {
-      if (abortController.signal.aborted) return;
-
-      setIsProcessing(true);
-      setProcessingError(null);
-
-      try {
-        // For assistant messages, always allow HTML for proper markdown rendering
-        // For user messages, only allow HTML if there's clear markdown content
-        const shouldAllowHtml = !isUser || allowHtml;
-
-        // Use non-blocking processing for larger content
-        let processed: ProcessedContent;
-
-        if (content.length > MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING) {
-          // Schedule heavy processing work in idle time
-          processed = await new Promise<ProcessedContent>((resolve, reject) => {
-            scheduleNonBlockingWork(async () => {
-              try {
-                const result = await processContent(content, {
-                  enableHighlighting: true,
-                  showLineNumbers,
-                  maxCodeBlockHeight,
-                  allowHtml: shouldAllowHtml,
-                });
-                resolve(result);
-              } catch (error) {
-                reject(error);
-              }
-            });
-          });
-        } else {
-          processed = await processContent(content, {
-            enableHighlighting: true,
-            showLineNumbers,
-            maxCodeBlockHeight,
-            allowHtml: shouldAllowHtml,
-          });
-        }
-
-        if (isMounted && !abortController.signal.aborted) {
-          setProcessedContent(processed);
-        }
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          console.error("Failed to process message content:", error);
-          if (isMounted) {
-            setProcessingError(
-              error instanceof Error ? error.message : "Processing failed"
-            );
-          }
-        }
-      } finally {
-        if (isMounted && !abortController.signal.aborted) {
-          setIsProcessing(false);
-        }
-      }
-    };
-
-    // Debounce processing for performance with longer delay for complex content
-    const debounceMs =
-      content.length > MAX_CONTENT_LENGTH_FOR_SYNC_PROCESSING
-        ? PROCESSING_DEBOUNCE_MS * 2
-        : PROCESSING_DEBOUNCE_MS;
-
-    processingTimeoutRef.current = setTimeout(processContentAsync, debounceMs);
-
-    return () => {
-      isMounted = false;
-      abortController.abort();
-      if (processingTimeoutRef.current) {
-        clearTimeout(processingTimeoutRef.current);
-      }
-    };
-  }, [
-    content,
-    requiresProcessing,
-    isStreaming,
-    showLineNumbers,
-    maxCodeBlockHeight,
-    allowHtml,
-    isUser,
-  ]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (processingTimeoutRef.current) {
-        clearTimeout(processingTimeoutRef.current);
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
-  // Show streaming content during streaming
-  if (isStreaming) {
-    return (
-      <StreamingContent
-        content={content}
-        className={className}
-        showTypingIndicator={true}
-      />
-    );
-  }
-
-  // Show processing state with contextual messaging
-  if (isProcessing && processedContent === null) {
-    const processingMessage = (() => {
-      switch (processingType) {
-        case "code":
-          return "Formatting code...";
-        case "inline-code":
-          return "Highlighting syntax...";
-        case "markdown":
-          return "Rendering content...";
-        default:
-          return "Processing...";
-      }
-    })();
-
-    return (
-      <div className={cn("relative", className)}>
-        <div className="opacity-60">
-          <MarkdownContent content={content} allowHtml={!isUser || allowHtml} />
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800/10 rounded">
-          <div className="flex items-center space-x-2 text-sm text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-full backdrop-blur-sm">
-            <div className="animate-spin rounded-full h-3 w-3 border-2 border-slate-400 border-t-transparent" />
-            <span>{processingMessage}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state
-  if (processingError) {
-    return (
-      <div className={className}>
-        <MarkdownContent content={content} allowHtml={!isUser || allowHtml} />
-        <div className="mt-2 text-xs text-amber-400 opacity-75">
-          ⚠️ Content processing failed: {processingError}
-        </div>
-      </div>
-    );
-  }
-
-  // Show processed content
-  if (processedContent) {
-    return (
-      <MarkdownContent
-        content={content}
-        processedContent={processedContent}
-        className={className}
-        showLineNumbers={showLineNumbers}
-        maxCodeBlockHeight={maxCodeBlockHeight}
-        allowHtml={!isUser || allowHtml}
-      />
-    );
-  }
-
-  // Fallback to simple content - no unnecessary processing
   return (
-    <MarkdownContent
-      content={content}
-      className={className}
-      allowHtml={!isUser || allowHtml}
-    />
+    <div
+      className={cn(
+        "prose prose-sm max-w-none dark:prose-invert",
+        "prose-pre:p-0 prose-code:before:content-none prose-code:after:content-none",
+        isUser && "prose-p:my-1",
+        className
+      )}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={{
+          // Custom code block component with syntax highlighting
+          code: ({ children, className, ...props }) => {
+            const { inline } = props as any;
+            return (
+              <CodeBlock
+                children={String(children).replace(/\n$/, "")}
+                className={className}
+                inline={inline}
+              />
+            );
+          },
+
+          // Custom paragraph component to handle streaming
+          p: ({ children }) => (
+            <p className={cn(isStreaming && "animate-pulse")}>{children}</p>
+          ),
+
+          // Custom link component with better styling
+          a: ({ href, children, ...props }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline decoration-blue-600/30 hover:decoration-blue-600/60 transition-colors"
+              {...props}
+            >
+              {children}
+            </a>
+          ),
+
+          // Custom table styling
+          table: ({ children, ...props }) => (
+            <div className="overflow-x-auto my-4">
+              <table
+                className="min-w-full border-collapse border border-gray-200 dark:border-gray-700"
+                {...props}
+              >
+                {children}
+              </table>
+            </div>
+          ),
+
+          th: ({ children, ...props }) => (
+            <th
+              className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-left font-semibold"
+              {...props}
+            >
+              {children}
+            </th>
+          ),
+
+          td: ({ children, ...props }) => (
+            <td
+              className="border border-gray-200 dark:border-gray-700 px-4 py-2"
+              {...props}
+            >
+              {children}
+            </td>
+          ),
+
+          // Custom blockquote styling
+          blockquote: ({ children, ...props }) => (
+            <blockquote
+              className="border-l-4 border-blue-500 pl-4 italic text-gray-600 dark:text-gray-400 my-4"
+              {...props}
+            >
+              {children}
+            </blockquote>
+          ),
+
+          // Custom list styling
+          ul: ({ children, ...props }) => (
+            <ul className="list-disc pl-6 my-2 space-y-1" {...props}>
+              {children}
+            </ul>
+          ),
+
+          ol: ({ children, ...props }) => (
+            <ol className="list-decimal pl-6 my-2 space-y-1" {...props}>
+              {children}
+            </ol>
+          ),
+
+          // Custom heading styling
+          h1: ({ children, ...props }) => (
+            <h1 className="text-2xl font-bold mt-6 mb-3 first:mt-0" {...props}>
+              {children}
+            </h1>
+          ),
+
+          h2: ({ children, ...props }) => (
+            <h2 className="text-xl font-bold mt-5 mb-3 first:mt-0" {...props}>
+              {children}
+            </h2>
+          ),
+
+          h3: ({ children, ...props }) => (
+            <h3 className="text-lg font-bold mt-4 mb-2 first:mt-0" {...props}>
+              {children}
+            </h3>
+          ),
+        }}
+      >
+        {processedContent}
+      </ReactMarkdown>
+    </div>
   );
-}
+});
 
-// Enhanced message bubble with improved content rendering
-interface EnhancedMessageBubbleProps {
-  content: string;
-  role: "user" | "assistant" | "system";
-  isStreaming?: boolean;
-  timestamp: string | Date;
-  model?: string;
-  metadata?: {
-    streamingComplete?: boolean;
-    processingTime?: number;
-    regenerated?: boolean;
-    provider?: string;
-    error?: boolean;
-  };
-  error?: string;
-  className?: string;
-}
-
+// Legacy exports for backward compatibility
 export function EnhancedMessageBubble({
   content,
   role,
@@ -370,99 +252,23 @@ export function EnhancedMessageBubble({
   metadata,
   error,
   className,
-}: EnhancedMessageBubbleProps) {
-  const isUser = role === "user";
-  const hasError = metadata?.error || error;
-
+}: {
+  content: string;
+  role: "user" | "assistant" | "system";
+  isStreaming?: boolean;
+  timestamp: string | Date;
+  model?: string;
+  metadata?: any;
+  error?: string;
+  className?: string;
+}) {
   return (
-    <div
-      className={cn(
-        "flex",
-        isUser ? "justify-end" : "justify-start",
-        "group",
-        className
-      )}
-    >
-      <div className={cn("max-w-[80%]", isUser ? "order-2" : "order-1")}>
-        <div
-          className={cn(
-            "flex items-start space-x-3",
-            isUser ? "flex-row-reverse space-x-reverse" : ""
-          )}
-        >
-          {/* Avatar */}
-          <div
-            className={cn(
-              "flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium",
-              hasError
-                ? "bg-red-600"
-                : isUser
-                ? "bg-emerald-600"
-                : "bg-blue-600",
-              "text-white"
-            )}
-          >
-            {isUser ? "U" : "AI"}
-          </div>
-
-          {/* Message Content */}
-          <div className={cn("flex-1", isUser ? "text-right" : "text-left")}>
-            <div
-              className={cn(
-                "inline-block p-4 rounded-2xl",
-                hasError
-                  ? "bg-red-600/20 border border-red-500/30 text-red-400"
-                  : isUser
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm text-slate-100"
-              )}
-            >
-              {hasError ? (
-                <div className="flex items-center">
-                  <span className="mr-2">⚠️</span>
-                  {error || "Failed to generate response"}
-                </div>
-              ) : (
-                <MessageContent
-                  content={content}
-                  isStreaming={isStreaming}
-                  isUser={isUser}
-                  showLineNumbers={false}
-                  maxCodeBlockHeight="300px"
-                  allowHtml={!isUser} // Only allow HTML for assistant messages by default
-                />
-              )}
-            </div>
-
-            {/* Message metadata */}
-            <div
-              className={cn(
-                "flex items-center justify-between mt-2 text-xs text-slate-400",
-                isUser ? "flex-row-reverse" : "flex-row"
-              )}
-            >
-              <div className="flex items-center space-x-2">
-                <span>{new Date(timestamp).toLocaleTimeString()}</span>
-
-                {/* Delivery status */}
-                <span className="text-emerald-400" title="Delivered">
-                  ✓
-                </span>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                {metadata?.processingTime && (
-                  <span title={`Processing time: ${metadata.processingTime}s`}>
-                    ⚡ {metadata.processingTime.toFixed(1)}s
-                  </span>
-                )}
-
-                {model && <span>• {model}</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className={cn("message-bubble", className)}>
+      <MessageContent
+        content={content}
+        isStreaming={isStreaming}
+        isUser={role === "user"}
+      />
     </div>
   );
 }
