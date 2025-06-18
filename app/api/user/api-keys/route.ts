@@ -8,8 +8,14 @@ import {
   hashApiKey,
   validateApiKeyFormat,
   maskApiKey,
+  createKeyAuditLog,
 } from "@/lib/utils/encryption";
 import { getAuthenticatedUserId } from "@/lib/utils/auth";
+import {
+  checkRateLimit,
+  recordFailedAttempt,
+  getRateLimitHeaders,
+} from "@/lib/utils/rate-limiter";
 
 // Validation schemas
 const createApiKeySchema = z.object({
@@ -78,6 +84,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/user/api-keys - Create new API key
 export async function POST(request: NextRequest) {
+  let internalUserId: string | null = null;
+  let rateLimitResult: any = null;
+
   try {
     const authResult = await getAuthenticatedUserId();
 
@@ -86,7 +95,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authResult.error }, { status });
     }
 
-    const internalUserId = authResult.userId!;
+    internalUserId = authResult.userId!;
+
+    // Check rate limit for API key creation
+    rateLimitResult = checkRateLimit(internalUserId, "apiKeyCreate");
+    if (!rateLimitResult.allowed) {
+      recordFailedAttempt(
+        internalUserId,
+        "apiKeyCreate",
+        rateLimitResult.reason || "Rate limit exceeded"
+      );
+
+      return NextResponse.json(
+        {
+          error: rateLimitResult.reason,
+          severity: rateLimitResult.severity,
+          resetTime: rateLimitResult.resetTime,
+        },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(internalUserId, "apiKeyCreate"),
+        }
+      );
+    }
 
     const body = await request.json();
     const validatedData = createApiKeySchema.parse(body);
@@ -217,31 +248,73 @@ export async function POST(request: NextRequest) {
       newKey.status = "invalid" as any;
     }
 
-    return NextResponse.json({
-      success: true,
-      key: {
-        ...newKey,
-        keyPreview: maskApiKey(validatedData.apiKey),
+    // Create audit log
+    const auditLog = createKeyAuditLog(
+      internalUserId,
+      "create",
+      validatedData.provider,
+      {
+        keyId: newKey.id,
+        keyName: validatedData.keyName,
+        validated: newKey.status === "valid",
+        rateLimitRemaining: rateLimitResult.remaining,
+      }
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        key: {
+          ...newKey,
+          keyPreview: maskApiKey(validatedData.apiKey),
+        },
+        message:
+          newKey.status === "valid"
+            ? "API key added and validated successfully!"
+            : newKey.status === "invalid"
+            ? "API key added but validation failed. Please check the key."
+            : "API key added successfully. Validation in progress...",
+        auditFingerprint: auditLog.fingerprint,
       },
-      message:
-        newKey.status === "valid"
-          ? "API key added and validated successfully!"
-          : newKey.status === "invalid"
-          ? "API key added but validation failed. Please check the key."
-          : "API key added successfully. Validation in progress...",
-    });
+      {
+        headers: getRateLimitHeaders(internalUserId, "apiKeyCreate"),
+      }
+    );
   } catch (error) {
+    // Record error in audit log
+    if (internalUserId) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      recordFailedAttempt(internalUserId, "apiKeyCreate", errorMessage);
+
+      const auditLog = createKeyAuditLog(internalUserId, "create", "unknown", {
+        error: errorMessage,
+        rateLimitRemaining: rateLimitResult?.remaining || 0,
+      });
+      auditLog.success = false;
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
-        { status: 400 }
+        {
+          status: 400,
+          headers: internalUserId
+            ? getRateLimitHeaders(internalUserId, "apiKeyCreate")
+            : {},
+        }
       );
     }
 
     console.error("Error creating API key:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: internalUserId
+          ? getRateLimitHeaders(internalUserId, "apiKeyCreate")
+          : {},
+      }
     );
   }
 }

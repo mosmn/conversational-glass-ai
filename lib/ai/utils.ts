@@ -353,6 +353,7 @@ function getEfficiencyRating(model: AIModel): "high" | "medium" | "low" {
 /**
  * Test a specific provider with an API key
  * Used for validating API keys before saving or when testing existing keys
+ * Performs actual API calls to verify key validity
  */
 export async function testProviderKey(
   provider: string,
@@ -366,47 +367,19 @@ export async function testProviderKey(
   try {
     switch (provider) {
       case "openai":
-        // For now, just test the basic format since BYOK isn't implemented yet
-        return {
-          success: apiKey.startsWith("sk-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-")
-            ? undefined
-            : "Invalid OpenAI API key format",
-        };
+        return await testOpenAIKey(apiKey);
 
       case "claude":
-        return {
-          success: apiKey.startsWith("sk-ant-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-ant-")
-            ? undefined
-            : "Invalid Claude API key format",
-        };
+        return await testClaudeKey(apiKey);
 
       case "gemini":
-        return {
-          success: apiKey.length > 30 && apiKey.length < 50,
-          error:
-            apiKey.length > 30 && apiKey.length < 50
-              ? undefined
-              : "Invalid Gemini API key format",
-        };
+        return await testGeminiKey(apiKey);
 
       case "openrouter":
-        // Test basic format - OpenRouter provider should already support BYOK
-        return {
-          success: apiKey.startsWith("sk-or-") && apiKey.length > 20,
-          error: apiKey.startsWith("sk-or-")
-            ? undefined
-            : "Invalid OpenRouter API key format",
-        };
+        return await testOpenRouterKey(apiKey);
 
       case "groq":
-        return {
-          success: apiKey.startsWith("gsk_") && apiKey.length > 20,
-          error: apiKey.startsWith("gsk_")
-            ? undefined
-            : "Invalid Groq API key format",
-        };
+        return await testGroqKey(apiKey);
 
       default:
         return { success: false, error: `Unknown provider: ${provider}` };
@@ -415,6 +388,340 @@ export async function testProviderKey(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Test failed",
+    };
+  }
+}
+
+/**
+ * Test OpenAI API key by making a minimal API call
+ */
+async function testOpenAIKey(apiKey: string): Promise<{
+  success: boolean;
+  error?: string;
+  quotaInfo?: any;
+  models?: string[];
+}> {
+  // First validate format
+  if (!apiKey.startsWith("sk-") || apiKey.length < 20) {
+    return {
+      success: false,
+      error: "Invalid OpenAI API key format (should start with 'sk-')",
+    };
+  }
+
+  try {
+    // Test with models endpoint - lightweight and informative
+    const response = await fetch("https://api.openai.com/v1/models", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: "Invalid or expired API key" };
+      }
+      if (response.status === 429) {
+        return { success: false, error: "Rate limit exceeded" };
+      }
+      if (response.status === 403) {
+        return { success: false, error: "API key lacks required permissions" };
+      }
+      return {
+        success: false,
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      models: data.data?.map((model: any) => model.id) || [],
+      quotaInfo: {
+        totalLimit: null, // OpenAI doesn't expose quota in models endpoint
+        used: null,
+        remaining: null,
+        resetDate: null,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error",
+    };
+  }
+}
+
+/**
+ * Test Claude API key by making a minimal API call
+ */
+async function testClaudeKey(apiKey: string): Promise<{
+  success: boolean;
+  error?: string;
+  quotaInfo?: any;
+  models?: string[];
+}> {
+  // First validate format
+  if (!apiKey.startsWith("sk-ant-") || apiKey.length < 20) {
+    return {
+      success: false,
+      error: "Invalid Claude API key format (should start with 'sk-ant-')",
+    };
+  }
+
+  try {
+    // Test with a minimal message request
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 1,
+        messages: [
+          {
+            role: "user",
+            content: "Hi",
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: "Invalid or expired API key" };
+      }
+      if (response.status === 429) {
+        return { success: false, error: "Rate limit exceeded" };
+      }
+      if (response.status === 403) {
+        return { success: false, error: "API key lacks required permissions" };
+      }
+      return {
+        success: false,
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    return {
+      success: true,
+      models: [
+        "claude-3-5-sonnet-20241022",
+        "claude-3-haiku-20240307",
+        "claude-3-opus-20240229",
+      ],
+      quotaInfo: {
+        totalLimit: null,
+        used: null,
+        remaining: null,
+        resetDate: null,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error",
+    };
+  }
+}
+
+/**
+ * Test Gemini API key by making a minimal API call
+ */
+async function testGeminiKey(apiKey: string): Promise<{
+  success: boolean;
+  error?: string;
+  quotaInfo?: any;
+  models?: string[];
+}> {
+  // First validate format
+  if (apiKey.length < 30 || apiKey.length > 50) {
+    return {
+      success: false,
+      error: "Invalid Gemini API key format",
+    };
+  }
+
+  try {
+    // Test with models endpoint
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 400) {
+        return { success: false, error: "Invalid API key format" };
+      }
+      if (response.status === 403) {
+        return {
+          success: false,
+          error: "API key access denied or quota exceeded",
+        };
+      }
+      if (response.status === 429) {
+        return { success: false, error: "Rate limit exceeded" };
+      }
+      return {
+        success: false,
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      models:
+        data.models?.map((model: any) => model.name?.split("/").pop()) || [],
+      quotaInfo: {
+        totalLimit: null,
+        used: null,
+        remaining: null,
+        resetDate: null,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error",
+    };
+  }
+}
+
+/**
+ * Test OpenRouter API key by making a minimal API call
+ */
+async function testOpenRouterKey(apiKey: string): Promise<{
+  success: boolean;
+  error?: string;
+  quotaInfo?: any;
+  models?: string[];
+}> {
+  // First validate format
+  if (!apiKey.startsWith("sk-or-") || apiKey.length < 20) {
+    return {
+      success: false,
+      error: "Invalid OpenRouter API key format (should start with 'sk-or-')",
+    };
+  }
+
+  try {
+    // Test with models endpoint
+    const response = await fetch("https://openrouter.ai/api/v1/models", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: "Invalid or expired API key" };
+      }
+      if (response.status === 429) {
+        return { success: false, error: "Rate limit exceeded" };
+      }
+      if (response.status === 402) {
+        return { success: false, error: "Insufficient credits" };
+      }
+      return {
+        success: false,
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      models: data.data?.map((model: any) => model.id) || [],
+      quotaInfo: {
+        totalLimit: null,
+        used: null,
+        remaining: null,
+        resetDate: null,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error",
+    };
+  }
+}
+
+/**
+ * Test Groq API key by making a minimal API call
+ */
+async function testGroqKey(apiKey: string): Promise<{
+  success: boolean;
+  error?: string;
+  quotaInfo?: any;
+  models?: string[];
+}> {
+  // First validate format
+  if (!apiKey.startsWith("gsk_") || apiKey.length < 20) {
+    return {
+      success: false,
+      error: "Invalid Groq API key format (should start with 'gsk_')",
+    };
+  }
+
+  try {
+    // Test with models endpoint
+    const response = await fetch("https://api.groq.com/openai/v1/models", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: "Invalid or expired API key" };
+      }
+      if (response.status === 429) {
+        return { success: false, error: "Rate limit exceeded" };
+      }
+      if (response.status === 403) {
+        return { success: false, error: "API key lacks required permissions" };
+      }
+      return {
+        success: false,
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      models: data.data?.map((model: any) => model.id) || [],
+      quotaInfo: {
+        totalLimit: null,
+        used: null,
+        remaining: null,
+        resetDate: null,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Network error",
     };
   }
 }
