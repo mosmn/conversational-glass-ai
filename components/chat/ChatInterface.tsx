@@ -57,6 +57,7 @@ import {
 import { WelcomeInterface } from "./WelcomeInterface";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
+import { FailedMessageRetryBanner } from "./FailedMessageRetryBanner";
 import { ChatHeader } from "./ChatHeader";
 import { ChatInput } from "./ChatInput";
 import { FloatingMobileActions } from "./FloatingMobileActions";
@@ -1079,6 +1080,28 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                   />
                 ) : (
                   <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
+                    {/* Retry banner for failed messages */}
+                    {chatError && (
+                      <FailedMessageRetryBanner
+                        error={chatError}
+                        onRetry={() => {
+                          // Retry by resending the last user message
+                          const lastUserMessage = messages
+                            .slice()
+                            .reverse()
+                            .find((msg) => msg.role === "user");
+                          if (lastUserMessage && optimisticChatId) {
+                            sendMessage(lastUserMessage.content, selectedModel);
+                          }
+                        }}
+                        onDismiss={() => {
+                          // Clear the error - this would need to be implemented in useChat
+                          window.location.reload(); // Simple approach for now
+                        }}
+                        isRetrying={isStreaming}
+                      />
+                    )}
+
                     {hasMore && (
                       <div className="flex justify-center">
                         <Button
@@ -1116,8 +1139,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         onRetryMessage={handleRetryMessage}
                       />
                     ))}
-
-                    {isStreaming && <TypingIndicator />}
 
                     {/* Auto-scroll target */}
                     <div ref={messagesEndRef} className="h-1" />

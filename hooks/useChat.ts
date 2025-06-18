@@ -13,6 +13,7 @@ import {
   generateStreamId,
 } from "@/lib/streaming/persistence";
 import { StreamState, StreamProgress } from "@/lib/streaming/types";
+import { useStreamingFailureHandler } from "./useStreamingFailureHandler";
 
 interface UseChatReturn {
   messages: Message[];
@@ -77,6 +78,35 @@ export function useChat(conversationId: string): UseChatReturn {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentConversationIdRef = useRef<string | null>(null);
 
+  // Streaming failure handler
+  const { handleStreamingFailure, handleIncompleteMessage } =
+    useStreamingFailureHandler({
+      conversationId,
+      onRetryMessage: async (
+        content,
+        model,
+        attachments,
+        displayContent,
+        searchResults
+      ) => {
+        await sendMessage(
+          content,
+          model,
+          attachments,
+          displayContent,
+          searchResults
+        );
+      },
+      onRemoveMessage: (messageId) => {
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      },
+      onRemoveMessages: (messageIds) => {
+        setMessages((prev) =>
+          prev.filter((msg) => !messageIds.includes(msg.id))
+        );
+      },
+    });
+
   const fetchMessages = useCallback(
     async (reset = false) => {
       if (!conversationId) return;
@@ -95,11 +125,20 @@ export function useChat(conversationId: string): UseChatReturn {
           }
         );
 
-        // Sort messages by timestamp
-        const sortedMessages = response.messages.sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
+        // Sort messages by timestamp and filter out incomplete ones
+        const sortedMessages = response.messages
+          .filter((msg) => {
+            // Filter out incomplete messages
+            if (msg.error === "Message incomplete") {
+              handleIncompleteMessage(msg);
+              return false;
+            }
+            return true;
+          })
+          .sort(
+            (a, b) =>
+              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
 
         if (reset) {
           setMessages(sortedMessages);
@@ -217,6 +256,10 @@ export function useChat(conversationId: string): UseChatReturn {
     ) => {
       if (!conversationId || isStreaming) return;
 
+      // Declare optimistic messages at function level for error handling
+      let optimisticUserMessage: Message;
+      let optimisticAssistantMessage: Message;
+
       try {
         setError(null);
         setIsStreaming(true);
@@ -231,7 +274,7 @@ export function useChat(conversationId: string): UseChatReturn {
 
         // Create optimistic user message
         const timestamp = new Date().toISOString();
-        const optimisticUserMessage: Message = {
+        optimisticUserMessage = {
           id: `temp-user-${Date.now()}`,
           role: "user",
           content: displayContent || content,
@@ -660,6 +703,15 @@ export function useChat(conversationId: string): UseChatReturn {
         setError(apiError.error || "Failed to send message");
         console.error("Send message error:", err);
 
+        // Remove any temporary messages on error
+        setMessages((prev) =>
+          prev.filter(
+            (msg) =>
+              !msg.id.startsWith("temp-user-") &&
+              !msg.id.startsWith("temp-assistant-")
+          )
+        );
+
         // Mark stream as errored if we have a stream ID
         if (currentStreamId) {
           const streamState = streamPersistence.getStreamState(currentStreamId);
@@ -671,15 +723,6 @@ export function useChat(conversationId: string): UseChatReturn {
             });
           }
         }
-
-        // Remove optimistic messages on error
-        setMessages((prev) =>
-          prev.filter(
-            (msg) =>
-              msg.id !== `temp-user-${Date.now()}` &&
-              msg.id !== `temp-assistant-${Date.now()}`
-          )
-        );
       } finally {
         setIsStreaming(false);
         setCurrentStreamContent("");
@@ -688,7 +731,7 @@ export function useChat(conversationId: string): UseChatReturn {
         abortControllerRef.current = null;
       }
     },
-    [conversationId]
+    [conversationId, handleStreamingFailure]
   );
 
   const refetchMessages = useCallback(async () => {
