@@ -295,12 +295,12 @@ export function PublicConversationView({
         </div>
 
         {/* Main Content */}
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             {/* Messages - Main Column */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-2 xl:col-span-3">
               {/* Conversation Header */}
-              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6 mb-6">
+              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12">
@@ -340,108 +340,105 @@ export function PublicConversationView({
 
               {/* Messages Container */}
               <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
-                <ScrollArea className="h-[600px]">
-                  <div className="p-6 space-y-6">
+                <ScrollArea className="h-[500px] sm:h-[600px] lg:h-[700px]">
+                  <div className="p-4 space-y-4">
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex ${
-                          message.role === "assistant"
-                            ? "justify-start"
-                            : "justify-end"
-                        } group`}
+                        className={`w-full flex ${
+                          message.role === "user"
+                            ? "justify-end"
+                            : "justify-start"
+                        }`}
                       >
                         <div
-                          className={`max-w-[80%] ${
-                            message.role === "user" ? "order-2" : "order-1"
+                          className={`flex items-start gap-2 sm:gap-3 max-w-[90%] sm:max-w-[85%] w-fit ${
+                            message.role === "user"
+                              ? "flex-row-reverse"
+                              : "flex-row"
                           }`}
                         >
-                          <div
-                            className={`flex items-start space-x-3 ${
-                              message.role === "user"
-                                ? "flex-row-reverse space-x-reverse"
-                                : ""
-                            }`}
-                          >
-                            <Avatar className="h-8 w-8 flex-shrink-0">
-                              <AvatarFallback
-                                className={`${
-                                  message.role === "user"
-                                    ? "bg-emerald-600"
-                                    : "bg-blue-600"
-                                }`}
-                              >
-                                {message.role === "user" ? (
-                                  <User className="h-4 w-4" />
-                                ) : (
-                                  <Bot className="h-4 w-4" />
-                                )}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <div
-                              className={`flex-1 ${
+                          {/* Avatar */}
+                          <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                            <AvatarFallback
+                              className={`${
                                 message.role === "user"
-                                  ? "text-right"
-                                  : "text-left"
+                                  ? "bg-emerald-600"
+                                  : "bg-blue-600"
+                              } text-white`}
+                            >
+                              {message.role === "user" ? (
+                                <User className="h-4 w-4" />
+                              ) : (
+                                <Bot className="h-4 w-4" />
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          {/* Message Content */}
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className={`p-3 sm:p-4 rounded-2xl ${
+                                message.role === "user"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-slate-700/80 border border-slate-600/50 backdrop-blur-sm text-slate-100"
                               }`}
                             >
-                              <div
-                                className={`inline-block p-4 rounded-2xl ${
+                              <MessageContent
+                                content={message.content}
+                                isStreaming={false}
+                                isUser={message.role === "user"}
+                                showLineNumbers={false}
+                                maxCodeBlockHeight="300px"
+                                allowHtml={false}
+                                className={`w-full ${
                                   message.role === "user"
-                                    ? "bg-emerald-600 text-white"
-                                    : "bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm text-slate-100"
+                                    ? "prose-invert prose-p:text-white prose-headings:text-white prose-strong:text-white prose-code:text-slate-200 prose-code:bg-slate-800/50 prose-pre:bg-slate-800/50"
+                                    : "prose-invert prose-code:bg-slate-800/50 prose-pre:bg-slate-800/50"
                                 }`}
-                              >
-                                <MessageContent
-                                  content={message.content}
-                                  isStreaming={false}
-                                  isUser={message.role === "user"}
-                                  showLineNumbers={false}
-                                  maxCodeBlockHeight="300px"
-                                  allowHtml={false}
-                                />
-                              </div>
+                              />
+                            </div>
 
-                              <div
-                                className={`flex items-center justify-between mt-2 text-xs text-slate-400 ${
-                                  message.role === "user"
-                                    ? "flex-row-reverse"
-                                    : "flex-row"
-                                }`}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span>{formatTime(message.timestamp)}</span>
-                                  <span
-                                    className="text-emerald-400"
-                                    title="Delivered"
-                                  >
-                                    ✓
+                            {/* Message Metadata */}
+                            <div
+                              className={`flex items-center gap-2 mt-2 text-xs text-slate-400 ${
+                                message.role === "user"
+                                  ? "justify-end"
+                                  : "justify-start"
+                              }`}
+                            >
+                              <span>{formatTime(message.timestamp)}</span>
+                              {message.model && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-emerald-400">
+                                    {message.model}
                                   </span>
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                  {message.metadata?.processingTime && (
-                                    <span
-                                      title={`Processing time: ${message.metadata.processingTime}ms`}
-                                    >
-                                      ⚡{" "}
-                                      {typeof message.metadata
-                                        .processingTime === "number" &&
-                                      message.metadata.processingTime > 1000
-                                        ? (
-                                            message.metadata.processingTime /
-                                            1000
-                                          ).toFixed(1) + "s"
-                                        : message.metadata.processingTime +
-                                          "ms"}
-                                    </span>
-                                  )}
-                                  {message.model && (
-                                    <span>• {message.model}</span>
-                                  )}
-                                </div>
-                              </div>
+                                </>
+                              )}
+                              {message.metadata?.processingTime && (
+                                <>
+                                  <span>•</span>
+                                  <span
+                                    title={`Processing time: ${message.metadata.processingTime}ms`}
+                                  >
+                                    ⚡{" "}
+                                    {typeof message.metadata.processingTime ===
+                                      "number" &&
+                                    message.metadata.processingTime > 1000
+                                      ? (
+                                          message.metadata.processingTime / 1000
+                                        ).toFixed(1) + "s"
+                                      : message.metadata.processingTime + "ms"}
+                                  </span>
+                                </>
+                              )}
+                              <span
+                                className="text-emerald-400"
+                                title="Delivered"
+                              >
+                                ✓
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -453,9 +450,9 @@ export function PublicConversationView({
             </div>
 
             {/* Sidebar */}
-            <div className="space-y-6">
+            <div className="space-y-4 lg:space-y-6">
               {/* Stats Card */}
-              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6">
+              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">
                   Statistics
                 </h3>
@@ -499,7 +496,7 @@ export function PublicConversationView({
               </div>
 
               {/* Models Used */}
-              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6">
+              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">
                   AI Models
                 </h3>
@@ -517,7 +514,7 @@ export function PublicConversationView({
               </div>
 
               {/* Share Info */}
-              <div className="bg-emerald-600/10 backdrop-blur-sm border border-emerald-500/30 rounded-lg p-6">
+              <div className="bg-emerald-600/10 backdrop-blur-sm border border-emerald-500/30 rounded-lg p-4 sm:p-6">
                 <div className="text-center space-y-3">
                   <Share className="h-8 w-8 text-emerald-400 mx-auto" />
                   <h3 className="text-lg font-semibold text-emerald-300">
@@ -549,7 +546,7 @@ export function PublicConversationView({
               </div>
 
               {/* Timeline */}
-              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6">
+              <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">
                   Timeline
                 </h3>

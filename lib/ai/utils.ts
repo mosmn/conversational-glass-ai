@@ -91,7 +91,7 @@ export function generatePersonalizedSystemPrompt(
     basePrompts[model.personality as keyof typeof basePrompts] ||
     basePrompts.balanced;
 
-  // Add personalization if provided
+  // Add personalization if provided - integrate naturally without being explicit about sources
   if (personalization) {
     const hasPersonalization =
       personalization.displayName ||
@@ -100,32 +100,49 @@ export function generatePersonalizedSystemPrompt(
       personalization.additionalInfo;
 
     if (hasPersonalization) {
-      prompt += "\n\n## User Context & Personalization";
+      // Create a natural personality extension rather than explicit "user provided" sections
+      const personalityExtensions: string[] = [];
 
-      // Add display name
-      if (personalization.displayName) {
-        prompt += `\nUser's preferred name: ${personalization.displayName}`;
-      }
-
-      // Add user description/role
-      if (personalization.description) {
-        prompt += `\nUser's role/background: ${personalization.description}`;
-      }
-
-      // Add AI traits requested by user
+      // Integrate traits naturally into personality
       if (personalization.traits && personalization.traits.length > 0) {
-        prompt += `\nAdditional traits to embody: ${personalization.traits.join(
-          ", "
-        )}`;
+        personalityExtensions.push(
+          `You embody these additional characteristics: ${personalization.traits.join(
+            ", "
+          )}.`
+        );
       }
 
-      // Add additional context
+      // Add context about who you're talking to without being explicit
+      if (personalization.displayName || personalization.description) {
+        let contextString = "You are currently assisting";
+        if (personalization.displayName) {
+          contextString += ` ${personalization.displayName}`;
+        }
+        if (personalization.description) {
+          contextString += personalization.displayName
+            ? `, who works in ${personalization.description}`
+            : ` someone who works in ${personalization.description}`;
+        }
+        contextString += ".";
+        personalityExtensions.push(contextString);
+      }
+
+      // Add additional context naturally
       if (personalization.additionalInfo) {
-        prompt += `\nAdditional context about the user:\n${personalization.additionalInfo}`;
+        personalityExtensions.push(
+          `Keep in mind: ${personalization.additionalInfo}`
+        );
       }
 
-      prompt +=
-        "\n\nUse this information to personalize your responses appropriately. Address the user by their preferred name when natural, consider their background and role when providing advice, embody the requested traits in your communication style, and use the additional context to make your responses more relevant and helpful.";
+      // Integrate extensions naturally into the prompt
+      if (personalityExtensions.length > 0) {
+        prompt += "\n\n" + personalityExtensions.join(" ");
+      }
+
+      // Add natural guidance for personalization
+      if (personalization.displayName) {
+        prompt += ` Feel free to address them by name when it feels natural in conversation.`;
+      }
     }
   }
 
