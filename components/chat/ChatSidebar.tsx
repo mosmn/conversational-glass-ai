@@ -11,6 +11,7 @@ import { NewChatButton } from "@/components/chat/sidebar/NewChatButton";
 import { SearchAndFilter } from "@/components/chat/sidebar/SearchAndFilter";
 import { ChatList } from "@/components/chat/sidebar/ChatList";
 import { UserProfile } from "@/components/chat/sidebar/UserProfile";
+import { SidebarSkeleton } from "@/components/chat/ChatSkeleton";
 
 interface ChatSidebarProps {
   isCollapsed: boolean;

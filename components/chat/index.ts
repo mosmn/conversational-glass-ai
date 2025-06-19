@@ -30,3 +30,10 @@ export { SearchResultsPreview } from "./SearchResultsPreview";
 export { SearchControls } from "./SearchControls";
 export { EnhancedSearchInput } from "./EnhancedSearchInput";
 export { SearchReferences } from "./SearchReferences";
+
+// Loading Skeleton Components
+export {
+  ChatSkeleton,
+  TypingIndicatorSkeleton,
+  SidebarSkeleton,
+} from "./ChatSkeleton";

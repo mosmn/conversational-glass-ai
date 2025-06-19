@@ -14,6 +14,7 @@ import {
 import { SimpleChatItem } from "@/components/chat/SimpleChatItem";
 import type { ChatPreferences } from "@/hooks/useChatPreferences";
 import { motion, AnimatePresence } from "framer-motion";
+import { SidebarSkeleton } from "@/components/chat/ChatSkeleton";
 
 // Simple chat type for flat list display
 interface SimpleChat {
@@ -320,26 +321,7 @@ function ChatListComponent({
           {/* Date-Grouped Recent Chats */}
           <div>
             {hierarchicalLoading ? (
-              <div className="space-y-4">
-                <div className="flex items-center text-sm font-medium text-slate-300 mb-3 px-2">
-                  <Clock className="h-3.5 w-3.5 mr-2 text-blue-400" />
-                  Loading...
-                </div>
-                <div className="space-y-2 px-2">
-                  {[...Array(3)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="p-3 rounded-lg bg-slate-700/30 animate-pulse backdrop-blur-sm"
-                    >
-                      <div className="h-4 bg-slate-600/50 rounded mb-2"></div>
-                      <div className="h-3 bg-slate-600/50 rounded w-3/4"></div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
+              <SidebarSkeleton />
             ) : Object.keys(groupedRecentChats).length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}

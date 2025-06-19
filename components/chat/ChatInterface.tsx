@@ -61,6 +61,7 @@ import { FailedMessageRetryBanner } from "./FailedMessageRetryBanner";
 import { ChatHeader } from "./ChatHeader";
 import { ChatInput } from "./ChatInput";
 import { FloatingMobileActions } from "./FloatingMobileActions";
+import { ChatSkeleton, TypingIndicatorSkeleton } from "./ChatSkeleton";
 
 // Custom hooks
 import { useChatState } from "@/hooks/useChatState";
@@ -1060,24 +1061,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 ref={scrollAreaRef}
               >
                 {messagesLoading ? (
-                  <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
-                    {[...Array(2)].map((_, i) => (
-                      <div key={i} className="space-y-3 sm:space-y-4">
-                        <div className="flex justify-end">
-                          <div className="bg-slate-700/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
-                            <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                            <div className="h-4 bg-slate-600 rounded w-3/4"></div>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-slate-800/30 rounded-lg p-3 sm:p-4 max-w-[85%] sm:max-w-xs animate-pulse">
-                            <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                            <div className="h-4 bg-slate-600 rounded w-2/3"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <ChatSkeleton messageCount={3} />
                 ) : !optimisticChatId ? (
                   <WelcomeInterface
                     quickActions={quickActions}
@@ -1162,6 +1146,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                         onRetryMessage={handleRetryMessage}
                       />
                     ))}
+
+                    {/* Show typing indicator when streaming and no current message is being updated */}
+                    {isStreaming && messages.length > 0 && <TypingIndicator />}
+
+                    {/* Show typing skeleton when starting a new conversation */}
+                    {isStreaming && messages.length === 0 && (
+                      <TypingIndicatorSkeleton />
+                    )}
 
                     {/* Auto-scroll target */}
                     <div ref={messagesEndRef} className="h-1" />
