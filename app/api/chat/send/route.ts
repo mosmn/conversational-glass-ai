@@ -366,7 +366,9 @@ export async function POST(request: NextRequest) {
         aiModel,
         {
           convertToBase64:
-            provider.name === "gemini" || provider.name === "claude",
+            provider.name === "gemini" ||
+            provider.name === "claude" ||
+            provider.name === "groq",
           includeTextExtraction: true,
           optimizeImages: true,
         }

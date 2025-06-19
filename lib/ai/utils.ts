@@ -154,14 +154,22 @@ export function generatePersonalizedSystemPrompt(
 
 // Detect provider from model ID (now dynamic!)
 export function getProviderFromModelId(modelId: ModelId): string {
-  // OpenRouter models - these have the format "provider/model:variant" or "provider/model"
+  // Special-case Meta-Llama models on Groq (Scout, Maverick, Guard, etc.)
+  // Groq exposes them under the meta-llama namespace, but they are NOT
+  // available via OpenRouter. We must route them to the Groq provider.
+  if (modelId.startsWith("meta-llama/")) {
+    return "groq";
+  }
+
+  // OpenRouter models ‑ general heuristic: IDs with an explicit provider
+  // prefix (openai/, anthropic/, google/, …) are usually served through
+  // OpenRouter unless caught by a more specific rule above.
   if (
     modelId.includes("/") ||
     modelId.includes(":") ||
     modelId.startsWith("openai/") ||
     modelId.startsWith("anthropic/") ||
     modelId.startsWith("google/") ||
-    modelId.startsWith("meta-llama/") ||
     modelId.startsWith("deepseek/") ||
     modelId.startsWith("microsoft/") ||
     modelId.startsWith("mistralai/") ||

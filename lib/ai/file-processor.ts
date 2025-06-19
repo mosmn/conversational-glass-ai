@@ -142,6 +142,11 @@ export class FileProcessor {
           const base64Data = await this.convertImageToBase64(file.url);
           const mimeType = file.type || "image/jpeg";
 
+          const dataUri = `data:${mimeType};base64,${base64Data}`;
+
+          // Update OpenAI/Groq format to use data URI (works for Groq vision and GPT-4o)
+          processedFile.openaiFormat.image_url.url = dataUri;
+
           // Gemini format
           processedFile.geminiFormat = {
             inlineData: {
