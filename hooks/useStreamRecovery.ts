@@ -228,11 +228,64 @@ export function useStreamRecovery({
                     console.log(
                       `🔄 Stream resumed from chunk ${resumedFromChunk}`
                     );
+                  } else if (data.type === "content") {
+                    // CRITICAL FIX: Handle streaming content updates during recovery
+                    // This is what was missing - we need to emit the content chunks
+                    // so the UI can update in real-time like normal streaming
+
+                    // The recovery streaming should trigger the same UI updates
+                    // as regular streaming. We need to dispatch a custom event
+                    // that the main useChat hook can listen to.
+                    console.log("📥 RECOVERY CONTENT CHUNK:", {
+                      content: data.content,
+                      messageId: data.messageId,
+                      streamId,
+                    });
+
+                    // Dispatch custom event for recovery streaming updates
+                    window.dispatchEvent(
+                      new CustomEvent("recovery-stream-update", {
+                        detail: {
+                          streamId,
+                          messageId: data.messageId || streamState.messageId,
+                          content: data.content,
+                          type: "content",
+                          isRecovery: true,
+                        },
+                      })
+                    );
                   } else if (data.type === "completed") {
                     resumeSuccessful = true;
                     console.log(`✅ Stream resume completed: ${data.streamId}`);
+
+                    // Dispatch completion event
+                    window.dispatchEvent(
+                      new CustomEvent("recovery-stream-update", {
+                        detail: {
+                          streamId,
+                          messageId: data.messageId || streamState.messageId,
+                          type: "completed",
+                          isRecovery: true,
+                          totalTokens: data.totalTokens,
+                        },
+                      })
+                    );
+
                     break;
                   } else if (data.type === "error") {
+                    // Dispatch error event
+                    window.dispatchEvent(
+                      new CustomEvent("recovery-stream-update", {
+                        detail: {
+                          streamId,
+                          messageId: streamState.messageId,
+                          type: "error",
+                          error: data.error || "Resume streaming error",
+                          isRecovery: true,
+                        },
+                      })
+                    );
+
                     throw new Error(data.error || "Resume streaming error");
                   }
                 } catch (parseError) {
@@ -263,12 +316,8 @@ export function useStreamRecovery({
 
           console.log(`✅ Stream resumed successfully: ${streamId}`);
 
-          // Force a page refresh to show the updated message
-          // This ensures the UI displays the completed message
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-
+          // UI updates are now handled in real-time through custom events
+          // No need to force refresh - the recovery streaming updates the UI live
           return true;
         } else {
           throw new Error("Resume stream did not complete successfully");

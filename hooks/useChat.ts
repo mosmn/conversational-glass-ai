@@ -109,6 +109,127 @@ export function useChat(conversationId: string): UseChatReturn {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentConversationIdRef = useRef<string | null>(null);
 
+  // CRITICAL FIX: Add recovery streaming support
+  // This was missing - we need to listen for recovery stream events
+  // and update the UI in real-time during recovery
+  useEffect(() => {
+    const handleRecoveryStreamUpdate = (event: CustomEvent) => {
+      const { messageId, content, type, isRecovery } = event.detail;
+
+      if (!isRecovery || !messageId) return;
+
+      console.log("🔄 RECOVERY UI UPDATE:", {
+        messageId,
+        content: content?.substring(0, 50) + "...",
+        type,
+        isRecovery,
+      });
+
+      if (type === "content") {
+        // Update the message content in real-time during recovery
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  content: msg.content + content, // Append new content
+                  metadata: {
+                    ...msg.metadata,
+                    streamingComplete: false,
+                    isRecovering: false,
+                    isResuming: true, // Show that it's actively resuming
+                  },
+                }
+              : msg
+          )
+        );
+
+        // Update current stream content for display
+        setCurrentStreamContent((prev) => prev + content);
+        setIsStreaming(true);
+
+        // CRITICAL FIX: Also trigger auto-scroll during recovery
+        // Force scroll to bottom to ensure user sees the streaming content
+        setTimeout(() => {
+          const viewport = document.querySelector(
+            "[data-radix-scroll-area-viewport]"
+          );
+          if (viewport) {
+            viewport.scrollTo({
+              top: viewport.scrollHeight,
+              behavior: "smooth",
+            });
+          }
+        }, 50);
+      } else if (type === "completed") {
+        // Mark recovery as complete
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    streamingComplete: true,
+                    isRecovering: false,
+                    isResuming: false,
+                    wasResumed: true, // Mark as successfully resumed
+                  },
+                }
+              : msg
+          )
+        );
+
+        // Clean up streaming state
+        setCurrentStreamContent("");
+        setIsStreaming(false);
+        setCurrentStreamId(null);
+        setStreamProgress(null);
+      } else if (type === "error") {
+        // Handle recovery error
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  content:
+                    msg.content +
+                    "\n\n[Recovery failed - message may be incomplete]",
+                  metadata: {
+                    ...msg.metadata,
+                    streamingComplete: true,
+                    isRecovering: false,
+                    isResuming: false,
+                    recoveryFailed: true,
+                    recoveryError: event.detail.error,
+                  },
+                }
+              : msg
+          )
+        );
+
+        // Clean up streaming state
+        setCurrentStreamContent("");
+        setIsStreaming(false);
+        setCurrentStreamId(null);
+        setStreamProgress(null);
+      }
+    };
+
+    // Listen for recovery stream updates
+    window.addEventListener(
+      "recovery-stream-update",
+      handleRecoveryStreamUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "recovery-stream-update",
+        handleRecoveryStreamUpdate as EventListener
+      );
+    };
+  }, []);
+
   // Streaming failure handler
   const { handleStreamingFailure, handleIncompleteMessage } =
     useStreamingFailureHandler({
