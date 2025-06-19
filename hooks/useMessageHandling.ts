@@ -374,9 +374,51 @@ Please synthesize the information from the search results to provide an accurate
     }
   };
 
+  const handleStopStream = (
+    isStreaming: boolean,
+    canPauseStream: boolean,
+    isSearching: boolean,
+    terminateStream: () => void,
+    setIsSearching: (searching: boolean) => void,
+    triggerDetection: () => void
+  ) => {
+    if (isStreaming && canPauseStream) {
+      // Use terminateStream to permanently stop without saving resumption state
+      terminateStream();
+      triggerDetection();
+
+      toast({
+        title: "🛑 Stream Terminated",
+        description:
+          "AI response generation has been permanently stopped and cannot be resumed.",
+        duration: 4000,
+      });
+    } else if (isSearching) {
+      setIsSearching(false);
+      toast({
+        title: "🔍 Search Cancelled",
+        description: "Web search has been cancelled",
+      });
+    } else if (isStreaming) {
+      terminateStream();
+      toast({
+        title: "🛑 Stream Terminated",
+        description: "Stream has been permanently stopped",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "No Active Stream",
+        description: "There's no active AI response to stop",
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     handleSendMessage,
     handleSendMessageWithSearch,
     handlePauseStream,
+    handleStopStream,
   };
 }

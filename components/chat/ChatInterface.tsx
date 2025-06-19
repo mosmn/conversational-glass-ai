@@ -316,6 +316,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     streamProgress,
     canPauseStream,
     pauseStream,
+    terminateStream,
     resumeStream,
     isRecovering,
   } = useChat(optimisticChatId || ""); // Use optimistic chat ID for smoother transitions
@@ -1207,13 +1208,13 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                 }
                 isSearching={chatState.isSearching}
                 isStreaming={isStreaming}
-                onPauseStream={() => {
+                onStopStream={() => {
                   if (optimisticChatId) {
-                    messageHandling.handlePauseStream(
+                    messageHandling.handleStopStream(
                       isStreaming,
                       canPauseStream,
                       chatState.isSearching,
-                      pauseStream,
+                      terminateStream,
                       chatState.setIsSearching,
                       triggerDetection
                     );

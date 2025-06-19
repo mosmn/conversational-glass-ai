@@ -36,7 +36,7 @@ interface ChatInputProps {
   onToggleSearch: () => void;
   isSearching: boolean;
   isStreaming: boolean;
-  onPauseStream: () => void;
+  onStopStream: () => void;
   conversationId: string;
   selectedModel: string;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -57,7 +57,7 @@ export function ChatInput({
   onToggleSearch,
   isSearching,
   isStreaming,
-  onPauseStream,
+  onStopStream,
   conversationId,
   selectedModel,
   textareaRef,
@@ -396,7 +396,7 @@ export function ChatInput({
                 <TooltipTrigger asChild>
                   <Button
                     size="sm"
-                    onClick={onPauseStream}
+                    onClick={onStopStream}
                     className="relative group h-8 w-8 sm:h-9 sm:w-9 p-0 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-lg shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-300 border border-red-500/30 overflow-hidden touch-manipulation shrink-0"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-red-400/0 via-red-400/30 to-red-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />

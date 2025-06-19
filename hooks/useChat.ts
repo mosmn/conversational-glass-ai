@@ -52,6 +52,7 @@ interface UseChatReturn {
   streamProgress: StreamProgress | null;
   canPauseStream: boolean;
   pauseStream: () => void;
+  terminateStream: () => void;
   resumeStream: (streamId: string) => Promise<boolean>;
 
   // Recovery state
@@ -104,6 +105,7 @@ export function useChat(conversationId: string): UseChatReturn {
   // Recovery state
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryAttempted, setRecoveryAttempted] = useState(false);
+  const [isTerminating, setIsTerminating] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -861,7 +863,14 @@ export function useChat(conversationId: string): UseChatReturn {
             streamError.name === "AbortError"
           ) {
             console.log("🛑 Stream aborted by user");
-            // Save paused stream state for potential resumption
+
+            // Check if this is a termination (not a pause)
+            if (isTerminating) {
+              console.log("🛑 Stream terminated - skipping pause logic");
+              return; // Exit gracefully, terminateStream already handled the state
+            }
+
+            // Save paused stream state for potential resumption (only for pause, not terminate)
             if (currentStreamId && assistantContent) {
               // Use real message ID if available, otherwise use temp ID
               const messageIdToUse =
@@ -888,7 +897,7 @@ export function useChat(conversationId: string): UseChatReturn {
               }
             }
 
-            // Update UI to show the stream was paused
+            // Update UI to show the stream was paused (only for pause, not terminate)
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === optimisticAssistantMessage.id
@@ -915,7 +924,15 @@ export function useChat(conversationId: string): UseChatReturn {
               "🛑 Stream controller closed (normal for aborted streams)"
             );
 
-            // Save paused stream state for potential resumption
+            // Check if this is a termination (not a pause)
+            if (isTerminating) {
+              console.log(
+                "🛑 Stream terminated - skipping pause logic for controller error"
+              );
+              return; // Exit gracefully, terminateStream already handled the state
+            }
+
+            // Save paused stream state for potential resumption (only for pause, not terminate)
             if (currentStreamId && assistantContent) {
               // Use real message ID if available, otherwise use temp ID
               const messageIdToUse =
@@ -942,7 +959,7 @@ export function useChat(conversationId: string): UseChatReturn {
               }
             }
 
-            // Update UI to show the stream was stopped (keep the partial content)
+            // Update UI to show the stream was stopped (keep the partial content) (only for pause, not terminate)
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === optimisticAssistantMessage.id
@@ -1070,6 +1087,83 @@ export function useChat(conversationId: string): UseChatReturn {
       console.log(`✅ Stream aborted successfully: ${currentStreamId}`);
     } else {
       console.log("⚠️ No active stream to abort", {
+        currentStreamId,
+        hasAbortController: !!abortControllerRef.current,
+      });
+    }
+  }, [currentStreamId, currentStreamContent]);
+
+  // Terminate stream completely without saving resumption state
+  const terminateStream = useCallback(() => {
+    if (currentStreamId && abortControllerRef.current) {
+      console.log(`🛑 Terminating stream permanently: ${currentStreamId}`);
+
+      // Set terminating flag to prevent AbortError handler from interfering
+      setIsTerminating(true);
+
+      // DON'T save the stream state - this is the key difference from pauseStream
+      // The stream will be permanently stopped and cannot be resumed
+
+      // Remove any existing stream state to prevent resumption
+      streamPersistence.removeStreamState(currentStreamId);
+
+      // Update the message to mark it as permanently terminated BEFORE aborting
+      // Use currentStreamId to find the specific message being streamed
+      setMessages((prev) =>
+        prev.map((msg) => {
+          // Only update the message that's currently being streamed
+          // This is safer than using metadata.streamingComplete === false
+          if (
+            msg.role === "assistant" &&
+            msg.metadata?.streamingComplete === false &&
+            currentStreamContent
+          ) {
+            return {
+              ...msg,
+              content: currentStreamContent,
+              metadata: {
+                ...msg.metadata,
+                streamingComplete: true,
+                terminated: true,
+                terminatedAt: Date.now(),
+              },
+            };
+          }
+          return msg;
+        })
+      );
+
+      // Remove any remaining temporary optimistic messages (duplicates)
+      setMessages((prev) =>
+        prev.filter(
+          (msg) =>
+            !msg.id.startsWith("temp-user-") &&
+            !msg.id.startsWith("temp-assistant-")
+        )
+      );
+
+      // Immediately update UI state
+      setIsStreaming(false);
+      setCurrentStreamContent("");
+      setCurrentStreamId(null);
+      setStreamProgress(null);
+
+      // Abort the stream AFTER updating the state
+      abortControllerRef.current.abort();
+
+      // Trigger a quick sync to fetch the latest messages from the server and ensure no duplicates
+      syncMessages().catch((err) => {
+        console.error("Sync after terminate failed:", err);
+      });
+
+      // Reset terminating flag after a short delay
+      setTimeout(() => {
+        setIsTerminating(false);
+      }, 100);
+
+      console.log(`✅ Stream terminated permanently: ${currentStreamId}`);
+    } else {
+      console.log("⚠️ No active stream to terminate", {
         currentStreamId,
         hasAbortController: !!abortControllerRef.current,
       });
@@ -1536,6 +1630,7 @@ export function useChat(conversationId: string): UseChatReturn {
     streamProgress,
     canPauseStream: isStreaming && currentStreamId !== null,
     pauseStream,
+    terminateStream,
     resumeStream,
 
     // Recovery state
