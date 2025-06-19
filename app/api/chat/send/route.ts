@@ -425,6 +425,21 @@ export async function POST(request: NextRequest) {
         );
         console.log("✨ Using enhanced file formatting");
 
+        // DEBUG: For Gemini specifically, log multimodal content structure
+        if (provider.name === "gemini" && Array.isArray(formattedContent)) {
+          console.log("🔮 Gemini multimodal content debug:");
+          formattedContent.forEach((item, index) => {
+            console.log(`  ${index}: Type=${item.type}`);
+            if (item.type === "image" && (item as any).image) {
+              console.log(
+                `    ✅ Image data present: ${(item as any).image.mimeType}, ${(
+                  item as any
+                ).image.data?.substring(0, 50)}...`
+              );
+            }
+          });
+        }
+
         chatMessages.push({
           role: msg.role as "system" | "user" | "assistant",
           content: formattedContent,

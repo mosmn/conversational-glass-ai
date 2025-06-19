@@ -321,39 +321,22 @@ export class FileProcessor {
     messageContent: MessageContent[],
     processedFiles: ProcessedFile[],
     model: AIModel
-  ): Array<{
-    parts: Array<{
-      text?: string;
-      inline_data?: {
-        mime_type: string;
-        data: string;
-      };
-      file_data?: {
-        mime_type: string;
-        file_uri: string;
-      };
-    }>;
-    role?: "user" | "model";
-  }> {
-    // Gemini uses a different format - we'll return the parts directly
-    const parts: any[] = [];
-
-    // Add text part
-    const textContent = messageContent.find(
-      (c) => c.type === "text"
-    ) as TextContent;
-    if (textContent) {
-      parts.push({ text: textContent.text });
-    }
-
-    // Add image parts
+  ): MessageContent[] {
+    // Add image content items for each image file
     for (const file of processedFiles) {
       if (file.category === "image" && file.geminiFormat) {
-        parts.push(file.geminiFormat);
+        // Add as proper ImageContent that the Gemini provider expects
+        messageContent.push({
+          type: "image",
+          image: {
+            data: file.geminiFormat.inlineData.data,
+            mimeType: file.geminiFormat.inlineData.mimeType,
+          },
+        } as ImageContent);
       }
     }
 
-    return parts;
+    return messageContent;
   }
 
   /**
