@@ -18,7 +18,7 @@ const DEFAULT_CONFIG: StreamStorageConfig = {
 
 // Performance and logging configuration
 const PERF_CONFIG = {
-  ENABLE_DEBUG_LOGS: false,
+  ENABLE_DEBUG_LOGS: false, // DISABLED - issue identified and fixed
   ENABLE_VERBOSE_CLEANUP_LOGS: false,
   CLEANUP_BATCH_SIZE: 100, // Larger batches for less frequent cleanup
   EMERGENCY_CLEANUP_DISABLED: true, // DISABLE emergency cleanup entirely
@@ -220,7 +220,10 @@ class StreamPersistence {
             stream.conversationId === conversationId &&
             stream.content && // Must have actual content
             stream.content.length > 0 && // Content cannot be empty
-            !stream.messageId?.startsWith("temp-") // CRITICAL: Don't recover temporary messages that haven't been persisted to DB
+            // FIXED: Allow recovery of temporary messages if they have substantial content (50+ chars)
+            // This handles cases where streams get interrupted before real message ID is received
+            (!stream.messageId?.startsWith("temp-") ||
+              stream.content.length >= 50)
         )
         .map((stream) => ({
           streamId: stream.streamId,
@@ -325,7 +328,10 @@ class StreamPersistence {
             if (
               data.savedAt < cutoffTime ||
               data.isComplete ||
-              data.messageId?.startsWith("temp-")
+              // FIXED: Only clean up temporary messages with minimal content (< 50 chars)
+              // Keep temporary messages with substantial content for recovery
+              (data.messageId?.startsWith("temp-") &&
+                (data.content?.length || 0) < 50)
             ) {
               localStorage.removeItem(key);
               this.removeFromStreamIndex(streamId);
@@ -382,7 +388,10 @@ class StreamPersistence {
           try {
             const data = JSON.parse(stored);
             // Remove streams for temporary messages that haven't been persisted
-            if (data.messageId?.startsWith("temp-")) {
+            if (
+              data.messageId?.startsWith("temp-") &&
+              (data.content?.length || 0) < 50
+            ) {
               localStorage.removeItem(key);
               this.removeFromStreamIndex(streamId);
               cleanedCount++;

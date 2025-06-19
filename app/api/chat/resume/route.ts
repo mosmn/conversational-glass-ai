@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     // Build the message history for the AI
     const chatMessages: AIMessage[] = [];
 
-    // Add conversation history
+    // Add conversation history UP TO but not including the message being resumed
     for (const msg of conversationHistory.messages) {
       if (msg.id === messageId) {
         // Stop before the message we're resuming
@@ -197,7 +197,64 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // CRITICAL FIX: Find and include the user message that prompted the response being resumed
+    let userPromptMessage = null;
+    for (let i = conversationHistory.messages.length - 1; i >= 0; i--) {
+      const msg = conversationHistory.messages[i];
+      if (msg.id === messageId) {
+        // Found the assistant message being resumed, look for the preceding user message
+        for (let j = i - 1; j >= 0; j--) {
+          if (conversationHistory.messages[j].role === "user") {
+            userPromptMessage = conversationHistory.messages[j];
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // If we found the user message that prompted this response, include it if not already included
+    if (userPromptMessage) {
+      const isAlreadyIncluded = chatMessages.some(
+        (msg) => msg.content === userPromptMessage.content
+      );
+      if (!isAlreadyIncluded) {
+        chatMessages.push({
+          role: "user",
+          content: userPromptMessage.content,
+        });
+      }
+    }
+
+    // CRITICAL FIX: Add the partial assistant response and a follow-up instruction
+    if (lastKnownContent && lastKnownContent.trim()) {
+      // Add the partial assistant response without any markers
+      chatMessages.push({
+        role: "assistant",
+        content: lastKnownContent,
+      });
+
+      // Add a clean user instruction for seamless continuation
+      chatMessages.push({
+        role: "user",
+        content:
+          "Continue your response from exactly where you left off. Do not add any ellipsis (...) or continuation markers. Just continue the thought seamlessly.",
+      });
+    }
+
     console.log(`📚 Using ${chatMessages.length} messages for context`);
+    console.log(`🎯 User prompt found:`, !!userPromptMessage);
+    console.log(`📝 Partial content length:`, lastKnownContent?.length || 0);
+    console.log(
+      `🔄 Context preview:`,
+      chatMessages.slice(-2).map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === "string"
+            ? m.content.substring(0, 100) + "..."
+            : "[Complex Content]",
+      }))
+    );
 
     // Generate a new stream ID for the resumed stream
     const newStreamId = generateStreamId(conversationId, messageId);
@@ -271,7 +328,7 @@ export async function POST(request: NextRequest) {
               resumeAttempted: true,
               originalStreamId: streamId,
               currentStreamId: newStreamId,
-            },
+            } as any,
           });
 
           console.log(`🔧 Restored message content before resumption`);
@@ -321,7 +378,7 @@ export async function POST(request: NextRequest) {
                   error: true,
                   resumeAttempted: true,
                   originalStreamId: streamId,
-                },
+                } as any,
               });
 
               // Mark stream as errored
@@ -381,7 +438,7 @@ export async function POST(request: NextRequest) {
                     resumeAttempted: true,
                     originalStreamId: streamId,
                     currentStreamId: newStreamId,
-                  },
+                  } as any,
                 });
               }
             }

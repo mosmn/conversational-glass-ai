@@ -63,9 +63,11 @@ const STREAMING_PERF_CONFIG = {
   // Much simpler and less frequent updates
   UI_UPDATE_THROTTLE_MS: 500, // Even less frequent UI updates
 
-  // Minimal persistence to reduce overhead
-  PERSISTENCE_FREQUENCY: 100, // Save every 100 chunks (very infrequent)
-  PERSISTENCE_MIN_INTERVAL: 10000, // Minimum 10 seconds between saves
+  // FIXED: Multiple persistence triggers to ensure all providers get saved
+  PERSISTENCE_FREQUENCY: 20, // REDUCED from 100 to 20 chunks for faster saves
+  PERSISTENCE_TIME_INTERVAL: 3000, // NEW: Save every 3 seconds regardless of chunks
+  PERSISTENCE_CONTENT_LENGTH: 500, // NEW: Save every 500 characters of content
+  PERSISTENCE_MIN_INTERVAL: 1000, // REDUCED from 10000 to 1000ms for more responsive saves
 
   // Disable most memory management to reduce complexity
   MAX_CONTENT_LENGTH: 500000, // Increase to 500KB (less truncation)
@@ -443,6 +445,10 @@ export function useChat(conversationId: string): UseChatReturn {
         // Simplified performance variables
         let lastUIUpdate = 0;
 
+        // FIXED: Multiple persistence tracking for all provider types
+        let lastPersistenceTime = Date.now();
+        let lastPersistedContentLength = 0;
+
         // SIMPLIFIED content update function - removed complex deduplication
         const updateStreamContent = (
           newContent: string,
@@ -506,13 +512,27 @@ export function useChat(conversationId: string): UseChatReturn {
                 timeToFirstToken = Date.now() - startTime;
               }
 
-              // SIMPLIFIED persistence - only save on completion or every 100 chunks
-              if (
+              // FIXED: Multiple persistence triggers for all provider types
+              const now = Date.now();
+              const timeSinceLastPersistence = now - lastPersistenceTime;
+              const contentLengthDelta =
+                assistantContent.length - lastPersistedContentLength;
+
+              const shouldPersist =
                 chunkIndex % STREAMING_PERF_CONFIG.PERSISTENCE_FREQUENCY ===
-                  0 ||
-                chunk.finished
+                  0 || // Every 20 chunks
+                timeSinceLastPersistence >=
+                  STREAMING_PERF_CONFIG.PERSISTENCE_TIME_INTERVAL || // Every 3 seconds
+                contentLengthDelta >=
+                  STREAMING_PERF_CONFIG.PERSISTENCE_CONTENT_LENGTH || // Every 500 characters
+                chunk.finished; // On completion
+
+              if (
+                shouldPersist &&
+                timeSinceLastPersistence >=
+                  STREAMING_PERF_CONFIG.PERSISTENCE_MIN_INTERVAL
               ) {
-                // Simple sync persistence - no setTimeout overhead
+                // Save stream state with multiple triggers
                 try {
                   const updatedStreamState: StreamState = {
                     ...initialStreamState,
@@ -522,13 +542,26 @@ export function useChat(conversationId: string): UseChatReturn {
                     content: assistantContent,
                     chunkIndex,
                     totalTokens: chunk.totalTokens || 0,
-                    lastUpdateTime: Date.now(),
+                    lastUpdateTime: now,
                     provider: chunk.provider || "unknown",
                   };
 
                   streamPersistence.saveStreamState(updatedStreamState);
+
+                  // Update tracking variables
+                  lastPersistenceTime = now;
+                  lastPersistedContentLength = assistantContent.length;
+
+                  if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
+                    console.log(
+                      `💾 Stream persisted: chunks=${chunkIndex}, content=${assistantContent.length}chars, time=${timeSinceLastPersistence}ms`
+                    );
+                  }
                 } catch (persistError) {
                   // Silently ignore persistence errors to prevent crashes
+                  if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
+                    console.warn("Persistence error:", persistError);
+                  }
                 }
               }
 
