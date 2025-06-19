@@ -23,6 +23,7 @@ import {
   ArrowRight,
   Clock,
   DollarSign,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEnabledModels } from "@/hooks/useEnabledModels";
@@ -33,6 +34,12 @@ import {
   getProviderColor,
   getProviderDisplayName,
 } from "@/lib/utils/provider-icons";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -72,6 +79,14 @@ const getModelCategory = (
 
   // Default to balanced
   return "balanced";
+};
+
+// Helper function to check if a model supports vision
+const hasVisionCapability = (model: Model): boolean => {
+  return !!(
+    model.capabilities.multiModal &&
+    model.capabilities.fileSupport?.images?.supported
+  );
 };
 
 const categoryInfo = {
@@ -248,9 +263,23 @@ export function ModelSelector({
               />
             </div>
             <div className="flex flex-col items-start min-w-0">
-              <span className="text-xs sm:text-sm font-medium truncate">
-                {currentModel.name}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-medium truncate">
+                  {currentModel.name}
+                </span>
+                {hasVisionCapability(currentModel) && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Eye className="h-3 w-3 text-blue-400" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Supports Vision</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               <div className="flex items-center space-x-1">
                 <span className="text-xs text-slate-400">
                   {getProviderDisplayName(currentModel.provider)}
@@ -353,6 +382,23 @@ export function ModelSelector({
                                 <Badge className="bg-emerald-600 text-white text-xs px-1 py-0">
                                   Active
                                 </Badge>
+                              )}
+                              {hasVisionCapability(model) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge className="bg-blue-600/80 text-white text-xs px-1.5 py-0.5 flex items-center gap-1">
+                                        <Eye className="h-2.5 w-2.5" />
+                                        Vision
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>
+                                        Supports image analysis and vision tasks
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
