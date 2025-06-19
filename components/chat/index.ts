@@ -24,6 +24,7 @@ export { FileProcessingStatus } from "./FileProcessingStatus";
 export { ModelCompatibilityAlert } from "./ModelCompatibilityAlert";
 export { MessageAttachments } from "./MessageAttachments";
 export { FilePreview } from "./FilePreview";
+export { MediaPickerModal } from "./MediaPickerModal";
 
 // Enhanced Search Components
 export { SearchResultsPreview } from "./SearchResultsPreview";

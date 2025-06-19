@@ -54,7 +54,7 @@ const sendMessageSchema = z.object({
         size: z.number(),
         type: z.string(),
         url: z.string(),
-        extractedText: z.string().optional(),
+        extractedText: z.string().nullable().optional(),
         thumbnailUrl: z.string().optional(),
         category: z.string().optional(),
         metadata: z
@@ -355,8 +355,14 @@ export async function POST(request: NextRequest) {
         fileSupport: aiModel.capabilities.fileSupport,
       });
 
+      // Clean up null extractedText values before processing
+      const cleanedAttachments = attachments.map((att) => ({
+        ...att,
+        extractedText: att.extractedText || undefined, // Convert null to undefined
+      }));
+
       const processingResult = await FileProcessor.processFilesForProvider(
-        attachments,
+        cleanedAttachments,
         aiModel,
         {
           convertToBase64:

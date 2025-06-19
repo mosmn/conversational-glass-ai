@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 import {
   Paperclip,
   Upload,
@@ -18,6 +19,7 @@ import {
   Download,
   Eye,
   AlertTriangle,
+  FolderOpen,
 } from "lucide-react";
 import {
   Tooltip,
@@ -25,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { FilePreview } from "./FilePreview";
+import { MediaPickerModal } from "./MediaPickerModal";
 import { cn } from "@/lib/utils";
 
 interface AttachedFile {
@@ -104,9 +107,11 @@ export function FileAttachment({
   maxSizePerFile = 10,
   allowedTypes = DEFAULT_ALLOWED_TYPES,
 }: FileAttachmentProps) {
+  const { toast } = useToast();
   const [isDragOver, setIsDragOver] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewFileIndex, setPreviewFileIndex] = useState(0);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use ref to track current attachments and avoid stale closure issues
@@ -346,6 +351,88 @@ export function FileAttachment({
     onAttachmentsChange(attachments.filter((att) => att.id !== id));
   };
 
+  const handleMediaLibrarySelect = (
+    selectedFiles: Array<{
+      id: string;
+      name: string;
+      size: number;
+      type: string;
+      url: string;
+      thumbnailUrl?: string;
+      extractedText?: string;
+      category?: "image" | "document" | "text" | "audio" | "video";
+      metadata?: {
+        width?: number;
+        height?: number;
+        pages?: number;
+        wordCount?: number;
+        hasImages?: boolean;
+      };
+    }>
+  ) => {
+    // Convert selected files to AttachedFile format
+    const newAttachments: AttachedFile[] = selectedFiles.map((file) => ({
+      id: `library-${file.id}-${Date.now()}`, // Unique ID for this attachment instance
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url: file.url,
+      status: "uploaded" as const,
+      uploadProgress: 100,
+      preview: file.thumbnailUrl,
+      extractedText: file.extractedText,
+      thumbnailUrl: file.thumbnailUrl,
+      category: file.category,
+      metadata: file.metadata,
+    }));
+
+    // Check for duplicates based on URL
+    const existingUrls = new Set(
+      attachments.map((att) => att.url).filter(Boolean)
+    );
+    const uniqueNewAttachments = newAttachments.filter(
+      (att) => !existingUrls.has(att.url)
+    );
+
+    if (uniqueNewAttachments.length === 0) {
+      toast({
+        title: "Files Already Attached",
+        description: "All selected files are already attached to this message.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (uniqueNewAttachments.length < newAttachments.length) {
+      toast({
+        title: "Some Files Skipped",
+        description: `${
+          newAttachments.length - uniqueNewAttachments.length
+        } file(s) were already attached.`,
+      });
+    }
+
+    // Add the unique files to attachments
+    const combinedAttachments = [...attachments, ...uniqueNewAttachments];
+
+    // Respect maxFiles limit
+    if (combinedAttachments.length > maxFiles) {
+      const trimmedAttachments = combinedAttachments.slice(0, maxFiles);
+      onAttachmentsChange(trimmedAttachments);
+      toast({
+        title: "File Limit Reached",
+        description: `Only ${maxFiles} files can be attached. Some files were not added.`,
+        variant: "destructive",
+      });
+    } else {
+      onAttachmentsChange(combinedAttachments);
+      toast({
+        title: "Files Added",
+        description: `${uniqueNewAttachments.length} file(s) added from your media library.`,
+      });
+    }
+  };
+
   const canAddMore = attachments.length < maxFiles;
 
   const getFileTypesList = () => {
@@ -438,6 +525,26 @@ export function FileAttachment({
                   </span>
                 </div>
               </div>
+
+              {/* Alternative upload options */}
+              <div className="flex items-center justify-center gap-3 mt-6 pt-4 border-t border-slate-700/30">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMediaPicker(true);
+                  }}
+                  className="bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50 hover:text-white hover:border-emerald-500/50 transition-all duration-200"
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Choose from Library
+                </Button>
+                <span className="text-xs text-slate-500">or</span>
+                <span className="text-xs text-slate-400">
+                  drag & drop new files
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -463,6 +570,19 @@ export function FileAttachment({
                 {attachments.length}
               </div>
             </h4>
+
+            {/* Add more from library button when space available */}
+            {canAddMore && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMediaPicker(true)}
+                className="bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50 hover:text-white hover:border-emerald-500/50 transition-all duration-200 text-xs"
+              >
+                <FolderOpen className="h-3 w-3 mr-1" />
+                Add More
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-3">
@@ -752,6 +872,16 @@ export function FileAttachment({
             metadata: a.metadata,
           }))}
         initialFileIndex={previewFileIndex}
+      />
+
+      {/* Media Picker Modal */}
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={handleMediaLibrarySelect}
+        maxFiles={maxFiles - attachments.length} // Only allow selecting remaining slots
+        allowedTypes={allowedTypes}
+        currentConversationId={conversationId}
       />
     </div>
   );
