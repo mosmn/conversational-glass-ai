@@ -1147,14 +1147,6 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                       />
                     ))}
 
-                    {/* Show typing indicator when streaming and no current message is being updated */}
-                    {isStreaming && messages.length > 0 && <TypingIndicator />}
-
-                    {/* Show typing skeleton when starting a new conversation */}
-                    {isStreaming && messages.length === 0 && (
-                      <TypingIndicatorSkeleton />
-                    )}
-
                     {/* Auto-scroll target */}
                     <div ref={messagesEndRef} className="h-1" />
                   </div>

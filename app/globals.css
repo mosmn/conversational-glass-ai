@@ -366,6 +366,16 @@ button:disabled {
     }
   }
 
+  /* Enhanced smooth shimmer animation for skeleton loading */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
   /* Hover effects */
   .hover-lift {
     transition: transform 0.2s ease, box-shadow 0.2s ease;

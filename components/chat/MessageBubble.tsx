@@ -395,7 +395,7 @@ export function MessageBubble({
                   ? "bg-red-600"
                   : isUser
                   ? "bg-emerald-600"
-                  : "bg-blue-600"
+                  : "bg-slate-700"
               } transition-colors duration-300`}
             >
               {isUser ? (
@@ -409,7 +409,7 @@ export function MessageBubble({
                   <User className="h-4 w-4" />
                 )
               ) : (
-                <ConversationalGlassLogoMini className="scale-50" />
+                <ConversationalGlassLogoMini className="scale-80" />
               )}
             </AvatarFallback>
           </Avatar>
