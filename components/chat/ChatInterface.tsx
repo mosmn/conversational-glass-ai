@@ -561,6 +561,11 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
             })
           );
 
+          console.log(
+            "🔍 DEBUG: Storing pending message with searchEnabled:",
+            searchEnabled
+          );
+
           // Navigate to the new chat
           router.push(`/chat/${newConversation.id}`);
 
@@ -615,13 +620,17 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           console.log(
             `🤖 Sending pending message to conversation ${optimisticChatId}`
           );
+          console.log(
+            "🔍 DEBUG: Pending message searchEnabled:",
+            searchEnabled
+          );
 
           // Send the message using normal flow
           messageHandling.handleSendMessage(
             content,
             attachments,
             searchEnabled,
-            () => {}, // setIsSearching - not needed for pending messages
+            chatState.setIsSearching,
             () => {} // resetInput - already cleared
           );
         } catch (error) {

@@ -220,6 +220,11 @@ Please synthesize the information from the search results to provide an accurate
   ) => {
     if ((!inputValue.trim() && attachments.length === 0) || !chatId) return;
 
+    console.log(
+      "🔍 DEBUG: handleSendMessage called with searchEnabled:",
+      searchEnabled
+    );
+
     const content = inputValue;
     const messageAttachments = attachments.filter(
       (a) => a.status === "uploaded"
@@ -238,6 +243,7 @@ Please synthesize the information from the search results to provide an accurate
       await yieldControl();
 
       if (searchEnabled) {
+        console.log("🔍 DEBUG: Web search enabled, performing search...");
         setIsSearching(true);
         const searchResult = await performWebSearch(content);
         enhancedContent = searchResult.enhancedContent;
@@ -245,6 +251,11 @@ Please synthesize the information from the search results to provide an accurate
         searchQuery = searchResult.searchQuery || content;
         queryOptimization = searchResult.queryOptimization;
         setIsSearching(false);
+        console.log("🔍 DEBUG: Search completed, results:", !!searchResults);
+      } else {
+        console.log(
+          "🔍 DEBUG: Web search disabled, sending message without search"
+        );
       }
 
       // Build optional search parameters only when we actually have results
