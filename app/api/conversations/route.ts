@@ -11,13 +11,7 @@ import { getAllModels, getDefaultModel } from "@/lib/ai/providers";
 const createConversationSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   model: z.string().min(1, "Model ID is required"),
-  // Support for creating conversation with initial message
-  initialMessage: z
-    .object({
-      content: z.string().min(1).max(10000),
-      attachments: z.array(z.any()).optional().default([]),
-    })
-    .optional(),
+  // Remove initialMessage - we'll handle messages separately
 });
 
 // Query parameters for listing conversations
@@ -45,8 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    const { title, model, initialMessage } =
-      createConversationSchema.parse(body);
+    const { title, model } = createConversationSchema.parse(body);
 
     // Validate that the model exists in available models
     const availableModels = await getAllModels();
@@ -87,7 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new conversation
+    // Create new conversation - just the conversation, no messages
     const [conversation] = await db
       .insert(conversations)
       .values({
@@ -95,7 +88,7 @@ export async function POST(request: NextRequest) {
         title: title || "New Chat",
         model: finalModel,
         metadata: {
-          totalMessages: initialMessage ? 1 : 0,
+          totalMessages: 0,
           lastModel: finalModel,
           tags: [],
           sentiment: null,
@@ -104,39 +97,18 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // If there's an initial message, create it immediately
-    if (initialMessage) {
-      await db.insert(messages).values({
-        conversationId: conversation.id,
-        userId: user.id,
-        role: "user",
-        content: initialMessage.content,
-        model: finalModel,
-        tokenCount: estimateTokens(initialMessage.content),
-        metadata: {
-          streamingComplete: true,
-          processingTime: 0,
-          regenerated: false,
-          attachments: initialMessage.attachments || [],
-        },
-      });
-
-      console.log(
-        `✅ Created conversation ${conversation.id} with initial message`
-      );
-    }
+    console.log(`✅ Created conversation ${conversation.id}`);
 
     const response = {
       conversation: {
         id: conversation.id,
         title: conversation.title,
         model: conversation.model,
-        totalMessages: initialMessage ? 1 : 0,
+        totalMessages: 0,
         lastModel: finalModel,
         createdAt: conversation.createdAt.toISOString(),
         updatedAt: conversation.updatedAt.toISOString(),
       },
-      hasInitialMessage: !!initialMessage,
     };
 
     if (warning) {

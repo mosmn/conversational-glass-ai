@@ -357,32 +357,9 @@ class APIClient {
     );
   }
 
-  async createConversation(data: {
-    title?: string;
-    model?: string;
-    initialMessage?: {
-      content: string;
-      attachments?: Array<{
-        id: string;
-        name: string;
-        size: number;
-        type: string;
-        url: string;
-        extractedText?: string;
-        thumbnailUrl?: string;
-        metadata?: {
-          width?: number;
-          height?: number;
-          pages?: number;
-          wordCount?: number;
-          hasImages?: boolean;
-        };
-      }>;
-    };
-  }): Promise<{
+  async createConversation(data: { title?: string; model?: string }): Promise<{
     conversation: Conversation;
     warning?: string;
-    hasInitialMessage?: boolean;
   }> {
     return this.fetchWithAuth("/conversations", {
       method: "POST",

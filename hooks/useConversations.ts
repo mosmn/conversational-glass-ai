@@ -10,10 +10,6 @@ interface UseConversationsReturn {
   createConversation: (data: {
     title?: string;
     model?: string;
-    initialMessage?: {
-      content: string;
-      attachments?: any[];
-    };
   }) => Promise<Conversation | null>;
   updateConversation: (
     conversationId: string,
@@ -76,14 +72,7 @@ export function useConversations(): UseConversationsReturn {
   );
 
   const createConversation = useCallback(
-    async (data: {
-      title?: string;
-      model?: string;
-      initialMessage?: {
-        content: string;
-        attachments?: any[];
-      };
-    }) => {
+    async (data: { title?: string; model?: string }) => {
       try {
         setError(null);
         const response = await apiClient.createConversation(data);

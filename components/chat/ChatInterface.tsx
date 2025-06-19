@@ -478,7 +478,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     // Set flag to indicate message is being sent
     setJustSentMessage(true);
 
-    // If no chatId, create a new conversation and send the message directly
+    // If no chatId, create a new conversation first, then redirect and send normally
     if (!optimisticChatId) {
       try {
         // Validate the selected model before creating conversation
@@ -534,76 +534,37 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           }
         }
 
-        // CRITICAL FIX: Create conversation without initialMessage, then send message normally
-        // This avoids the issue of creating duplicate user messages
+        // Simple: Create conversation without any message
         const newConversation = await createConversation({
           title: "New Chat",
           model: modelToUse,
-          // Don't include initialMessage - we'll send it manually
         });
 
         if (newConversation) {
-          console.log(`✅ Created conversation with model:`, {
-            conversationId: newConversation.id,
-            requestedModel: selectedModel,
-            actualModel: modelToUse,
-            conversationModel: newConversation.model,
-          });
+          console.log(
+            `✅ Created conversation ${newConversation.id} with model ${modelToUse}`
+          );
 
           // Update the selected model to match what was actually used
           if (modelToUse !== selectedModel) {
             setSelectedModel(modelToUse);
           }
 
-          // Optimistically update the chat ID for immediate UI response
-          setOptimisticChatId(newConversation.id);
+          // Store the message content temporarily so we can send it after redirect
+          sessionStorage.setItem(
+            "pendingMessage",
+            JSON.stringify({
+              content: inputValue,
+              attachments: attachments || [],
+              searchEnabled,
+              modelToUse,
+            })
+          );
 
-          // Navigate to the new chat using the unified route structure
+          // Navigate to the new chat
           router.push(`/chat/${newConversation.id}`);
 
-          // CRITICAL FIX: Now send the message normally using the chat send API
-          // This will create both user message and AI response
-          try {
-            console.log(
-              `🤖 Sending initial message to conversation ${newConversation.id} with model ${modelToUse}`
-            );
-
-            const sendResponse = await fetch("/api/chat/send", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                conversationId: newConversation.id,
-                content: inputValue,
-                model: modelToUse,
-                attachments: attachments || [],
-              }),
-            });
-
-            if (!sendResponse.ok) {
-              console.error(
-                "Failed to send initial message:",
-                await sendResponse.text()
-              );
-              toast({
-                title: "Warning",
-                description: "Message sent but AI response may have failed",
-                variant: "default",
-              });
-            } else {
-              console.log("✅ Successfully sent initial message to AI");
-            }
-          } catch (error) {
-            console.error("Error sending initial message:", error);
-            toast({
-              title: "Warning",
-              description: "Message sent but AI response may have failed",
-              variant: "default",
-            });
-          }
-
-          // Clear the input after everything is done
+          // Clear the input immediately
           resetInput();
           return;
         } else {
@@ -635,12 +596,35 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   };
 
-  // Clean up any old pending messages (no longer needed)
+  // Handle pending message after redirect to new chat
   useEffect(() => {
-    if (optimisticChatId) {
-      localStorage.removeItem("pendingMessage");
+    if (optimisticChatId && !messagesLoading) {
+      const pendingMessage = sessionStorage.getItem("pendingMessage");
+      if (pendingMessage) {
+        try {
+          const { content, attachments, searchEnabled, modelToUse } =
+            JSON.parse(pendingMessage);
+          sessionStorage.removeItem("pendingMessage");
+
+          console.log(
+            `🤖 Sending pending message to conversation ${optimisticChatId}`
+          );
+
+          // Send the message using normal flow
+          messageHandling.handleSendMessage(
+            content,
+            attachments,
+            searchEnabled,
+            () => {}, // setIsSearching - not needed for pending messages
+            () => {} // resetInput - already cleared
+          );
+        } catch (error) {
+          console.error("Error sending pending message:", error);
+          sessionStorage.removeItem("pendingMessage");
+        }
+      }
     }
-  }, [optimisticChatId]);
+  }, [optimisticChatId, messagesLoading, messageHandling]);
 
   // Stream recovery hook
   const {
