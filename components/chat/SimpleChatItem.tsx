@@ -222,10 +222,12 @@ export function SimpleChatItem({
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="bg-slate-800 border-slate-700 text-slate-100">
           <DialogHeader>
-            <DialogTitle>Delete Conversation</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-slate-100">
+              Delete Conversation
+            </DialogTitle>
+            <DialogDescription className="text-slate-300">
               Are you sure you want to delete &quot;{chat.title}&quot;? This
               action cannot be undone.
             </DialogDescription>
@@ -234,6 +236,7 @@ export function SimpleChatItem({
             <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-slate-100"
             >
               Cancel
             </Button>
