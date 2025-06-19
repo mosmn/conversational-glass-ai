@@ -73,6 +73,15 @@ const preferencesSchema = z
         customMappings: z.record(z.string()),
       })
       .optional(),
+    tts: z
+      .object({
+        defaultEnglishVoice: z.string(),
+        defaultArabicVoice: z.string(),
+        autoCleanup: z.boolean(),
+        enableTTS: z.boolean(),
+        testSampleText: z.string(),
+      })
+      .optional(),
   })
   .partial();
 

@@ -56,6 +56,13 @@ export interface UserPreferences {
     enabled: boolean;
     customMappings: Record<string, string>;
   };
+  tts: {
+    defaultEnglishVoice: string;
+    defaultArabicVoice: string;
+    autoCleanup: boolean;
+    enableTTS: boolean;
+    testSampleText: string;
+  };
 }
 
 // Default preferences
@@ -83,6 +90,14 @@ const defaultPreferences: UserPreferences = {
     plan: "free",
   },
   shortcuts: { enabled: true, customMappings: {} },
+  tts: {
+    defaultEnglishVoice: "Fritz-PlayAI",
+    defaultArabicVoice: "Ahmad-PlayAI",
+    autoCleanup: true,
+    enableTTS: true,
+    testSampleText:
+      "Hello! This is a test of the text-to-speech feature. How does it sound?",
+  },
 };
 
 // Context type

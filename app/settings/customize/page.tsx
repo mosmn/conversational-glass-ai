@@ -7,6 +7,7 @@ import { AIPersonalizationSection } from "@/components/settings/customize/AIPers
 import { VisualCustomizationSection } from "@/components/settings/customize/VisualCustomizationSection";
 import { FontCustomizationSection } from "@/components/settings/customize/FontCustomizationSection";
 import { KeyboardShortcutsSection } from "@/components/settings/customize/KeyboardShortcutsSection";
+import { TTSCustomizationSection } from "@/components/settings/customize/TTSCustomizationSection";
 
 export default function CustomizePage() {
   return (
@@ -39,6 +40,11 @@ export default function CustomizePage() {
       {/* Visual Customization Section */}
       <div className="mb-6 sm:mb-8">
         <VisualCustomizationSection />
+      </div>
+
+      {/* Text-to-Speech Section */}
+      <div className="mb-6 sm:mb-8">
+        <TTSCustomizationSection />
       </div>
 
       {/* Font & Shortcuts Grid */}
