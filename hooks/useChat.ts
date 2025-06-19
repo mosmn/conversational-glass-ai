@@ -60,20 +60,20 @@ interface UseChatReturn {
 
 // Streaming performance optimization constants
 const STREAMING_PERF_CONFIG = {
-  // Reduce UI update frequency to prevent excessive re-renders
-  UI_UPDATE_THROTTLE_MS: 200, // Reduced from 100ms - less frequent updates
+  // Much simpler and less frequent updates
+  UI_UPDATE_THROTTLE_MS: 500, // Even less frequent UI updates
 
-  // Significantly reduce persistence frequency to prevent storage spam
-  PERSISTENCE_FREQUENCY: 25, // Save every 25 chunks instead of 3 (much less frequent)
-  PERSISTENCE_MIN_INTERVAL: 3000, // Minimum 3 seconds between saves (up from 300ms)
+  // Minimal persistence to reduce overhead
+  PERSISTENCE_FREQUENCY: 100, // Save every 100 chunks (very infrequent)
+  PERSISTENCE_MIN_INTERVAL: 10000, // Minimum 10 seconds between saves
 
-  // Reduce memory management frequency
-  MAX_CONTENT_LENGTH: 100000, // Increased to 100KB (less frequent truncation)
-  MEMORY_CLEANUP_INTERVAL: 100, // Clean up every 100 chunks (up from 20)
+  // Disable most memory management to reduce complexity
+  MAX_CONTENT_LENGTH: 500000, // Increase to 500KB (less truncation)
+  MEMORY_CLEANUP_INTERVAL: 1000, // Much less frequent cleanup
 
-  // Disable performance logging in production
-  PERFORMANCE_LOG_INTERVAL: 500, // Much less frequent logging (up from 50)
-  ENABLE_DEBUG_LOGS: false, // Turn off debug logs for performance
+  // Disable all debug logging and performance monitoring
+  PERFORMANCE_LOG_INTERVAL: 10000, // Very infrequent
+  ENABLE_DEBUG_LOGS: false,
 };
 
 export function useChat(conversationId: string): UseChatReturn {
@@ -440,88 +440,16 @@ export function useChat(conversationId: string): UseChatReturn {
         const startTime = Date.now();
         let timeToFirstToken = 0;
 
-        // Performance optimization variables
+        // Simplified performance variables
         let lastUIUpdate = 0;
-        let lastPersistence = 0;
-        let lastMemoryCleanup = 0;
 
-        // Simplified content update function without excessive logging
+        // SIMPLIFIED content update function - removed complex deduplication
         const updateStreamContent = (
           newContent: string,
           forceUpdate: boolean = false
         ) => {
-          // Only log in debug mode to prevent console spam
-          if (
-            STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS &&
-            newContent.length > 0
-          ) {
-            console.log("🔍 Content update:", {
-              length: newContent.length,
-              chunkIndex,
-            });
-          }
-
-          // CRITICAL FIX: Detect and prevent content duplication
-          let contentToAdd = newContent;
-
-          if (assistantContent.length > 0 && newContent.length > 0) {
-            // Check if the new content starts with the end of existing content (overlap detection)
-            for (
-              let overlapLength = Math.min(
-                assistantContent.length,
-                newContent.length
-              );
-              overlapLength > 0;
-              overlapLength--
-            ) {
-              const existingEnd = assistantContent.slice(-overlapLength);
-              const newStart = newContent.slice(0, overlapLength);
-
-              if (existingEnd === newStart) {
-                // Found overlap - remove duplicated part from new content
-                contentToAdd = newContent.slice(overlapLength);
-                if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                  console.warn("🔧 Overlap fixed:", { overlapLength });
-                }
-                break;
-              }
-            }
-
-            // Additional check: if new content is completely contained in the last part of existing content
-            if (
-              contentToAdd === newContent &&
-              assistantContent.includes(newContent)
-            ) {
-              const lastOccurrence = assistantContent.lastIndexOf(newContent);
-              const isAtEnd =
-                lastOccurrence + newContent.length === assistantContent.length;
-
-              if (isAtEnd) {
-                // This content is already at the end - skip it completely
-                contentToAdd = "";
-                if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                  console.warn("🚫 Duplicate content skipped");
-                }
-              }
-            }
-          }
-
-          assistantContent += contentToAdd;
-
-          // Validate content integrity only in debug mode
-          if (
-            STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS &&
-            contentToAdd.length > 0
-          ) {
-            // Check for duplication patterns
-            const overlapCheck = assistantContent.slice(
-              -contentToAdd.length * 2,
-              -contentToAdd.length
-            );
-            if (overlapCheck === contentToAdd) {
-              console.error("🚨 Duplication detected after fix!");
-            }
-          }
+          // Simple append - let the server handle deduplication
+          assistantContent += newContent;
 
           // Throttled UI update to prevent excessive re-renders
           const now = Date.now();
@@ -531,13 +459,13 @@ export function useChat(conversationId: string): UseChatReturn {
           ) {
             lastUIUpdate = now;
 
-            // Memory safety: Truncate content if it gets too large
+            // Simple truncation if content gets too large
             const displayContent =
               assistantContent.length > STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
                 ? assistantContent.substring(
                     0,
                     STREAMING_PERF_CONFIG.MAX_CONTENT_LENGTH
-                  ) + "\n\n[Content truncated for performance...]"
+                  ) + "\n\n[Content truncated...]"
                 : assistantContent;
 
             setCurrentStreamContent(displayContent);
@@ -578,176 +506,37 @@ export function useChat(conversationId: string): UseChatReturn {
                 timeToFirstToken = Date.now() - startTime;
               }
 
-              // Optimized persistence - much less frequent to prevent performance issues
-              const now = Date.now();
+              // SIMPLIFIED persistence - only save on completion or every 100 chunks
               if (
                 chunkIndex % STREAMING_PERF_CONFIG.PERSISTENCE_FREQUENCY ===
-                  0 || // Much less frequent
-                chunk.finished ||
-                now - lastPersistence >=
-                  STREAMING_PERF_CONFIG.PERSISTENCE_MIN_INTERVAL
+                  0 ||
+                chunk.finished
               ) {
-                if (
-                  now - lastPersistence >=
-                  STREAMING_PERF_CONFIG.PERSISTENCE_MIN_INTERVAL
-                ) {
-                  lastPersistence = now;
-
-                  // Async persistence to avoid blocking the UI thread
-                  setTimeout(() => {
-                    try {
-                      const elapsedTime = Date.now() - startTime;
-                      const tokensPerSecond =
-                        chunk.totalTokens && elapsedTime > 0
-                          ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
-                          : 0;
-
-                      const updatedStreamState: StreamState = {
-                        ...initialStreamState,
-                        streamId, // Use current streamId (might have been updated)
-                        messageId:
-                          realAssistantMessageId ||
-                          initialStreamState.messageId, // Use real message ID if available
-                        content: assistantContent, // Use the actual accumulated content
-                        chunkIndex,
-                        totalTokens: chunk.totalTokens || 0,
-                        tokensPerSecond,
-                        timeToFirstToken,
-                        elapsedTime,
-                        lastUpdateTime: Date.now(),
-                        provider: chunk.provider || "unknown",
-                      };
-
-                      streamPersistence.saveStreamState(updatedStreamState);
-
-                      // Only log in debug mode to reduce console spam
-                      if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                        console.log(`💾 Stream saved: chunk ${chunkIndex}`);
-                      }
-                    } catch (persistError) {
-                      if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                        console.warn("Stream persistence error:", persistError);
-                      }
-                    }
-                  }, 0);
-                }
-              }
-
-              // Memory management: Clean up much less frequently
-              if (
-                chunkIndex % STREAMING_PERF_CONFIG.MEMORY_CLEANUP_INTERVAL ===
-                  0 &&
-                now - lastMemoryCleanup >= 5000 // Minimum 5 seconds between cleanup
-              ) {
-                lastMemoryCleanup = now;
-
-                // Cleanup old streams and force garbage collection hint
-                setTimeout(() => {
-                  try {
-                    streamPersistence.cleanupOldStreams();
-                    // Force garbage collection hint (if available)
-                    if (typeof global !== "undefined" && global.gc) {
-                      global.gc();
-                    }
-                  } catch (cleanupError) {
-                    if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                      console.warn("Memory cleanup error:", cleanupError);
-                    }
-                  }
-                }, 0);
-              }
-
-              // Performance logging - much less frequent and only in debug mode
-              if (
-                STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS &&
-                chunkIndex % STREAMING_PERF_CONFIG.PERFORMANCE_LOG_INTERVAL ===
-                  0
-              ) {
-                const memoryUsed = assistantContent.length * 2; // Approximate bytes
-                console.log(
-                  `🚀 Performance: ${chunkIndex} chunks, ${Math.round(
-                    memoryUsed / 1024
-                  )}KB`
-                );
-              }
-
-              // Update stream progress (throttled)
-              if (
-                now - lastUIUpdate >=
-                STREAMING_PERF_CONFIG.UI_UPDATE_THROTTLE_MS
-              ) {
-                const elapsedTime = Date.now() - startTime;
-                const tokensPerSecond =
-                  chunk.totalTokens && elapsedTime > 0
-                    ? Math.round((chunk.totalTokens / elapsedTime) * 1000)
-                    : 0;
-
-                setStreamProgress({
-                  phase: "streaming",
-                  chunksReceived: chunkIndex,
-                  tokensPerSecond,
-                  timeToFirstToken,
-                  elapsedTime,
-                  bytesReceived: assistantContent.length * 2,
-                  canPause: true,
-                  canResume: true,
-                  lastChunkTime: Date.now(),
-                });
-              }
-
-              // Store real message IDs when we get them
-              if (chunk.messageId) {
-                realAssistantMessageId = chunk.messageId;
-
-                // Update stream state when real message ID comes in
-                const oldStreamId = streamId;
-                const realStreamId = generateStreamId(
-                  conversationId,
-                  chunk.messageId
-                );
-
-                if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                  console.log(
-                    `🔄 Updating stream ID: ${oldStreamId} -> ${realStreamId}`
-                  );
-                }
-
-                // Get current stream state
-                const currentStreamState =
-                  streamPersistence.getStreamState(oldStreamId);
-                if (currentStreamState) {
-                  // Create new stream state with real message ID
+                // Simple sync persistence - no setTimeout overhead
+                try {
                   const updatedStreamState: StreamState = {
-                    ...currentStreamState,
-                    streamId: realStreamId,
-                    messageId: chunk.messageId,
+                    ...initialStreamState,
+                    streamId,
+                    messageId:
+                      realAssistantMessageId || initialStreamState.messageId,
                     content: assistantContent,
                     chunkIndex,
+                    totalTokens: chunk.totalTokens || 0,
                     lastUpdateTime: Date.now(),
+                    provider: chunk.provider || "unknown",
                   };
 
-                  // Save new stream state with real message ID
                   streamPersistence.saveStreamState(updatedStreamState);
-
-                  // Remove old stream state with temporary message ID
-                  streamPersistence.removeStreamState(oldStreamId);
-
-                  if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                    console.log(
-                      `💾 Stream state migrated from temporary to real message ID`
-                    );
-                  }
-                } else {
-                  if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                    console.warn(
-                      `⚠️ Could not find stream state for ${oldStreamId} to migrate`
-                    );
-                  }
+                } catch (persistError) {
+                  // Silently ignore persistence errors to prevent crashes
                 }
+              }
 
-                // Update current stream ID
-                streamId = realStreamId;
-                setCurrentStreamId(realStreamId);
+              // REMOVED complex memory management and performance logging
+
+              // SIMPLIFIED: Just store message IDs without complex migration
+              if (chunk.messageId) {
+                realAssistantMessageId = chunk.messageId;
               }
               if (chunk.userMessageId) {
                 realUserMessageId = chunk.userMessageId;
@@ -804,18 +593,11 @@ export function useChat(conversationId: string): UseChatReturn {
               // Force final UI update before completion
               updateStreamContent("", true);
 
-              // Mark stream as complete
+              // Mark stream as complete and clear current stream
               streamPersistence.markStreamComplete(streamId);
               setCurrentStreamId(null);
 
-              // Only do cleanup and logging in debug mode to prevent performance issues
-              if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-                // Light cleanup of completed streams (not aggressive)
-                setTimeout(() => streamPersistence.cleanupOldStreams(), 1000);
-                console.log("🧹 Stream completion cleanup scheduled");
-                // Only log all streams in debug mode
-                streamPersistence.debugLogAllStreams();
-              }
+              // SIMPLIFIED: No automatic cleanup on completion to improve performance
 
               setStreamProgress({
                 phase: "completing",
@@ -1182,64 +964,17 @@ export function useChat(conversationId: string): UseChatReturn {
     if (!conversationId || recoveryAttempted) return;
 
     try {
-      if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-        console.log("🔍 Checking for recoverable streams...");
-        // DEBUG: Log all streams before recovery detection
-        streamPersistence.debugLogAllStreams();
-      }
-
-      // Get all incomplete streams first for better debugging
-      const allIncompleteStreams = streamPersistence.getIncompleteStreams();
-      const conversationStreams = allIncompleteStreams.filter(
-        (stream) => stream.conversationId === conversationId
-      );
-
-      if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-        console.log(
-          `📊 Found ${conversationStreams.length} total incomplete streams for this conversation`
-        );
-
-        // Log temporary message streams separately for debugging
-        const tempMessageStreams = conversationStreams.filter((stream) =>
-          stream.messageId?.startsWith("temp-")
-        );
-
-        if (tempMessageStreams.length > 0) {
-          console.log(
-            `⚠️ Skipping ${tempMessageStreams.length} temporary message streams (not persisted to DB):`,
-            tempMessageStreams.map((s) => ({
-              streamId: s.streamId,
-              messageId: s.messageId,
-            }))
-          );
-        }
-      }
-
+      // Simple check for recoverable streams without extensive logging
       const recoverableStreams =
         streamPersistence.getRecoverableStreams(conversationId);
 
       if (recoverableStreams.length === 0) {
-        if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-          console.log(
-            "✅ No recoverable streams found (excluding temporary messages and completed streams)"
-          );
-        }
+        console.log("✅ No recoverable streams found");
         setRecoveryAttempted(true);
         return;
       }
 
-      if (STREAMING_PERF_CONFIG.ENABLE_DEBUG_LOGS) {
-        console.log(
-          `🔄 Found ${recoverableStreams.length} recoverable streams:`,
-          recoverableStreams.map((s) => ({
-            streamId: s.streamId,
-            messageId: s.streamId.split("-").slice(-2)[0], // Extract message ID from stream ID
-            contentLength: s.lastContent.length,
-            canRecover: s.canRecover,
-            interruptedAt: new Date(s.interruptedAt).toISOString(),
-          }))
-        );
-      }
+      console.log(`🔄 Found ${recoverableStreams.length} recoverable streams`);
 
       // Find the most recent recoverable stream
       const latestStream = recoverableStreams.sort(
@@ -1414,22 +1149,10 @@ export function useChat(conversationId: string): UseChatReturn {
                   // Mark stream as complete
                   streamPersistence.markStreamComplete(newStreamId);
 
-                  // CRITICAL: Also clean up the ORIGINAL stream state that was being recovered
+                  // Simple cleanup - just remove the original stream state
                   if (latestStream.streamId !== newStreamId) {
-                    console.log(
-                      `🧹 Cleaning up original stream state: ${latestStream.streamId}`
-                    );
                     streamPersistence.removeStreamState(latestStream.streamId);
                   }
-
-                  // CRITICAL: Force cleanup of completed streams immediately
-                  streamPersistence.cleanupOldStreams();
-                  console.log(
-                    "🧹 Immediate cleanup performed after recovery completion"
-                  );
-
-                  // DEBUG: Log all streams after completion
-                  streamPersistence.debugLogAllStreams();
 
                   // Update final message
                   setMessages((prev) =>
@@ -1599,11 +1322,10 @@ export function useChat(conversationId: string): UseChatReturn {
           setNextCursor(response.pagination.nextCursor);
           setLastSyncTime(response.sync.currentTimestamp);
 
-          // CRITICAL: Check for interrupted streams after loading messages
-          // Use setTimeout to ensure messages are rendered first
+          // Re-enable stream recovery but keep it simple and lightweight
           setTimeout(() => {
             checkAndResumeInterruptedStreams();
-          }, 500);
+          }, 1000); // Slightly longer delay to ensure messages are loaded first
         } catch (err) {
           const apiError = err as APIError;
           setError(apiError.error || "Failed to fetch messages");

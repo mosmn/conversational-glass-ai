@@ -9,20 +9,20 @@ import {
 
 // Default configuration
 const DEFAULT_CONFIG: StreamStorageConfig = {
-  maxStorageSize: 4 * 1024 * 1024, // 4MB (conservative limit)
-  maxStreamAge: 4 * 60 * 60 * 1000, // 4 hours (increased from 2h for stability)
-  cleanupInterval: 30 * 60 * 1000, // 30 minutes (much less frequent cleanup)
-  compressionEnabled: false, // Disable for now to keep simple
-  encryptionEnabled: false, // Disable for now to keep simple
+  maxStorageSize: 8 * 1024 * 1024, // 8MB (higher limit to avoid emergency cleanup)
+  maxStreamAge: 6 * 60 * 60 * 1000, // 6 hours (longer to reduce cleanup frequency)
+  cleanupInterval: 60 * 60 * 1000, // 1 hour (much less frequent cleanup)
+  compressionEnabled: false,
+  encryptionEnabled: false,
 };
 
 // Performance and logging configuration
 const PERF_CONFIG = {
-  ENABLE_DEBUG_LOGS: false, // Turn off debug logs for performance
-  ENABLE_VERBOSE_CLEANUP_LOGS: false, // Turn off verbose cleanup logging
-  CLEANUP_BATCH_SIZE: 50, // Process cleanup in smaller batches
-  EMERGENCY_CLEANUP_THROTTLE: 10000, // Minimum 10 seconds between emergency cleanups
-  EMERGENCY_CLEANUP_MAX_ATTEMPTS: 3, // Maximum emergency cleanup attempts per session
+  ENABLE_DEBUG_LOGS: false,
+  ENABLE_VERBOSE_CLEANUP_LOGS: false,
+  CLEANUP_BATCH_SIZE: 100, // Larger batches for less frequent cleanup
+  EMERGENCY_CLEANUP_DISABLED: true, // DISABLE emergency cleanup entirely
+  STORAGE_CHECK_DISABLED: true, // DISABLE storage quota checks
 };
 
 // Storage keys
@@ -595,41 +595,37 @@ class StreamPersistence {
    * Check storage quota and warn if approaching limits
    */
   private checkStorageQuota(newData: string): void {
+    // DISABLED for performance - let browser handle storage management
+    if (PERF_CONFIG.STORAGE_CHECK_DISABLED) {
+      return;
+    }
+
     try {
       if (typeof window === "undefined") return;
 
-      // Get current storage usage
+      // Simplified storage check - only log warning, no cleanup
       let totalUsage = 0;
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith("conversational-glass-ai:")) {
           const value = localStorage.getItem(key);
           if (value) {
-            totalUsage += value.length * 2; // UTF-16 bytes
+            totalUsage += value.length * 2;
           }
         }
       }
 
-      // Add size of new data
       totalUsage += newData.length * 2;
 
-      // Much higher threshold - only warn and do gentle cleanup
-      const WARNING_THRESHOLD = 8 * 1024 * 1024; // 8MB
-
-      if (totalUsage > WARNING_THRESHOLD) {
+      // Very high threshold - only warn, no cleanup
+      if (totalUsage > 15 * 1024 * 1024) {
+        // 15MB
         console.warn(
-          `⚠️ Storage warning: ${Math.round(
-            totalUsage / 1024 / 1024
-          )}MB - scheduling gentle cleanup`
+          `⚠️ Storage usage: ${Math.round(totalUsage / 1024 / 1024)}MB`
         );
-
-        // NEVER trigger emergency cleanup - only gentle cleanup
-        setTimeout(() => {
-          this.cleanupOldStreams();
-        }, 10000); // 10 seconds later
       }
     } catch (error) {
-      console.error("Failed to check storage quota:", error);
+      // Silently ignore storage check errors
     }
   }
 
@@ -640,19 +636,9 @@ class StreamPersistence {
     try {
       const now = Date.now();
 
-      // CRITICAL: Throttle emergency cleanup to prevent infinite loops
-      if (now - lastEmergencyCleanup < PERF_CONFIG.EMERGENCY_CLEANUP_THROTTLE) {
-        console.warn(
-          "⚠️ Emergency cleanup throttled - too soon since last cleanup"
-        );
-        return;
-      }
-
-      // CRITICAL: Limit number of emergency cleanup attempts
-      if (
-        emergencyCleanupAttempts >= PERF_CONFIG.EMERGENCY_CLEANUP_MAX_ATTEMPTS
-      ) {
-        console.warn("⚠️ Emergency cleanup disabled - max attempts reached");
+      // Emergency cleanup is now disabled to prevent performance issues
+      if (PERF_CONFIG.EMERGENCY_CLEANUP_DISABLED) {
+        console.warn("⚠️ Emergency cleanup is disabled for performance");
         return;
       }
 
