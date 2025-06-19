@@ -596,15 +596,21 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
   };
 
-  // Handle pending message after redirect to new chat
+  // Handle pending message after redirect to new chat (using ref to avoid dependency issues)
+  const pendingMessageHandled = useRef(false);
   useEffect(() => {
-    if (optimisticChatId && !messagesLoading) {
+    if (
+      optimisticChatId &&
+      !messagesLoading &&
+      !pendingMessageHandled.current
+    ) {
       const pendingMessage = sessionStorage.getItem("pendingMessage");
       if (pendingMessage) {
         try {
           const { content, attachments, searchEnabled, modelToUse } =
             JSON.parse(pendingMessage);
           sessionStorage.removeItem("pendingMessage");
+          pendingMessageHandled.current = true;
 
           console.log(
             `🤖 Sending pending message to conversation ${optimisticChatId}`
@@ -624,7 +630,12 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         }
       }
     }
-  }, [optimisticChatId, messagesLoading, messageHandling]);
+  }, [optimisticChatId, messagesLoading]);
+
+  // Reset pending message flag when chat changes
+  useEffect(() => {
+    pendingMessageHandled.current = false;
+  }, [optimisticChatId]);
 
   // Stream recovery hook
   const {
