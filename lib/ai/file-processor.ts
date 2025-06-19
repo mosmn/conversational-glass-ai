@@ -261,6 +261,9 @@ export class FileProcessor {
     switch (provider) {
       case "openai":
         return this.formatForOpenAI(messageContent, multimodalFiles, model);
+      case "openrouter":
+        // OpenRouter uses OpenAI-compatible API format
+        return this.formatForOpenAI(messageContent, multimodalFiles, model);
       case "groq":
         return this.formatForGroq(messageContent, multimodalFiles, model);
       case "gemini":

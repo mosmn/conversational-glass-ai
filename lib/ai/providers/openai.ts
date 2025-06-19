@@ -462,7 +462,10 @@ async function fetchOpenAIModels(
     for (const modelData of response.data) {
       // Only include chat models (skip embeddings, audio, etc.)
       if (
-        !modelData.id.includes("gpt-") ||
+        (!modelData.id.includes("gpt-") &&
+          !modelData.id.includes("o1") &&
+          !modelData.id.includes("o3") &&
+          !modelData.id.includes("o4")) ||
         modelData.id.includes("embedding") ||
         modelData.id.includes("whisper") ||
         modelData.id.includes("tts") ||
@@ -516,12 +519,14 @@ async function fetchOpenAIModels(
 
 // Generate model configuration based on model ID
 function generateOpenAIModelConfig(modelId: string): AIModel | null {
-  // GPT-4 variants
+  // GPT-4 variants (including 4.1, 4.5, etc.)
   if (modelId.includes("gpt-4")) {
     const isVision = modelId.includes("vision");
     const isO1 = modelId.includes("o1");
     const isTurbo = modelId.includes("turbo");
     const isOmni = modelId.includes("omni") || modelId.includes("4o");
+    const is41 = modelId.includes("4.1") || modelId.includes("4-1");
+    const is45 = modelId.includes("4.5") || modelId.includes("4-5");
 
     let contextWindow = 128000;
     let maxResponseTokens = 4096;
@@ -541,6 +546,22 @@ function generateOpenAIModelConfig(modelId: string): AIModel | null {
       pricing = { inputCostPer1kTokens: 0.0025, outputCostPer1kTokens: 0.01 };
     }
 
+    // GPT-4.1 models (multimodal by default)
+    if (is41) {
+      contextWindow = 200000; // GPT-4.1 has larger context
+      maxResponseTokens = 16384;
+      pricing = { inputCostPer1kTokens: 0.0025, outputCostPer1kTokens: 0.01 };
+    }
+
+    // Most modern GPT-4 variants support vision (except o1)
+    const supportsVision =
+      isVision ||
+      isOmni ||
+      is41 ||
+      is45 ||
+      modelId.includes("mini") ||
+      modelId.includes("nano");
+
     return {
       id: modelId,
       name: formatModelName(modelId),
@@ -551,26 +572,77 @@ function generateOpenAIModelConfig(modelId: string): AIModel | null {
       personality: isO1 ? "reasoning" : "analytical",
       description: isO1
         ? "Advanced reasoning and problem-solving capabilities"
-        : isVision
+        : supportsVision
         ? "GPT-4 with vision capabilities for image analysis"
         : "Most capable OpenAI model for complex tasks",
       visualConfig: {
         color: isO1
           ? "from-purple-600 to-indigo-600"
-          : isVision
+          : supportsVision
           ? "from-purple-500 to-blue-500"
           : isOmni
           ? "from-blue-600 to-cyan-600"
           : "from-blue-500 to-cyan-500",
-        avatar: isO1 ? "🧩" : isVision ? "👁️" : isOmni ? "🌐" : "🧠",
+        avatar: isO1 ? "🧩" : supportsVision ? "👁️" : isOmni ? "🌐" : "🧠",
         style: "geometric",
       },
       capabilities: {
         streaming: !isO1, // O1 models don't support streaming
         functionCalling: !isO1, // O1 models don't support function calling
-        multiModal: isVision || isOmni,
+        multiModal: supportsVision && !isO1, // O1 models don't support vision yet
         fileSupport:
-          isVision || isOmni ? VISION_FILE_SUPPORT : TEXT_ONLY_FILE_SUPPORT,
+          supportsVision && !isO1
+            ? VISION_FILE_SUPPORT
+            : TEXT_ONLY_FILE_SUPPORT,
+      },
+      pricing,
+    };
+  }
+
+  // O-series models (o1, o3, o4)
+  if (modelId.match(/^o[1-9]/)) {
+    const isO1 = modelId.includes("o1");
+    const isO3 = modelId.includes("o3");
+    const isO4 = modelId.includes("o4");
+    const isMini = modelId.includes("mini");
+
+    let contextWindow = 128000;
+    let maxResponseTokens = 32768;
+    let pricing = { inputCostPer1kTokens: 0.015, outputCostPer1kTokens: 0.06 };
+
+    // O4 models have vision (according to docs)
+    const supportsVision = isO4;
+
+    // O4-mini specific pricing
+    if (isO4 && isMini) {
+      pricing = { inputCostPer1kTokens: 0.0025, outputCostPer1kTokens: 0.01 };
+    }
+
+    return {
+      id: modelId,
+      name: formatModelName(modelId),
+      provider: "openai",
+      maxTokens: contextWindow,
+      maxResponseTokens,
+      contextWindow,
+      personality: "reasoning",
+      description: supportsVision
+        ? "Advanced reasoning with vision capabilities"
+        : "Advanced reasoning and problem-solving capabilities",
+      visualConfig: {
+        color: supportsVision
+          ? "from-purple-500 to-blue-500"
+          : "from-purple-600 to-indigo-600",
+        avatar: supportsVision ? "👁️" : "🧩",
+        style: "geometric",
+      },
+      capabilities: {
+        streaming: false, // O-series models don't support streaming currently
+        functionCalling: false, // O-series models don't support function calling currently
+        multiModal: supportsVision,
+        fileSupport: supportsVision
+          ? VISION_FILE_SUPPORT
+          : TEXT_ONLY_FILE_SUPPORT,
       },
       pricing,
     };

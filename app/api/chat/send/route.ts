@@ -440,6 +440,36 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        // DEBUG: For OpenAI specifically, log multimodal content structure
+        if (provider.name === "openai" && Array.isArray(formattedContent)) {
+          console.log("🤖 OpenAI multimodal content debug:");
+          formattedContent.forEach((item, index) => {
+            console.log(`  ${index}: Type=${item.type}`);
+            if (item.type === "image_url" && (item as any).image_url) {
+              console.log(
+                `    ✅ Image URL present: ${(
+                  item as any
+                ).image_url?.url?.substring(0, 50)}...`
+              );
+            }
+          });
+        }
+
+        // DEBUG: For OpenRouter specifically, log multimodal content structure
+        if (provider.name === "openrouter" && Array.isArray(formattedContent)) {
+          console.log("🌐 OpenRouter multimodal content debug:");
+          formattedContent.forEach((item, index) => {
+            console.log(`  ${index}: Type=${item.type}`);
+            if (item.type === "image_url" && (item as any).image_url) {
+              console.log(
+                `    ✅ Image URL present: ${(
+                  item as any
+                ).image_url?.url?.substring(0, 50)}...`
+              );
+            }
+          });
+        }
+
         chatMessages.push({
           role: msg.role as "system" | "user" | "assistant",
           content: formattedContent,
