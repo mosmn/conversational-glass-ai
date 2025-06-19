@@ -20,6 +20,7 @@ import {
   Eye,
   AlertTriangle,
   FolderOpen,
+  Settings,
 } from "lucide-react";
 import {
   Tooltip,
@@ -29,6 +30,7 @@ import {
 import { FilePreview } from "./FilePreview";
 import { MediaPickerModal } from "./MediaPickerModal";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface AttachedFile {
   id: string;
@@ -284,8 +286,8 @@ export function FileAttachment({
             status: "uploaded" as const,
             uploadProgress: 100,
             url: uploadedFile.url,
-            extractedText: uploadedFile.extractedText,
-            thumbnailUrl: uploadedFile.thumbnailUrl,
+            extractedText: uploadedFile.extractedText || undefined,
+            thumbnailUrl: uploadedFile.thumbnailUrl || undefined,
             category: uploadedFile.category,
             metadata: uploadedFile.metadata,
             preview: uploadedFile.thumbnailUrl || a.preview,
@@ -379,9 +381,9 @@ export function FileAttachment({
       url: file.url,
       status: "uploaded" as const,
       uploadProgress: 100,
-      preview: file.thumbnailUrl,
-      extractedText: file.extractedText,
-      thumbnailUrl: file.thumbnailUrl,
+      preview: file.thumbnailUrl || undefined,
+      extractedText: file.extractedText || undefined,
+      thumbnailUrl: file.thumbnailUrl || undefined,
       category: file.category,
       metadata: file.metadata,
     }));
@@ -540,7 +542,17 @@ export function FileAttachment({
                   <FolderOpen className="h-4 w-4 mr-2" />
                   Choose from Library
                 </Button>
-                <span className="text-xs text-slate-500">or</span>
+
+                <Link
+                  href="/settings/attachments"
+                  target="_blank"
+                  className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-emerald-400 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Settings className="h-4 w-4" /> Manage All
+                </Link>
+
+                <span className="text-xs text-slate-400">or</span>
                 <span className="text-xs text-slate-400">
                   drag & drop new files
                 </span>

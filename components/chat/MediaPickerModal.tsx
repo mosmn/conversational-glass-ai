@@ -37,6 +37,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface AttachedFile {
   id: string;
@@ -147,6 +148,7 @@ export function MediaPickerModal({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [filterCurrentChat, setFilterCurrentChat] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -171,8 +173,8 @@ export function MediaPickerModal({
         params.append("search", searchQuery.trim());
       }
 
-      // Show files from current conversation first
-      if (currentConversationId) {
+      // Apply conversation filter only if toggle is enabled and conversationId provided
+      if (filterCurrentChat && currentConversationId) {
         params.append("conversationId", currentConversationId);
       }
 
@@ -309,7 +311,14 @@ export function MediaPickerModal({
     if (isOpen) {
       fetchFileHistory();
     }
-  }, [currentPage, searchQuery, categoryFilter, sortBy, sortOrder]);
+  }, [
+    currentPage,
+    searchQuery,
+    categoryFilter,
+    sortBy,
+    sortOrder,
+    filterCurrentChat,
+  ]);
 
   // Debounce search
   useEffect(() => {
@@ -413,6 +422,27 @@ export function MediaPickerModal({
                     <List className="h-4 w-4" />
                   </Button>
                 </div>
+
+                {/* Filter by current chat toggle - only if conversationId is provided */}
+                {currentConversationId && (
+                  <div className="flex items-center gap-2 pl-2">
+                    <Switch
+                      checked={filterCurrentChat}
+                      onCheckedChange={(v: boolean) => {
+                        setFilterCurrentChat(v);
+                        setCurrentPage(1);
+                      }}
+                      id="filter-chat"
+                      className="data-[state=checked]:bg-emerald-600"
+                    />
+                    <label
+                      htmlFor="filter-chat"
+                      className="text-xs text-slate-400 select-none"
+                    >
+                      This chat only
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
