@@ -768,3 +768,24 @@ button:disabled {
     font-family: var(--font-code) !important;
   }
 }
+
+/* Fix for Radix ScrollArea causing chat items to overflow in sidebar */
+[data-radix-scroll-area-viewport] > div[style*="min-width: 100%"] {
+  min-width: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Additional targeting for nested table layout */
+.chat-list-container [data-radix-scroll-area-viewport] > div {
+  min-width: 0 !important;
+  display: block !important;
+  table-layout: auto !important;
+}
+
+/* Ensure chat items never overflow the sidebar */
+.chat-list-container .w-full {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}

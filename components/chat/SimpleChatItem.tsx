@@ -94,7 +94,7 @@ export function SimpleChatItem({
       <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
-        className={` w-[70%] group relative rounded-lg transition-all duration-200 cursor-pointer ${
+        className={`w-full group relative rounded-lg transition-all duration-200 cursor-pointer overflow-hidden ${
           isActive
             ? "bg-emerald-500/20 border border-emerald-500/30 shadow-md"
             : "hover:bg-slate-700/50 border border-transparent"
@@ -102,7 +102,7 @@ export function SimpleChatItem({
         onClick={handleClick}
       >
         {/* Main chat item content */}
-        <div className="p-3 space-y-2">
+        <div className="p-3 pr-14 space-y-2">
           {/* Header with branch indicator */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -152,25 +152,28 @@ export function SimpleChatItem({
           <div className="flex items-center justify-between text-xs text-slate-400">
             <div className="flex items-center gap-2">
               {chat.isShared && (
-                <Badge variant="outline" className="h-4 px-1 text-xs">
+                <Badge
+                  variant="secondary"
+                  className="h-4 px-1 text-xs bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30"
+                >
                   Shared
                 </Badge>
               )}
               {chat.hasChildren && (
                 <Badge
-                  variant="outline"
-                  className="h-4 px-1 text-xs text-orange-400 border-orange-500/30"
+                  variant="secondary"
+                  className="h-4 px-1 text-xs bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30"
                 >
                   Has branches
                 </Badge>
               )}
             </div>
-            <span>{formatDate(chat.updatedAt)}</span>
+            <span className="truncate ml-2">{formatDate(chat.updatedAt)}</span>
           </div>
         </div>
 
-        {/* Action buttons - only visible on hover */}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
+        {/* Action buttons - positioned to stay within sidebar bounds */}
+        <div className="absolute top-2 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-0.5">
           <TooltipProvider>
             {/* Pin button */}
             <Tooltip>
@@ -184,9 +187,9 @@ export function SimpleChatItem({
                   }}
                   className={`h-6 w-6 p-0 ${
                     isPinned
-                      ? "text-emerald-400 hover:text-emerald-300"
+                      ? "text-emerald-400 hover:text-emerald-300 bg-emerald-500/10"
                       : "text-slate-400 hover:text-slate-300"
-                  } hover:bg-slate-600/50`}
+                  } hover:bg-slate-600/50 rounded`}
                 >
                   <Pin className="h-3 w-3" />
                 </Button>
@@ -206,7 +209,7 @@ export function SimpleChatItem({
                     e.stopPropagation();
                     setShowDeleteDialog(true);
                   }}
-                  className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

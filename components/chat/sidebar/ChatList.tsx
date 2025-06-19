@@ -268,17 +268,17 @@ function ChatListComponent({
   ];
 
   return (
-    <div className="flex-1 min-h-0">
-      <ScrollArea className="h-full w-full">
+    <div className="flex-1 min-h-0 chat-list-container">
+      <ScrollArea className="h-full min-w-0 [&>div>div]:!min-w-0 [&>div>div]:!table-auto">
         <motion.div
-          className="space-y-4 w-full overflow-hidden px-2"
+          className="space-y-4 w-full pr-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
         >
           {/* Search Results Info */}
           {searchQuery && (
-            <div className="flex items-center justify-between text-sm text-slate-400 px-2 py-1 bg-slate-800/30 rounded-lg">
+            <div className="flex items-center justify-between text-sm text-slate-400 mx-2 py-1 bg-slate-800/30 rounded-lg px-2">
               <div className="flex items-center">
                 <Search className="h-3 w-3 mr-2" />
                 Results for "{searchQuery}"
@@ -300,7 +300,7 @@ function ChatListComponent({
                   <Pin className="h-3.5 w-3.5 mr-2 text-emerald-400" />
                   Pinned Conversations
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 px-2">
                   {pinnedChats.map((chat) => (
                     <SimpleChatItem
                       key={chat.id}
@@ -325,14 +325,14 @@ function ChatListComponent({
                   <Clock className="h-3.5 w-3.5 mr-2 text-blue-400" />
                   Loading...
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 px-2">
                   {[...Array(3)].map((_, i) => (
                     <motion.div
                       key={i}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.1 }}
-                      className="p-3 mx-2 rounded-lg bg-slate-700/30 animate-pulse backdrop-blur-sm"
+                      className="p-3 rounded-lg bg-slate-700/30 animate-pulse backdrop-blur-sm"
                     >
                       <div className="h-4 bg-slate-600/50 rounded mb-2"></div>
                       <div className="h-3 bg-slate-600/50 rounded w-3/4"></div>
@@ -344,7 +344,7 @@ function ChatListComponent({
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center py-8 px-4 rounded-lg bg-slate-800/30 backdrop-blur-sm"
+                className="text-center py-8 px-4 mx-2 rounded-lg bg-slate-800/30 backdrop-blur-sm"
               >
                 <AlertCircle className="h-8 w-8 text-slate-400 mx-auto mb-3" />
                 <div className="text-slate-300 font-medium mb-2">
@@ -380,7 +380,7 @@ function ChatListComponent({
                           ({chatsInGroup.length})
                         </span>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 px-2">
                         {chatsInGroup.map((chat, index) => (
                           <motion.div
                             key={chat.id}
