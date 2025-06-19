@@ -274,9 +274,17 @@ async function fetchGroqModels(
     const models: Record<string, AIModel> = {};
 
     for (const modelData of data.data) {
-      // Only include active chat models (skip audio/TTS models)
+      // Determine if the model is a preview vision model (Scout/Maverick)
+      const isPreviewVision =
+        modelData.id.includes("llama-4-scout") ||
+        modelData.id.includes("llama-4-maverick");
+
+      // Only include relevant chat models. Skip audio/TTS and very small context models.
+      // For MOST models we require `active === true`, BUT Groq marks early-preview
+      // vision models (Scout & Maverick) as `active: false`. We still want to surface
+      // them so that users who have access via their API key can try them.
       if (
-        !modelData.active ||
+        (!modelData.active && !isPreviewVision) || // allow inactive ONLY for preview vision models
         modelData.id.includes("whisper") ||
         modelData.id.includes("distil-whisper") ||
         modelData.id.includes("tts") ||
