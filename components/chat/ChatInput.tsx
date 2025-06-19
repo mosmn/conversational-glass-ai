@@ -27,7 +27,7 @@ interface ChatInputProps {
   inputValue: string;
   onInputChange: (value: string) => void;
   onSendMessage: () => void;
-  onKeyPress: (e: React.KeyboardEvent) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
   attachments: any[];
   onAttachmentsChange: (attachments: any[]) => void;
   showAttachments: boolean;
@@ -48,7 +48,7 @@ export function ChatInput({
   inputValue,
   onInputChange,
   onSendMessage,
-  onKeyPress,
+  onKeyDown,
   attachments,
   onAttachmentsChange,
   showAttachments,
@@ -248,8 +248,8 @@ export function ChatInput({
             ref={textareaRef}
             value={inputValue}
             onChange={(e) => onInputChange(e.target.value)}
-            onKeyPress={onKeyPress}
-            placeholder="Type your message... (⌘ + Enter to send)"
+            onKeyDown={onKeyDown}
+            placeholder="Type your message... (Enter ⏎ to send, Shift+Enter for newline)"
             className="relative resize-none overflow-y-auto hide-scrollbar bg-slate-700/30 border-slate-600/50 text-white placeholder-slate-500 focus:text-white rounded-xl sm:rounded-2xl backdrop-blur-sm focus:border-emerald-500/50 focus:bg-slate-700/50 transition-all duration-300 focus:shadow-lg focus:shadow-emerald-500/10 text-sm sm:text-base leading-relaxed p-3 sm:p-4 lg:p-5"
             style={{
               height: textareaHeight,

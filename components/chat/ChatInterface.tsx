@@ -1194,7 +1194,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
                     );
                   }
                 }}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyPress}
                 attachments={chatState.attachments}
                 onAttachmentsChange={chatState.setAttachments}
                 showAttachments={chatState.showAttachments}
