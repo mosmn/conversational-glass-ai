@@ -411,7 +411,15 @@ async function* createOpenRouterStreamingCompletion(
     );
   }
 
-  const openrouterMessages = formatMessagesForOpenRouter(messages);
+  // Prepare messages with system prompt and personalization
+  const { prepareMessagesWithSystemPrompt } = await import("../utils");
+  const preparedMessages = prepareMessagesWithSystemPrompt(
+    messages,
+    model,
+    options.personalization
+  );
+
+  const openrouterMessages = formatMessagesForOpenRouter(preparedMessages);
 
   const requestBody = {
     model: modelId,

@@ -388,6 +388,16 @@ function formatMessagesForGemini(
     }
   }
 
+  // Generate personalized system prompt if personalization is provided
+  if (personalization && !systemInstruction) {
+    const { generatePersonalizedSystemPrompt } = require("../utils");
+    const personalizedPrompt = generatePersonalizedSystemPrompt(
+      model,
+      personalization
+    );
+    systemInstruction = personalizedPrompt.content;
+  }
+
   return {
     contents,
     systemInstruction: systemInstruction
@@ -455,7 +465,8 @@ async function* createGeminiStreamingCompletion(
 
   const { contents, systemInstruction } = formatMessagesForGemini(
     messages,
-    dummyModel
+    dummyModel,
+    options.personalization
   );
 
   const requestBody = {
